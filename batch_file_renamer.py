@@ -16,27 +16,22 @@ TODO:
     [] Create a log of files renamed, time of completion, etc.
     [DONE] Loop script after finishing and ask to drop another file before just closing.
     [DONE] When replacing only one or more but not all matched strings start searching from the right/end of string.
+    [DONE] Preset options 
     [] Special search and edits. Examples: 
-        Find file names with a string then add another string at end.
-        Find file names with a string then rename entire file name and return/end.
+        Find file names with a string then add another string at end of the file name.
+        Find file names with a string then rename entire file name and stop/return/end.
         Find file names with a string then add another string specifically next to matched string.
         Make use of regular expressions.  This could get complex.
+        Add an iterated number to the end of the file names.
         
 '''
-
-### After initial drop and file renaming, ask for additional files or just quit the script.
-### If you just want the script to end/close after renaming all files initially dropped, make False.
-loop = True
-
 
 from pathlib import Path, PurePath
 import os
 #import re
 import sys
 
-
-print(sys.version)
-CUR_VERSION_STR = ".".join(map(str, sys.version_info[:3]))
+#CUR_VERSION_STR = ".".join(map(str, sys.version_info[:3]))
 MIN_VERSION = (3,8,0)
 MIN_VERSION_STR = '.'.join([str(n) for n in MIN_VERSION])
 START = 0
@@ -46,32 +41,68 @@ LEFT = 0
 RIGHT = 1
 ADD = 0
 REPLACE = 1
-ADD_TEXT = 0
-PLACEMENT = 1
-MATCH_TEXT = 2
-REPLACE_TEXT = 3
-RECURSIVE = 4
-SEARCH_FROM = 5
+EDIT_TYPE = 0
+ADD_TEXT = 1
+PLACEMENT = 2
+MATCH_TEXT = 3
+REPLACE_TEXT = 4
+RECURSIVE = 5
+SEARCH_FROM = 6
+SUB_DIRS = 7
 FILE_NAME = 0
 EDITS_MADE = 1
 ALL = 999
 NONE = -1
 
-print('\n==============================')
-print('Batch File Renamer by JDHatten')
-print('==============================\n')
-print('This script requires Python v%s or higher.' % MIN_VERSION_STR)
-print('Current Python v%s\n' % CUR_VERSION_STR)
-assert sys.version_info >= MIN_VERSION, f"Requires Python v{MIN_VERSION_STR} or Newer"
+
+### After initial drop and file renaming, ask for additional files or just quit the script.
+loop = True
+
+
+### Present Options - Used to skip questions and immediately start renaming all drop files.
+use_preset = False
+
+preset0 = {
+  EDIT_TYPE     : ADD,      # ADD or REPLACE
+  ADD_TEXT      : '-F',     # 'Text' to Add
+  PLACEMENT     : END,      # START, END, or BOTH
+  MATCH_TEXT    : '',       # 'Text' to Find
+  REPLACE_TEXT  : '',       # 'Text' to Replace with
+  RECURSIVE     : ALL,      # 1-999/ALL
+  SEARCH_FROM   : LEFT,     # LEFT or RIGHT
+  SUB_DIRS      : True      # True or False
+}
+preset1 = {
+  EDIT_TYPE     : REPLACE,
+  MATCH_TEXT    : '(Text)',
+  REPLACE_TEXT  : '[Text]',
+  RECURSIVE     : 1,
+  SEARCH_FROM   : RIGHT,
+  SUB_DIRS      : True
+}
+preset2 = {
+  EDIT_TYPE     : REPLACE,
+  MATCH_TEXT    : '123',
+  REPLACE_TEXT  : 'abc',
+  RECURSIVE     : ALL,
+  SEARCH_FROM   : LEFT,
+  SUB_DIRS      : False
+}
+preset3 = {
+  EDIT_TYPE     : ADD,
+  ADD_TEXT      : '_(F)',
+  PLACEMENT     : END,
+  SUB_DIRS      : True
+}
+preset_options = [preset0,preset1,preset2,preset3][1] # Pick which preset to use [#].
 
 
 ### Iterate over all files in a directory for the purpose of renaming each file that matches the edit conditions.
 ###     (some_dir) The full path to a directory. Str("path\to\file")
-###     (edit_type) Way in which to edit a file name, int(ADD) or int(REPLACE).
-###     (edit_details) All the dtials on how to proceed with the edits. List[ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
+###     (edit_details) All the dtials on how to proceed with the edits. List[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
 ###     (include_sub_dirs) Search sub-directories for more files.  bool(True) or bool(False)
 ###     --> Returns a [Integer] Number of files renamed.
-def renameAllFilesInDirectory(some_dir, edit_type, edit_details, include_sub_dirs = False):
+def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
     some_dir = some_dir.rstrip(os.path.sep)
     assert os.path.isdir(some_dir) # Error if not directory or doen't exist
     
@@ -88,10 +119,10 @@ def renameAllFilesInDirectory(some_dir, edit_type, edit_details, include_sub_dir
             file_path = Path(PurePath().joinpath(root,file))
             is_file_renamed = False
             
-            if edit_type == ADD:
+            if edit_details[EDIT_TYPE] == ADD:
                 is_file_renamed = addStringToFileName(file_path, edit_details[ADD_TEXT], edit_details[PLACEMENT])
             
-            elif edit_type == REPLACE:
+            elif edit_details[EDIT_TYPE] == REPLACE:
                 is_file_renamed = replaceStringInFileName(file_path, edit_details[MATCH_TEXT], edit_details[REPLACE_TEXT], edit_details[RECURSIVE], edit_details[SEARCH_FROM])
             
             if is_file_renamed:
@@ -296,45 +327,51 @@ def drop(files):
         droppedFile = files[0]
         print('Number of Files or Directories Dropped: [ %s ]' % len(files))
         
-        edit_type = NONE
-        while edit_type == NONE:
-            edit_type = input('Do you wish to add text or replace text in filename(s)? [ (A)DD / (R)EPLACE ]: ')
-            edit_type = strToIntConstant(edit_type, 'edit_type')
-        
-        edit_details = [ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
-        
-        if edit_type == ADD:
-            add_text = input('Text To Add: ')
+        if use_preset:
+            edit_details = preset_options
             
-            placement = NONE
-            while placement == NONE:
-                placement = input('Where To Place Text [ (S)TART / (E)ND / (B)OTH ]: ')
-                placement = strToIntConstant(placement, 'placement')
+        else:
+            edit_details = [EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
             
-            edit_details[ADD_TEXT] = add_text
-            edit_details[PLACEMENT] = placement
-        
-        elif edit_type == REPLACE:
-            match_text = input('Search File Name(s) For: ')
-            replace_text = input('And Replace With: ')
+            edit_type = NONE
+            while edit_type == NONE:
+                edit_type = input('Do you wish to add text or replace text in filename(s)? [ (A)DD / (R)EPLACE ]: ')
+                edit_type = strToIntConstant(edit_type, 'edit_type')
             
-            recursive = NONE
-            while recursive == NONE:
-                recursive = input('How many matches per file name are to be replaced? [ (A)LL / 1 / # ]: ') # All = 999
-                recursive = strNumberToInt(recursive)
+            edit_details[EDIT_TYPE] = edit_type
             
-            if recursive != ALL:
-                search_from = NONE
-                while search_from == NONE:
-                    search_from = input('Begin searching from "Left to Right" or from "Right to Left"? [ (L)EFT / (R)IGHT ]: ')
-                    search_from = strToIntConstant(search_from, 'search_from')
-            else:
-                search_from = LEFT
+            if edit_type == ADD:
+                add_text = input('Text To Add: ')
+                
+                placement = NONE
+                while placement == NONE:
+                    placement = input('Where To Place Text [ (S)TART / (E)ND / (B)OTH ]: ')
+                    placement = strToIntConstant(placement, 'placement')
+                
+                edit_details[ADD_TEXT] = add_text
+                edit_details[PLACEMENT] = placement
             
-            edit_details[MATCH_TEXT] = match_text
-            edit_details[REPLACE_TEXT] = replace_text
-            edit_details[RECURSIVE] = recursive
-            edit_details[SEARCH_FROM] = search_from
+            elif edit_type == REPLACE:
+                match_text = input('Search File Name(s) For: ')
+                replace_text = input('And Replace With: ')
+                
+                recursive = NONE
+                while recursive == NONE:
+                    recursive = input('How many matches per file name are to be replaced? [ (A)LL / 1 / # ]: ') # All = 999
+                    recursive = strNumberToInt(recursive)
+                
+                if recursive != ALL:
+                    search_from = NONE
+                    while search_from == NONE:
+                        search_from = input('Begin searching from "Left to Right" or from "Right to Left"? [ (L)EFT / (R)IGHT ]: ')
+                        search_from = strToIntConstant(search_from, 'search_from')
+                else:
+                    search_from = LEFT
+                
+                edit_details[MATCH_TEXT] = match_text
+                edit_details[REPLACE_TEXT] = replace_text
+                edit_details[RECURSIVE] = recursive
+                edit_details[SEARCH_FROM] = search_from
         
         # Iterate over all dropped files including all files in dropped directories
         include_sub_dirs = -1
@@ -342,21 +379,23 @@ def drop(files):
             
             if os.path.isdir(file_path):
                 
-                if include_sub_dirs == -1: # Only answer once
+                if include_sub_dirs == -1 and not use_preset: # Only answer once
                     include_sub_dirs = input('Search through sub-directories too? [ Y / N ]: ')
                     include_sub_dirs = yesTrue(include_sub_dirs)
-                    
-                files_renamed = renameAllFilesInDirectory(file_path, edit_type, edit_details, include_sub_dirs)
+                else:
+                    include_sub_dirs = preset_options[SUB_DIRS]
+                
+                files_renamed = renameAllFilesInDirectory(file_path, edit_details, include_sub_dirs)
             
             elif os.path.isfile(file_path):
                 print('\n')
                 is_file_renamed = False
+                print(edit_details[EDIT_TYPE])
+                if edit_details[EDIT_TYPE] == ADD:
+                    is_file_renamed = addStringToFileName(file_path, edit_details[ADD_TEXT], edit_details[PLACEMENT])
                 
-                if edit_type == ADD:
-                    is_file_renamed = addStringToFileName(file_path, add_text, placement)
-                
-                elif edit_type == REPLACE:
-                    is_file_renamed = replaceStringInFileName(file_path, match_text, replace_text, recursive, search_from)
+                elif edit_details[EDIT_TYPE] == REPLACE:
+                    is_file_renamed = replaceStringInFileName(file_path, edit_details[MATCH_TEXT], edit_details[REPLACE_TEXT], edit_details[RECURSIVE], edit_details[SEARCH_FROM])
                     
                 if is_file_renamed:
                     files_renamed+=1
@@ -378,6 +417,11 @@ def drop(files):
     
 ### Script Starts Here
 if __name__ == '__main__':
+    print(sys.version)
+    print('\n==============================')
+    print('Batch File Renamer by JDHatten')
+    print('==============================\n')
+    assert sys.version_info >= MIN_VERSION, f"This Script Requires Python v{MIN_VERSION_STR} or Newer"
     
     # Testing: Simulating File Drops
     #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
