@@ -58,7 +58,6 @@ NONE = -1
 ### After initial drop and file renaming, ask for additional files or just quit the script.
 loop = True
 
-
 ### Present Options - Used to skip questions and immediately start renaming all drop files.
 use_preset = False
 
@@ -138,7 +137,7 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
 ###     (some_file) The full path to file.
 ###     (string) The new string value to add to the filename.
 ###     (placement) Where the new string value will be placed, "START", "END", "BOTH".
-###     --> Returns a [Bool] True or False
+###     --> Returns a [Boolean] True or False
 def addStringToFileName(some_file, string, placement = END):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
@@ -167,7 +166,7 @@ def addStringToFileName(some_file, string, placement = END):
 ###     (replace) The string value to replace the matched string value with.
 ###     (recursive) Search for all (999 = all) or a specific number of matched values to replace.
 ###     (search_from) Begain searching from LEFT to right or from RIGHT to left of string.
-###     --> Returns a [Bool] True or False
+###     --> Returns a [Boolean] True or False
 def replaceStringInFileName(some_file, match, replace, recursive, search_from):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
@@ -248,9 +247,9 @@ def findReplace(string, match, replace, recursive = ALL, search_from = LEFT, out
     return (new_string, edit_count)
     
 
-### Change any "Yes or No" string into a "True or False" Bool
+### Change any "Yes or No" string into a "True or False" Boolean
 ###     (string) The string with variations of "yes or no" in them.
-###     --> Returns a [Bool] True or False
+###     --> Returns a [Boolean] True or False
 def yesTrue(string):
     string = string.lower()
     if string == 'y' or string == 'yes' or string == 'yea' or string == 'ye':
@@ -308,11 +307,11 @@ def drop(files):
     
     # If script is ran on it's own then ask for a file to rename.
     if len(files) == 0:
-        droppedFile = input('No files or directories found, drop one here now to proceed: ')
-        droppedFile = findReplace(droppedFile,'"','',ALL,LEFT,False)[0] # Remove the auto quotes
+        dropped_file = input('No files or directories found, drop one here now to proceed: ')
+        dropped_file = findReplace(dropped_file,'"','',ALL,LEFT,False)[0] # Remove the auto quotes
         
-        if os.path.exists(droppedFile):
-            files.append(droppedFile)
+        if os.path.exists(dropped_file):
+            files.append(dropped_file)
         else:
             print('\nNo Files or Directories Dropped')
             return 0
@@ -324,7 +323,7 @@ def drop(files):
     
     try:
         # Check if at least one file or directory was dropped
-        droppedFile = files[0]
+        dropped_file = files[0]
         print('Number of Files or Directories Dropped: [ %s ]' % len(files))
         
         if use_preset:
@@ -390,7 +389,7 @@ def drop(files):
             elif os.path.isfile(file_path):
                 print('\n')
                 is_file_renamed = False
-                print(edit_details[EDIT_TYPE])
+                
                 if edit_details[EDIT_TYPE] == ADD:
                     is_file_renamed = addStringToFileName(file_path, edit_details[ADD_TEXT], edit_details[PLACEMENT])
                 
@@ -409,11 +408,6 @@ def drop(files):
     
     return files_renamed
 
-### 
-###     () 
-###     --> Returns a [] 
-'''def ():
-    return 0'''
     
 ### Script Starts Here
 if __name__ == '__main__':
