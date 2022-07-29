@@ -32,7 +32,6 @@ from pathlib import Path, PurePath
 import os
 #import re
 import sys
-
 if sys.platform == "linux" or sys.platform == "linux2":
     print('Linux')
 elif sys.platform == "darwin":
@@ -82,9 +81,9 @@ SAME_NAME = 3
 ### Modify/Search Options
 MATCH_CASE = 0 # Defualt
 NO_MATCH_CASE = 1
-COUNT = 2 # NOTE: Count goes up by 1 after each file rename and resets after each drop or directory change.
-RANDOM = 3 ## TODO: Generate random numbers or text
-TEXT_LIST = 4 ## TODO: A List of Strings to search for or add to file names
+COUNT = 2 # Iterate a number that is added to a file name. (NOTE: Resets after each drop or directory change.)
+RANDOM = 3 ## TODO: Generate random numbers or text that is added to file names.
+TEXT_LIST = 4 ## TODO: A List of Strings to search for or add to file names.
 REGEX = 5 ## TODO
 
 
@@ -128,9 +127,9 @@ preset3 = {
   SUB_DIRS      : True
 }
 preset4 = {
-  EDIT_TYPE     : RENAME,
-  MATCH_TEXT    : (NO_MATCH_CASE, 'text'),
-  REPLACE_TEXT  : (COUNT, 'Text-[', 11, ']'),
+  EDIT_TYPE     : RENAME, ## TODO: only changes name, extention stays the same.  option to change extention too?
+  MATCH_TEXT    : (NO_MATCH_CASE, ''),
+  REPLACE_TEXT  : (COUNT, 'TextTextText-[', 10, ']', 12), ## TODO: Ending Count (s,e)?
   SUB_DIRS      : True
 }
 preset5 = {
@@ -140,19 +139,20 @@ preset5 = {
   SUB_DIRS      : True
 }
 preset6 = {
-  EDIT_TYPE     : REPLACE, ## TODO
-  MATCH_TEXT    : (MATCH_CASE, 'text'), ## TODO
-  REPLACE_TEXT  : (COUNT, '(', 0, ')'), ## TODO
-  RECURSIVE     : ALL,
-  SEARCH_FROM   : LEFT,
+  EDIT_TYPE     : REPLACE,
+  MATCH_TEXT    : (MATCH_CASE, 'tex'),
+  REPLACE_TEXT  : (COUNT, '(', 0, ')'),
+  RECURSIVE     : 4,
+  SEARCH_FROM   : RIGHT,
   SUB_DIRS      : False
 }
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6][4] # Pick which preset to use [#].
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6][6] # Pick which preset to use [#].
 
 
 ### Iterate over all files in a directory for the purpose of renaming each file that matches the edit conditions.
 ###     (some_dir) The full path to a directory. Str("path\to\file")
-###     (edit_details) All the dtials on how to proceed with the edits. List[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
+###     (edit_details) All the dtials on how to proceed with the file name edits. 
+###                    List[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
 ###     (include_sub_dirs) Search sub-directories for more files.  bool(True) or bool(False)
 ###     --> Returns a [Integer] Number of files renamed.
 def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
@@ -178,16 +178,16 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
                 is_file_renamed = addTextToFileName(file_path, edit_details[ADD_TEXT], edit_details[PLACEMENT])
             
             elif edit_details[EDIT_TYPE] == REPLACE:
-                is_file_renamed = replaceTextInFileName(file_path, edit_details[MATCH_TEXT], edit_details[REPLACE_TEXT], edit_details[RECURSIVE], edit_details[SEARCH_FROM])
+                files_renamed_data = replaceTextInFileName(file_path, edit_details, files_renamed_data)
             
             elif edit_details[EDIT_TYPE] == RENAME:
-                files_renamed_data = replaceEntireFileName(file_path, edit_details[MATCH_TEXT], edit_details[REPLACE_TEXT], files_renamed_data)
+                files_renamed_data = replaceEntireFileName(file_path, edit_details, files_renamed_data)
                 #print(files_renamed_data)
             
             if is_file_renamed:
                 files_renamed += 1
         
-        if edit_details[EDIT_TYPE] == RENAME:
+        if edit_details[EDIT_TYPE] == RENAME or edit_details[EDIT_TYPE] == REPLACE:
             files_renamed = files_renamed_data[FILES_RENAMED]
             files_renamed_data = (files_renamed_data[FILES_RENAMED], 0) # Only reset count
         
@@ -226,122 +226,170 @@ def addTextToFileName(some_file, text, placement = END):
 
 ### Find and Replace text in a filename.
 ###     (some_file) The full path to file.
-###     (match) The text to find in the filename.
-###     (replace) The text to replace the matched text with.
-###     (recursive) Search for all (999 = all) or a specific number of matched values to replace.
-###     (search_from) Begain searching from LEFT to right or from RIGHT to left of filename.
-###     --> Returns a [Boolean] True or False
-def replaceTextInFileName(some_file, match, replace, recursive, search_from):
+###     (edit_details) All the dtials on how to proceed with the file name edits. 
+###                    List[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
+###     (files_renamed_data) Number of files renamed so far and the current count (added to file name if COUNT used)
+###                          that should be looped back into function, and increased if file is renamed.
+###     --> Returns a [Tuple] files_renamed_data
+def replaceTextInFileName(some_file, edit_details, files_renamed_data = (0,0)):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
+    match = edit_details[MATCH_TEXT]
+    replace = edit_details[REPLACE_TEXT]
+    recursive = edit_details[RECURSIVE]
+    search_from = edit_details[SEARCH_FROM]
+    renamed_number = files_renamed_data[FILES_RENAMED]
+    renamed_count = files_renamed_data[FILE_NAME_COUNT]
     
-    match_data = prepareMatchData(match, file_path.name)
-    matched_text = match_data[0]
-    file_name = match_data[1]
+    match_replace_data = prepareMatchAndReplaceData(match, replace, file_path.name, renamed_count)
+    match_text = match_replace_data[0]
+    replace_text = match_replace_data[1]
+    searchable_file_name = match_replace_data[2]
+    renamed_count = match_replace_data[3]
+    #print(match_replace_data)
     
-    ## TODO: Handle replace being a tuple
-    if type(replace) == tuple and len(replace) == 4:
-        if replace[0] == COUNT:
-            
-            # Get Starting Count
-            if replace[2] > renamed_count:
-                renamed_count = replace[2]
-            
-            if matched_text == '' or file_name.find(matched_text) > -1:
-                new_file_name = replace[1] + str(renamed_count) + replace[3]
-                new_file_path = Path(file_path.parent, new_file_name+file_path.suffix)
-                
-                does_file_exist = checkIfFileExist(new_file_path, file_path)
+    file_data = findReplace(file_path.name, match_text, replace_text, recursive, search_from, searchable_file_name)
     
-    
-    
-    new_file_name = findReplace(file_path.name, match, replace, recursive, search_from)
-    
-    if new_file_name[EDITS_MADE] > 0:
-        new_file_path = file_path.rename(Path(file_path.parent, new_file_name[FILE_NAME]))
-        renamed = True
-        print('--File Renamed From: %s\\ [ %s ] to [ %s ]' % (new_file_path.parent, file_path.name, new_file_path.name))
-    else:
-        renamed = False
-        print('--File Not Renamed: %s' % (file_path))
-
-    return renamed
-
-
-### Prepare match data if special search options are included.
-###     (match) Unmodified match data 
-###     (file_name) Just the file name of a file.
-###     --> Returns a [Tuple] 
-def prepareMatchData(match, file_name):
-    if type(match) == tuple and len(match) == 2:
-        matched_text = match[1]
-        if match[0] == NO_MATCH_CASE:
-            matched_text = matched_text.lower()
-            file_name = file_name.lower()
+    if file_data[EDITS_MADE] > 0:
+        new_file_path = Path(file_path.parent, file_data[FILE_NAME])
         
-        #elif match[0] == REGEX: ## TODO
+        # Renaming File Now
+        files_renamed_data = renameFile(file_path, new_file_path, edit_details, (renamed_number, renamed_count))
+        renamed_number = files_renamed_data[FILES_RENAMED]
+        renamed_count = files_renamed_data[FILE_NAME_COUNT]
     
-    elif type(match) == tuple:
-        matched_text = match[0]
     else:
-        matched_text = match
+        print('--File Not Renamed: %s' % (file_path))
     
-    return (matched_text, file_name)
+    return (renamed_number, renamed_count)
 
 
 ### Change filename entirely and possibly add a unique identifier.
 ###     (some_file) The full path to a file.
-###     (match) Only files with matching text will be renamed. Empty '' means rename all.
-###     (replace) The text to replace the matched text with.
-###     (files_renamed_data) Number of files renamed so far and the current count (added to file name) 
+###     (edit_details) All the dtials on how to proceed with the file name edits. 
+###                    List[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
+###     (files_renamed_data) Number of files renamed so far and the current count (added to file name if COUNT used) 
 ###                          that should be looped back into function, and increased if file is renamed.
 ###     --> Returns a [Tuple] files_renamed_data
-def replaceEntireFileName(some_file, match, replace, files_renamed_data = (0,0)):
+def replaceEntireFileName(some_file, edit_details, files_renamed_data = (0,0)):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
+    match = edit_details[MATCH_TEXT]
+    replace = edit_details[REPLACE_TEXT]
     file_renamed = False
     renamed_number = files_renamed_data[FILES_RENAMED]
     renamed_count = files_renamed_data[FILE_NAME_COUNT]
     does_file_exist = TRY_AGAIN
     
-    match_data = prepareMatchData(match, file_path.name)
-    matched_text = match_data[0]
-    file_name = match_data[1]
+    match_replace_data = prepareMatchAndReplaceData(match, replace, file_path.name, renamed_count)
+    match_text = match_replace_data[0]
+    new_file_name = match_replace_data[1]
+    searchable_file_name = match_replace_data[2]
+    renamed_count = match_replace_data[3]
+    #print(match_replace_data)
     
-    if type(replace) == tuple and len(replace) == 4:
-        if replace[0] == COUNT:
+    if match_text == '' or searchable_file_name.find(match_text) > -1:
+        new_file_path = Path(file_path.parent, new_file_name+file_path.suffix)
+        file_renamed = True
+    '''else:
+        ## TODO: Handle a single file name change? nah
+        if match_text == '' or searchable_file_name.find(match_text) > -1:
+            new_file_path = Path(file_path.parent, replace)'''
+    
+    # Renaming File Now
+    if file_renamed:
+        files_renamed_data = renameFile(file_path, new_file_path, edit_details, (renamed_number, renamed_count))
+        renamed_number = files_renamed_data[FILES_RENAMED]
+        renamed_count = files_renamed_data[FILE_NAME_COUNT]
+    else:
+        print('--File Not Renamed: %s' % (file_path))
+    
+    return (renamed_number, renamed_count)
+
+
+### Prepare match and replace data using any special modify/search options.
+###     (match_data) Unmodified match data
+###     (replace_data) Unmodified replace data
+###     (file_name) Unmodified file name
+###     (renamed_count) Iterate count here
+###     --> Returns a [Tuple] (match_text, replace_text, searchable_file_name, renamed_count)
+def prepareMatchAndReplaceData(match_data, replace_data, file_name, renamed_count = 0):
+    
+    if type(match_data) == tuple and len(match_data) == 2:
+        match_text = match_data[1]
+        if match_data[0] == NO_MATCH_CASE:
+            match_text = match_text.casefold()
+            searchable_file_name = file_name.casefold()
+        
+        #elif match_data[0] == REGEX: ## TODO
+        
+        else: # Defualt MATCH_CASE
+            searchable_file_name = file_name
+    
+    elif type(match_data) == tuple:
+        match_text = match_data[0]
+        searchable_file_name = file_name
+    else:
+        match_text = match_data
+        searchable_file_name = file_name
+    
+    if type(replace_data) == tuple and len(replace_data) >= 3:
+        if replace_data[0] == COUNT:
             
             # Get Starting Count
-            if replace[2] > renamed_count:
-                renamed_count = replace[2]
+            if replace_data[2] > renamed_count:
+                renamed_count = replace_data[2]
             
-            if matched_text == '' or file_name.find(matched_text) > -1:
-                new_file_name = replace[1] + str(renamed_count) + replace[3]
-                new_file_path = Path(file_path.parent, new_file_name+file_path.suffix)
-                
-                does_file_exist = checkIfFileExist(new_file_path, file_path)
-            
-            if does_file_exist == CANCEL: # Will throw error, but will stop any further renaming.
-                print('Canceling any further renaming and closing...')
-                new_file_path = file_path.rename(new_file_path) # Error
-            
-            if does_file_exist == NO: # Actually renaming file
-                new_file_path = file_path.rename(new_file_path)
-                file_renamed = True
-                renamed_number += 1
-            
-            if does_file_exist == CONTINUE: # Skip this count (+1) and try again (recursively)
-                file_renamed = False
-                files_renamed_data = replaceEntireFileName(file_path, match, replace, (renamed_number, renamed_count + 1))
-                renamed_number = files_renamed_data[FILES_RENAMED]
-                renamed_count = files_renamed_data[FILE_NAME_COUNT]
-                does_file_exist = NO
-                
-            if does_file_exist == SAME_NAME: # Basically skip, but don't add to renamed files. Count will still increase.
-                file_renamed = True
+            replace_text = replace_data[1] + str(renamed_count) + replace_data[3] if len(replace_data) > 3 else ''
     
-    #else:
-        ## TODO: Handle a single file name change?
+    elif type(replace_data) == tuple:
+         replace_text = replace_data[0]
+    else:
+         replace_text = replace_data
+    
+    return (match_text, replace_text, searchable_file_name, renamed_count)
+
+
+### TODO: Test This Out
+###     (file_path) The full path to file.
+###     (new_file_path) The full path to file.
+###     (edit_details) All the dtials on how to proceed with the file name edits. 
+###                    List[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
+###     (files_renamed_data) Number of files renamed so far and the current count (added to file name if COUNT used)
+###                          that should be looped back into function, and increased if file is renamed.
+###     --> Returns a [Tuple] files_renamed_data
+def renameFile(file_path, new_file_path, edit_details, files_renamed_data):
+    renamed_number = files_renamed_data[FILES_RENAMED]
+    renamed_count = files_renamed_data[FILE_NAME_COUNT]
+    
+    does_file_exist = checkIfFileExist(new_file_path, file_path)
+    
+    if does_file_exist == CANCEL: # Will throw error, but will stop any further renaming.
+        print('Canceling any further renaming and closing...')
+        new_file_path = file_path.rename(new_file_path) # Error
+    
+    elif does_file_exist == NO: # Actually renaming file
+        new_file_path = file_path.rename(new_file_path)
+        file_renamed = True
+        renamed_number += 1
+    
+    elif does_file_exist == CONTINUE: # Skip this count (+1) and try again (recursively)
+        file_renamed = False
+        
+        if edit_details[EDIT_TYPE] == ADD:
+            print('TODO ADD')
+        elif edit_details[EDIT_TYPE] == REPLACE:
+            files_renamed_data = replaceTextInFileName(file_path, edit_details, (renamed_number, renamed_count + 1))
+        elif edit_details[EDIT_TYPE] == RENAME:
+            files_renamed_data = replaceEntireFileName(file_path, edit_details, (renamed_number, renamed_count + 1))
+        
+        renamed_number = files_renamed_data[FILES_RENAMED]
+        renamed_count = files_renamed_data[FILE_NAME_COUNT]
+        
+        does_file_exist = NO
+        
+    elif does_file_exist == SAME_NAME: # Basically skip, but don't add to renamed files. Count will still increase.
+        file_renamed = True
     
     if file_renamed:
         if does_file_exist == CONTINUE:
@@ -362,7 +410,7 @@ def replaceEntireFileName(some_file, match, replace, files_renamed_data = (0,0))
 ### Check if a file alredy exists and if it does, ask user how to proceed.
 ###     (file_path) The full path to a file.
 ###     (org_file_path) The full path the file before it's rename to check if it's the same name.
-###     --> Returns a [Integer] Constant 
+###     --> Returns a [Integer] Constant
 def checkIfFileExist(file_path, org_file_path = None):
     does_file_exist = TRY_AGAIN
     
@@ -387,6 +435,52 @@ def checkIfFileExist(file_path, org_file_path = None):
     return does_file_exist
 
 
+### "Find and Replace" text within a file name.
+###     (file_name) The file name or String to search through.
+###     (match_text) The text to find in the String.
+###     (replace_text) The text to replace the matched text with.
+###     (recursive) Search for all (all = 999) or a specific number of matched text.
+###     (search_from) Begain searching from LEFT to right or from RIGHT to left of String.
+###     (output_prints) Turn print outputs on or off.
+###     (edit_count) *Do not use*
+###     --> Returns a [Tuple] (String, Integer)
+def findReplace(file_name, match_text, replace_text, recursive = ALL, search_from = LEFT, searchable_file_name = '', output_prints = False, edit_count=0):
+    
+    searchable_file_name = file_name if searchable_file_name == '' else searchable_file_name
+    
+    if searchable_file_name.find(match_text) == -1:
+        new_file_name = file_name
+    else:
+        index_matches = []
+        index_match = 0
+        start = 0
+        end = -1
+        while index_match > -1:
+            index_match = searchable_file_name.rfind(match_text, start, end) # Reverse Find
+            end = index_match
+            index_matches.append(index_match)
+        index_matches.pop(-1)
+        
+        ingnore = len(index_matches) - recursive 
+        ingnore = 0 if ingnore < 0 else ingnore
+        while ingnore > 0:
+            if search_from == LEFT:
+                index_matches.pop(0)
+            elif search_from == RIGHT:
+                index_matches.pop(-1)
+            ingnore -= 1
+        
+        match_size = len(match_text)
+        new_file_name = file_name
+        for index in index_matches:
+            new_file_name = new_file_name[:index] + replace_text + new_file_name[index + match_size:]
+            edit_count += 1
+            
+        if output_prints: print('Edits Made: [ %s ]' % (edit_count))
+    
+    return (new_file_name, edit_count)
+
+
 ### "Find and Replace" text within a String.
 ###     (string) The String to search through.
 ###     (match) The text to find in the String.
@@ -396,7 +490,7 @@ def checkIfFileExist(file_path, org_file_path = None):
 ###     (output_prints) Turn print outputs on or off.
 ###     (edit_count) *Do not use*
 ###     --> Returns a [Tuple] (String, Integer)
-def findReplace(string, match, replace, recursive = ALL, search_from = LEFT, output_prints = True, edit_count=0):
+def findReplaceOld(string, match, replace, recursive = ALL, search_from = LEFT, output_prints = True, edit_count=0):
     if string.find(match) == -1:
         new_string = string
     else:
@@ -454,7 +548,7 @@ def findReplace(string, match, replace, recursive = ALL, search_from = LEFT, out
 ###     (user_input) The String with variations of "yes or no" text in them.
 ###     --> Returns a [Boolean] True or False
 def yesTrue(user_input):
-    user_input = user_input.lower()
+    user_input = user_input.casefold()
     if user_input == 'y' or user_input == 'yes' or user_input == 'yea' or user_input == 'ye':
         response = True
     else:
@@ -467,7 +561,7 @@ def yesTrue(user_input):
 ###     (category) The category of the question ask.
 ###     --> Returns a [Integer]
 def strToIntConstant(user_input, category):
-    user_input = str(user_input).lower()
+    user_input = str(user_input).casefold()
     number = NONE
     if category == 'edit_type':
         if user_input == 'a' or user_input == 'add':
@@ -500,7 +594,7 @@ def strToIntConstant(user_input, category):
 ###     (string) The String to change into an Integer.
 ###     --> Returns a [Integer]
 def strNumberToInt(string_num):
-    string_num = string_num.lower()
+    string_num = string_num.casefold()
     if string_num == 'a' or string_num == 'all':
         number = ALL
     elif string_num.isnumeric():
@@ -518,7 +612,7 @@ def drop(files):
     # If script is ran on it's own then ask for a file to rename.
     if len(files) == 0:
         dropped_file = input('No files or directories found, drop one here now to proceed: ')
-        dropped_file = findReplace(dropped_file,'"','',ALL,LEFT,False)[0] # Remove the auto quotes
+        dropped_file = dropped_file.replace('"','') # Remove the auto quotes.
         
         if os.path.exists(dropped_file):
             files.append(dropped_file)
@@ -605,11 +699,10 @@ def drop(files):
                     is_file_renamed = addTextToFileName(file_path, edit_details[ADD_TEXT], edit_details[PLACEMENT])
                 
                 elif edit_details[EDIT_TYPE] == REPLACE:
-                    is_file_renamed = replaceTextInFileName(file_path, edit_details[MATCH_TEXT], edit_details[REPLACE_TEXT], edit_details[RECURSIVE], edit_details[SEARCH_FROM])
+                    files_renamed_data = replaceTextInFileName(file_path, edit_details, files_renamed_data)
                 
                 elif edit_details[EDIT_TYPE] == RENAME:
-                    files_renamed_data = replaceEntireFileName(file_path, edit_details[MATCH_TEXT], edit_details[REPLACE_TEXT], files_renamed_data)
-                    print(files_renamed_data)
+                    files_renamed_data = replaceEntireFileName(file_path, edit_details, files_renamed_data)
                 
                 if is_file_renamed:
                     files_renamed += 1
@@ -618,7 +711,7 @@ def drop(files):
                 print( os.path.isfile(file_path) )
                 print("\nThis is not a normal file of directory (socket, FIFO, device file, etc.) and so this script won't be renameing it." )
                 
-        if edit_details[EDIT_TYPE] == RENAME:
+        if edit_details[EDIT_TYPE] == RENAME or edit_details[EDIT_TYPE] == REPLACE:
             files_renamed += files_renamed_data[FILES_RENAMED]
         
     except IndexError:
@@ -650,8 +743,7 @@ if __name__ == '__main__':
         prev_files_renamed = 0
         while newFile != '':
             newFile = input('\nDrop another file or directory here to go again or press enter to quit: ')
-            #newFile = newFile.replace('"','')
-            newFile = findReplace(newFile,'"','',ALL,LEFT,False)[0] # Remove the auto quotes around file paths with spaces.
+            newFile = newFile.replace('"','') # Remove the auto quotes around file paths with spaces.
             files_renamed += drop([newFile])
             if files_renamed > prev_files_renamed:
                 print('\nNumber of all files renamed so far: [ %s ]' % (files_renamed))
