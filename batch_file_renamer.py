@@ -21,7 +21,7 @@ TODO:
     [DONE] Better handling of overwriting files
     [] Special search and edits. Examples: 
         [X] Find file names with a string then add another string at end of the file name.
-        [] Find file names with a string then rename entire file name and stop/return/end.
+        [X] Find file names with a string then rename entire file name and stop/return/end.
         [X] Find file names with a string then add another string specifically next to matched string.
         [X] Add an iterated number to file names.
         [X] Find specific file names extentions and only change (or add) the extention
@@ -100,7 +100,7 @@ NO_CHANGE = 4
 MATCH_CASE = 0  # Defualt
 NO_MATCH_CASE = 1
 COUNT = 2       # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional. (NOTE: Resets after each file drop or directory change.)
-COUNT_TO = 3    ## TODO: Max amount of renames to make before stopping.  Similer to COUNT without adding an iterating number to file name.
+COUNT_TO = 3    # Max amount of renames to make before stopping.  Similer to COUNT without adding an iterating number to file name.
 RANDOM = 4      ## TODO: Generate random numbers or text that is added to file names.
 TEXT_LIST = 5   ## TODO: A List of Strings to search for or add to file names.
 REGEX = 6       ## TODO:
@@ -115,7 +115,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 4
+select_preset = 10
 
 preset0 = {
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
@@ -152,7 +152,7 @@ preset3 = {
 preset4 = {
   EDIT_TYPE     : RENAME,
   MATCH_TEXT    : (NO_MATCH_CASE, ''),
-  REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,4), ']'), ## TODO: multiple options used? List[(option1), (option2)] or whould regex handle that?
+  REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,3), ']'), ## TODO: multiple options used? List[(option1), (option2)] or whould regex handle that?
   SUB_DIRS      : True
 }
 preset5 = {
@@ -193,8 +193,145 @@ preset9 = {
   SEARCH_FROM   : RIGHT,
   SUB_DIRS      : False
 }
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9]
+preset10 = {
+  EDIT_TYPE     : ADD,
+  PLACEMENT     : (END, OF_MATCH),
+  MATCH_TEXT    : (NO_MATCH_CASE, 'text'),
+  ADD_TEXT      : (COUNT_TO, 3, 'XXX'),
+  RECURSIVE     : 1,
+  SEARCH_FROM   : RIGHT,
+  SUB_DIRS      : False
+}
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10]
 preset = preset_options[select_preset]
+
+
+### Display one or all file rename preset options.
+###     (preset) A Dictonary with a file rename preset.
+###     (number) Preset selection.
+###     --> Returns a [0] 
+def displayPreset(presets, number = -1):
+    if number == -1:
+        for ps in presets:
+            number += 1
+            print('\nPreset %s' % str(number))
+            for option, mod in ps.items():
+                opt_str = intToStrText(option, 'Preset Options')
+                mod_str = ''
+                i = 0
+                if type(mod) == tuple:
+                    for item in mod:
+                        mod_str += intToStrText(item, option, i) + '  '
+                        i += 1
+                else:
+                    mod_str = intToStrText(mod, option)
+                print('    %s : %s' % (opt_str, mod_str))
+            #print('}')
+    else:
+        print('\nPreset %s' % str(number))
+        for option, mod in presets[number].items():
+            opt_str = intToStrText(option, 'Preset Options')
+            mod_str = ''
+            i = 0
+            if type(mod) == tuple:
+                for item in mod:
+                    mod_str += intToStrText(item, option, i) + '  '
+                    i += 1
+            else:
+                mod_str = intToStrText(mod, option)
+            print('    %s : %s' % (opt_str, mod_str))
+        #print('}')
+    return 0
+
+
+### 
+###     () 
+###     --> Returns a [] 
+def intToStrText(number, option = None, lvl = -1):
+    if type(number) == int:
+        text = str(number)
+        
+        if lvl > -1:
+            if option == PLACEMENT and lvl == 0:
+                if number == START:
+                    text = 'Start'
+                elif number == END:
+                    text = 'End'
+                elif number == BOTH_ENDS:
+                    text = 'Both Ends'
+                elif number == EXTENTION:
+                    text = 'Extention'
+            elif option == PLACEMENT and lvl == 1:
+                if number == OF_FILE_NAME:
+                    text = 'Of File Name'
+                elif number == OF_MATCH:
+                    text = 'Of Match'
+            
+            if option == ADD_TEXT or option == MATCH_TEXT or option == REPLACE_TEXT:
+                if lvl == 0:
+                    if number == MATCH_CASE:
+                        text = 'Match Case'
+                    elif number == NO_MATCH_CASE:
+                        text = "Don't Match Case"
+                    elif number == COUNT:
+                        text = 'Add A Counter At'
+                    elif number == COUNT_TO:
+                        text = 'Max Files To Rename'
+                    elif number == RANDOM:
+                        text = 'Add Random Numbers/Text'
+                    elif number == TEXT_LIST:
+                        text = 'List Of Text Strings'
+                    elif number == REGEX:
+                        text = 'Regular Expressions'
+        
+        elif option == EDIT_TYPE:
+            if number == ADD:
+                text = 'Add'
+            elif number == REPLACE:
+                text = 'Replace'
+            elif number == RENAME:
+                text = 'Rename'
+        
+        elif option == PLACEMENT:
+            if number == START:
+                text = 'Start'
+            elif number == END:
+                text = 'End'
+            elif number == BOTH:
+                text = 'Both'
+            elif number == EXTENTION:
+                text = 'Extention'
+        
+        elif option == SEARCH_FROM:
+            if number == LEFT:
+                text = 'Left'
+            elif number == RIGHT:
+                text = 'Right'
+        
+        elif option == 'Preset Options':
+            if number == EDIT_TYPE:
+                text = 'Edit Type              '
+            elif number == ADD_TEXT:
+                text = 'Add Text               '
+            elif number == PLACEMENT:
+                text = 'Placement              '
+            elif number == MATCH_TEXT:
+                text = 'Match Text             '
+            elif number == REPLACE_TEXT:
+                text = 'Replace Text           '
+            elif number == RECURSIVE:
+                text = 'Edits Per Rename       '
+            elif number == SEARCH_FROM:
+                text = 'Start Search From The  '
+            elif number == SUB_DIRS:
+                text = 'Include Sub Directories'
+    
+    elif type(number) == bool:
+        text = str(number)
+    else:
+        text = f'"{str(number)}"'
+    
+    return text
 
 
 ### Iterate over all files in a directory for the purpose of renaming each file that matches the edit conditions.
@@ -357,6 +494,10 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
             
             insert_text = modify_data[1] + str(renamed_count) + modify_data[3] if len(modify_data) > 3 else ''
         
+        if modify_data[0] == COUNT_TO and len(modify_data) >= 3:
+            renamed_count_max = modify_data[1] - 1
+            insert_text = modify_data[2]
+        
         elif match_data[0] == RANDOM: ## TODO
             print('TODO RANDOM')
         
@@ -378,9 +519,6 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
          insert_text = modify_data[0]
     else:
          insert_text = modify_data
-    
-    '''if type(placement) == tuple:
-        placement = placement[0]'''
     
     if placement == EXTENTION or type(placement) == tuple and placement[0] == EXTENTION:
         
@@ -675,7 +813,9 @@ def drop(files):
         
         if use_preset:
             edit_details = preset
-            
+            print('Using...')
+            displayPreset(preset_options, select_preset)
+            input('Continue...')
         else:
             edit_details = [EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
             
@@ -738,15 +878,6 @@ def drop(files):
                 is_file_renamed = False
                 
                 files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
-                
-                '''if edit_details[EDIT_TYPE] == ADD:
-                    files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
-                
-                elif edit_details[EDIT_TYPE] == REPLACE:
-                    files_renamed_data = replaceTextInFileName(file_path, edit_details, files_renamed_data)
-                
-                elif edit_details[EDIT_TYPE] == RENAME:
-                    files_renamed_data = replaceEntireFileName(file_path, edit_details, files_renamed_data)'''
             
             else:
                 print( os.path.isfile(file_path) )
