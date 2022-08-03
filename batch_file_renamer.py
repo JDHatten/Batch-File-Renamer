@@ -118,7 +118,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 4
+select_preset = 10
 
 preset0 = {
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
