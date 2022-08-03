@@ -4,11 +4,12 @@
 '''
 Batch File Renamer by JDHatten
     This script will rename one or more files either by adding new text or replacing text in the file names.
-    Adding text can be placed at the start, end, or both sides of a file name the minus extension.
+    Adding text can be placed at the start, end, or both sides of a matched text or the entire file name.
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
+    Renameing will just rename the entire file, but an iterating number or some other modify option must be used.
 
 Usage:
-    Simply drag and drop one or more files or directories onto the script.
+    Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex renaming methods.
     Script can be opened directly but only one file or directory may be dropped/added at once.
 
 TODO:
@@ -17,14 +18,15 @@ TODO:
     [DONE] Loop script after finishing and ask to drop another file before just closing.
     [DONE] When replacing only one or more but not all matched strings start searching from the right/end of string.
     [DONE] Preset options
-    [] Display preset options and allow user to chose from cmd promt
+    [DONE] Display preset options and allow user to chose from cmd promt
     [DONE] Better handling of overwriting files
+    [] Sort files in a particular way before renameing
     [] Special search and edits. Examples: 
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
         [X] Find file names with a string then add another string specifically next to matched string.
         [X] Add an iterated number to file names.
-        [X] Find specific file names extentions and only change (or add) the extention
+        [X] Find specific file names extentions and only change (or add to) the extention
         [] Make use of regular expressions.  This could get complex.
 '''
 
@@ -82,6 +84,7 @@ EDITS_MADE = 1
 FILES_RENAMED = 0
 FILE_NAME_COUNT = 1
 FILE_NAME_COUNT_MAX = 2
+SKIPPED_FILES = 3
 
 ALL = 999
 NONE = -1
@@ -99,7 +102,7 @@ NO_CHANGE = 4
 ### Modify/Search Options
 MATCH_CASE = 0  # Defualt
 NO_MATCH_CASE = 1
-COUNT = 2       # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional. (NOTE: Resets after each file drop or directory change.)
+COUNT = 2       # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional. (NOTE: Resets after each directory change.)
 COUNT_TO = 3    # Max amount of renames to make before stopping.  Similer to COUNT without adding an iterating number to file name.
 RANDOM = 4      ## TODO: Generate random numbers or text that is added to file names.
 TEXT_LIST = 5   ## TODO: A List of Strings to search for or add to file names.
@@ -115,7 +118,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 10
+select_preset = 4
 
 preset0 = {
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
@@ -152,7 +155,7 @@ preset3 = {
 preset4 = {
   EDIT_TYPE     : RENAME,
   MATCH_TEXT    : (NO_MATCH_CASE, ''),
-  REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,3), ']'), ## TODO: multiple options used? List[(option1), (option2)] or whould regex handle that?
+  REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,7), ']'), ## TODO: multiple options used? List[(option1), (option2)] or whould regex handle that?
   SUB_DIRS      : True
 }
 preset5 = {
@@ -226,7 +229,6 @@ def displayPreset(presets, number = -1):
                 else:
                     mod_str = intToStrText(mod, option)
                 print('    %s : %s' % (opt_str, mod_str))
-            #print('}')
     else:
         print('\nPreset %s' % str(number))
         for option, mod in presets[number].items():
@@ -240,98 +242,7 @@ def displayPreset(presets, number = -1):
             else:
                 mod_str = intToStrText(mod, option)
             print('    %s : %s' % (opt_str, mod_str))
-        #print('}')
     return 0
-
-
-### 
-###     () 
-###     --> Returns a [] 
-def intToStrText(number, option = None, lvl = -1):
-    if type(number) == int:
-        text = str(number)
-        
-        if lvl > -1:
-            if option == PLACEMENT and lvl == 0:
-                if number == START:
-                    text = 'Start'
-                elif number == END:
-                    text = 'End'
-                elif number == BOTH_ENDS:
-                    text = 'Both Ends'
-                elif number == EXTENTION:
-                    text = 'Extention'
-            elif option == PLACEMENT and lvl == 1:
-                if number == OF_FILE_NAME:
-                    text = 'Of File Name'
-                elif number == OF_MATCH:
-                    text = 'Of Match'
-            
-            if option == ADD_TEXT or option == MATCH_TEXT or option == REPLACE_TEXT:
-                if lvl == 0:
-                    if number == MATCH_CASE:
-                        text = 'Match Case'
-                    elif number == NO_MATCH_CASE:
-                        text = "Don't Match Case"
-                    elif number == COUNT:
-                        text = 'Add A Counter At'
-                    elif number == COUNT_TO:
-                        text = 'Max Files To Rename'
-                    elif number == RANDOM:
-                        text = 'Add Random Numbers/Text'
-                    elif number == TEXT_LIST:
-                        text = 'List Of Text Strings'
-                    elif number == REGEX:
-                        text = 'Regular Expressions'
-        
-        elif option == EDIT_TYPE:
-            if number == ADD:
-                text = 'Add'
-            elif number == REPLACE:
-                text = 'Replace'
-            elif number == RENAME:
-                text = 'Rename'
-        
-        elif option == PLACEMENT:
-            if number == START:
-                text = 'Start'
-            elif number == END:
-                text = 'End'
-            elif number == BOTH:
-                text = 'Both'
-            elif number == EXTENTION:
-                text = 'Extention'
-        
-        elif option == SEARCH_FROM:
-            if number == LEFT:
-                text = 'Left'
-            elif number == RIGHT:
-                text = 'Right'
-        
-        elif option == 'Preset Options':
-            if number == EDIT_TYPE:
-                text = 'Edit Type              '
-            elif number == ADD_TEXT:
-                text = 'Add Text               '
-            elif number == PLACEMENT:
-                text = 'Placement              '
-            elif number == MATCH_TEXT:
-                text = 'Match Text             '
-            elif number == REPLACE_TEXT:
-                text = 'Replace Text           '
-            elif number == RECURSIVE:
-                text = 'Edits Per Rename       '
-            elif number == SEARCH_FROM:
-                text = 'Start Search From The  '
-            elif number == SUB_DIRS:
-                text = 'Include Sub Directories'
-    
-    elif type(number) == bool:
-        text = str(number)
-    else:
-        text = f'"{str(number)}"'
-    
-    return text
 
 
 ### Iterate over all files in a directory for the purpose of renaming each file that matches the edit conditions.
@@ -345,7 +256,7 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
     assert os.path.isdir(some_dir) # Error if not directory or doen't exist
     
     files_renamed = 0
-    files_renamed_data = (0,0,-1)
+    files_renamed_data = (0,0,-1, [])
     
     for root, dirs, files in os.walk(some_dir):
         
@@ -353,19 +264,19 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
         
         #for dir in dirs:
             #print('--Directory: [ %s ]' % (dir))
-            
+        
         for file in files:
             #print('--File: [ %s ]' % (file))
             file_path = Path(PurePath().joinpath(root,file))
             
             files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
-            print(files_renamed_data)
+            #print(files_renamed_data)
             
             if files_renamed_data[FILE_NAME_COUNT_MAX] != -1 and files_renamed_data[FILE_NAME_COUNT] > files_renamed_data[FILE_NAME_COUNT_MAX]:
                 break # Max file count hit, stop and move on to next directory.
         
         files_renamed = files_renamed_data[FILES_RENAMED]
-        files_renamed_data = (files_renamed_data[FILES_RENAMED], 0, -1) # Only reset count
+        files_renamed_data = (files_renamed_data[FILES_RENAMED], 0, -1, []) # Reset all but files renamed
         
         if not include_sub_dirs:
             break
@@ -380,15 +291,17 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
 ###     (files_renamed_data) Number of files renamed so far and the current count (added to file name if COUNT used)
 ###                          that should be looped back into function, and increased if file is renamed.
 ###     --> Returns a [Tuple] files_renamed_data
-def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0,0,-1)):
+def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0,0,-1,[])):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
     file_renamed = False
+    skip_file = False
     
     # Keep Track Of...
     renamed_number = files_renamed_data[FILES_RENAMED]
     renamed_count = files_renamed_data[FILE_NAME_COUNT]
     renamed_count_max = files_renamed_data[FILE_NAME_COUNT_MAX]
+    files_to_skip = files_renamed_data[SKIPPED_FILES]
     
     # Prepare all the Edit Data
     prepared_edit_data = prepareAllEditData(edit_details, file_path.name, renamed_count, renamed_count_max)
@@ -404,26 +317,35 @@ def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0
     #modify_option = prepared_edit_data[MODIFY_OPTION]
     renamed_count = prepared_edit_data[RENAMED_COUNT]
     renamed_count_max = prepared_edit_data[RENAMED_COUNT_MAX]
-    print(prepared_edit_data)
+    #print(prepared_edit_data)
     if edit_type == ADD:
         insert_text = add_text
     elif edit_type == REPLACE or edit_type == RENAME:
         insert_text = replace_text
     
+    # Skip any files that already had a name matching previous rename attempts (and not overwritten).
+    # Note: This keeps the starting and ending COUNT exactly as typed with no skipping numbers.
+    # (3,9) will always be (3,9) and not (5,9) due to files with that same name/count already existing.
+    for file in files_to_skip:
+        if file == file_path:
+            skip_file = True
+            break
+    
     # Create The New File Name
-    new_file_name = insertTextIntoFileName(file_path, edit_type, match_text, insert_text, placement, recursive, search_from, searchable_file_name)
-    file_renamed = False if new_file_name == file_path.name else True
+    if not skip_file:
+        new_file_name = insertTextIntoFileName(file_path, edit_type, match_text, insert_text, placement, recursive, search_from, searchable_file_name)
+        file_renamed = False if new_file_name == file_path.name else True
     
     # Rename The File Now
     if file_renamed:
         new_file_path = Path(file_path.parent, new_file_name)
-        files_renamed_data = renameFile(file_path, new_file_path, edit_details, (renamed_number, renamed_count, renamed_count_max))
+        files_renamed_data = renameFile(file_path, new_file_path, edit_details, (renamed_number, renamed_count, renamed_count_max, files_to_skip))
         renamed_number = files_renamed_data[FILES_RENAMED]
         renamed_count = files_renamed_data[FILE_NAME_COUNT]
     else:
         print('--File Not Renamed: %s' % (file_path))
     
-    return (renamed_number, renamed_count, renamed_count_max)
+    return (renamed_number, renamed_count, renamed_count_max, files_to_skip)
 
 
 ### Prepare edit_details data adding in any custom search and modify options.
@@ -684,6 +606,7 @@ def renameFile(file_path, new_file_path, edit_details, files_renamed_data):
     renamed_number = files_renamed_data[FILES_RENAMED]
     renamed_count = files_renamed_data[FILE_NAME_COUNT]
     renamed_count_max = files_renamed_data[FILE_NAME_COUNT_MAX]
+    files_to_skip = files_renamed_data[SKIPPED_FILES]
     
     does_file_exist = checkIfFileExist(new_file_path, file_path)
     
@@ -696,11 +619,10 @@ def renameFile(file_path, new_file_path, edit_details, files_renamed_data):
         file_renamed = True
         renamed_number += 1
     
-    ## TODO: if a renamed file alredy exists and continue is selected, then when that same already existing file's turn to get renamed comes it should be skipped, else the count is messed up
-    ## simulate by making the file in question not the first or second file to be renamed alphabetically
-    elif does_file_exist == CONTINUE: # Skip this count (+1) and try again (recursively)
+    elif does_file_exist == CONTINUE: # Skip this count (+1) and try again (recursively).
         file_renamed = False
-        files_renamed_data = startingFileRenameProcedure(file_path, edit_details, (renamed_number, renamed_count + 1, renamed_count_max))
+        files_to_skip.append(new_file_path) # And keep skipping this file if it comes up again.
+        files_renamed_data = startingFileRenameProcedure(file_path, edit_details, (renamed_number, renamed_count + 1, renamed_count_max, files_to_skip))
         renamed_number = files_renamed_data[FILES_RENAMED]
         renamed_count = files_renamed_data[FILE_NAME_COUNT]
         does_file_exist = NO
@@ -721,7 +643,7 @@ def renameFile(file_path, new_file_path, edit_details, files_renamed_data):
     elif does_file_exist != NO:
         print('--File Not Renamed: %s' % (file_path))
     
-    return (renamed_number, renamed_count)
+    return (renamed_number, renamed_count, renamed_count_max, files_to_skip)
 
 
 ### Change specific user inputs (answer to a question) into a "True or False" Boolean.
@@ -775,13 +697,108 @@ def strToIntConstant(user_input, category):
 ###     --> Returns a [Integer]
 def strNumberToInt(string_num):
     string_num = string_num.casefold()
-    if string_num == 'a' or string_num == 'all':
+    if string_num == 'a' or string_num == 'all' or string_num == 'showall' or string_num == 'sa':
         number = ALL
+    elif string_num.find('show') > -1:
+        number = string_num.partition('show')[2]
+        number = strNumberToInt(str(int(number)+1000))
     elif string_num.isnumeric():
         number = int(string_num)
     else:
         number = NONE
     return number
+
+
+### Convert all the integers used in presets into readable text.
+###     (number) Depending on the option, change this number (if Integer) into text.
+###     (option) The current option.
+###     (lvl) The index level of the number if it's in a Tuple.
+###     --> Returns a [String] 
+def intToStrText(number, option = None, lvl = -1):
+    if type(number) == int:
+        text = str(number)
+        
+        if lvl > -1:
+            if option == PLACEMENT and lvl == 0:
+                if number == START:
+                    text = 'Start'
+                elif number == END:
+                    text = 'End'
+                elif number == BOTH_ENDS:
+                    text = 'Both Ends'
+                elif number == EXTENTION:
+                    text = 'Extention'
+            elif option == PLACEMENT and lvl == 1:
+                if number == OF_FILE_NAME:
+                    text = 'Of File Name'
+                elif number == OF_MATCH:
+                    text = 'Of Match'
+            
+            if option == ADD_TEXT or option == MATCH_TEXT or option == REPLACE_TEXT:
+                if lvl == 0:
+                    if number == MATCH_CASE:
+                        text = 'Match Case'
+                    elif number == NO_MATCH_CASE:
+                        text = "Don't Match Case"
+                    elif number == COUNT:
+                        text = 'Add A Counter At'
+                    elif number == COUNT_TO:
+                        text = 'Max Files To Rename'
+                    elif number == RANDOM:
+                        text = 'Add Random Numbers/Text'
+                    elif number == TEXT_LIST:
+                        text = 'List Of Text Strings'
+                    elif number == REGEX:
+                        text = 'Regular Expressions'
+        
+        elif option == EDIT_TYPE:
+            if number == ADD:
+                text = 'Add'
+            elif number == REPLACE:
+                text = 'Replace'
+            elif number == RENAME:
+                text = 'Rename'
+        
+        elif option == PLACEMENT:
+            if number == START:
+                text = 'Start'
+            elif number == END:
+                text = 'End'
+            elif number == BOTH:
+                text = 'Both'
+            elif number == EXTENTION:
+                text = 'Extention'
+        
+        elif option == SEARCH_FROM:
+            if number == LEFT:
+                text = 'Left'
+            elif number == RIGHT:
+                text = 'Right'
+        
+        elif option == 'Preset Options':
+            if number == EDIT_TYPE:
+                text = 'Edit Type              '
+            elif number == ADD_TEXT:
+                text = 'Add Text               '
+            elif number == PLACEMENT:
+                text = 'Placement              '
+            elif number == MATCH_TEXT:
+                text = 'Match Text             '
+            elif number == REPLACE_TEXT:
+                text = 'Replace Text           '
+            elif number == RECURSIVE:
+                text = 'Edits Per Rename       '
+            elif number == SEARCH_FROM:
+                text = 'Start Search From The  '
+            elif number == SUB_DIRS:
+                text = 'Include Sub Directories'
+    
+    elif type(number) == bool:
+        text = str(number)
+    else:
+        text = f'"{str(number)}"'
+    
+    return text
 
 
 ### Drop one of more files and directories here to be renamed after answering a series of questions regarding how to properly rename said files.
@@ -804,60 +821,92 @@ def drop(files):
         return 0
     
     files_renamed = 0
-    files_renamed_data = (0,0)
+    files_renamed_data = (0,0,-1,[])
     
     try:
         # Check if at least one file or directory was dropped
         dropped_file = files[0]
         print('Number of Files or Directories Dropped: [ %s ]' % len(files))
         
+        global use_preset
         if use_preset:
             edit_details = preset
-            print('Using...')
+            print('\nUsing...')
             displayPreset(preset_options, select_preset)
-            input('Continue...')
+            input('\nContinue...')
+        
         else:
-            edit_details = [EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
+            print('Do you wish to select a preset or do more simple file renaming by answering a few questions?')
+            use_preset = input('Use Presets [ Y / N ]: ')
+            use_preset = yesTrue(use_preset)
             
-            edit_type = NONE
-            while edit_type == NONE:
-                edit_type = input('Do you wish to add text or replace text in filename(s)? [ (A)DD / (R)EPLACE ]: ')
-                edit_type = strToIntConstant(edit_type, 'edit_type')
+            if use_preset:
+                
+                preset_selection = NONE
+                while preset_selection == NONE:
+                    print('\nSelect a Preset Option [ # ] ')
+                    preset_selection = input('Or Type [ Show# ] or [ ShowAll ] To Display Presets: ')
+                    preset_selection = strNumberToInt(preset_selection)
+                    
+                    if preset_selection == ALL:
+                        displayPreset(preset_options)
+                        preset_selection = NONE
+                    
+                    elif preset_selection > 999:
+                        preset_selection -= 1000
+                        if preset_selection < len(preset_options):
+                            displayPreset(preset_options, preset_selection)
+                        preset_selection = NONE
+                    
+                    elif preset_selection < len(preset_options) and preset_selection > NONE:
+                        edit_details = preset_options[preset_selection]
+                        print('Preset [ #%s ] Selected' % preset_selection)
+                    
+                    else:
+                        preset_selection = NONE
             
-            edit_details[EDIT_TYPE] = edit_type
-            
-            if edit_type == ADD:
-                add_text = input('Text To Add: ')
+            else:
+                edit_details = [EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM]
                 
-                placement = NONE
-                while placement == NONE:
-                    placement = input('Where To Place Text [ (S)TART / (E)ND / (B)OTH ]: ')
-                    placement = strToIntConstant(placement, 'placement')
+                edit_type = NONE
+                while edit_type == NONE:
+                    edit_type = input('Do you wish to add text or replace text in filename(s)? [ (A)DD / (R)EPLACE ]: ')
+                    edit_type = strToIntConstant(edit_type, 'edit_type')
                 
-                edit_details[ADD_TEXT] = add_text
-                edit_details[PLACEMENT] = placement
-            
-            elif edit_type == REPLACE:
-                match_text = input('Search File Name(s) For: ')
-                replace_text = input('And Replace With: ')
+                edit_details[EDIT_TYPE] = edit_type
                 
-                recursive = NONE
-                while recursive == NONE:
-                    recursive = input('How many matches per file name are to be replaced? [ (A)LL / 1 / # ]: ') # All = 999
-                    recursive = strNumberToInt(recursive)
+                if edit_type == ADD:
+                    add_text = input('Text To Add: ')
+                    
+                    placement = NONE
+                    while placement == NONE:
+                        placement = input('Where To Place Text [ (S)TART / (E)ND / (B)OTH ]: ')
+                        placement = strToIntConstant(placement, 'placement')
+                    
+                    edit_details[ADD_TEXT] = add_text
+                    edit_details[PLACEMENT] = placement
                 
-                if recursive != ALL:
-                    search_from = NONE
-                    while search_from == NONE:
-                        search_from = input('Begin searching from "Left to Right" or from "Right to Left"? [ (L)EFT / (R)IGHT ]: ')
-                        search_from = strToIntConstant(search_from, 'search_from')
-                else:
-                    search_from = LEFT
-                
-                edit_details[MATCH_TEXT] = match_text
-                edit_details[REPLACE_TEXT] = replace_text
-                edit_details[RECURSIVE] = recursive
-                edit_details[SEARCH_FROM] = search_from
+                elif edit_type == REPLACE:
+                    match_text = input('Search File Name(s) For: ')
+                    replace_text = input('And Replace With: ')
+                    
+                    recursive = NONE
+                    while recursive == NONE:
+                        recursive = input('How many matches per file name are to be replaced? [ (A)LL / 1 / # ]: ') # All = 999
+                        recursive = strNumberToInt(recursive)
+                    
+                    if recursive != ALL:
+                        search_from = NONE
+                        while search_from == NONE:
+                            search_from = input('Begin searching from "Left to Right" or from "Right to Left"? [ (L)EFT / (R)IGHT ]: ')
+                            search_from = strToIntConstant(search_from, 'search_from')
+                    else:
+                        search_from = LEFT
+                    
+                    edit_details[MATCH_TEXT] = match_text
+                    edit_details[REPLACE_TEXT] = replace_text
+                    edit_details[RECURSIVE] = recursive
+                    edit_details[SEARCH_FROM] = search_from
         
         # Iterate over all dropped files including all files in dropped directories
         include_sub_dirs = -1
