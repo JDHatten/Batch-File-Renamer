@@ -20,7 +20,7 @@ TODO:
     [DONE] Preset options
     [DONE] Display preset options and allow user to chose from cmd promt
     [DONE] Better handling of overwriting files
-    [] Sort files in a particular way before renameing
+    [DONE] Sort files in a particular way before renameing
     [] Special search and edits. Examples: 
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -72,14 +72,16 @@ REPLACE_TEXT = 4
 RECURSIVE = 5
 SEARCH_FROM = 6
 SUB_DIRS = 7
+PRESORT_FILES = 8
 SEARCHABLE_TEXT = 7
 SEARCH_OPTION = 8
 MODIFY_OPTION = 9
 RENAMED_COUNT = 10
 RENAMED_COUNT_MAX = 11
 
-FILE_NAME = 0
-EDITS_MADE = 1
+FILE_PATH = 0
+FILE_NAME = 1
+FILE_SIZE = 2
 
 FILES_RENAMED = 0
 FILE_NAME_COUNT = 1
@@ -99,7 +101,7 @@ SAME_NAME = 4
 SAME = 4
 NO_CHANGE = 4
 
-### Modify/Search Options
+### Modify/Search/Sort Options
 MATCH_CASE = 0  # Defualt
 NO_MATCH_CASE = 1
 COUNT = 2       # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional. (NOTE: Resets after each directory change.)
@@ -107,6 +109,15 @@ COUNT_TO = 3    # Max amount of renames to make before stopping.  Similer to COU
 RANDOM = 4      ## TODO: Generate random numbers or text that is added to file names.
 TEXT_LIST = 5   ## TODO: A List of Strings to search for or add to file names.
 REGEX = 6       ## TODO:
+
+ASCENDING = 10
+DESCENDING = 11
+ALPHABETICALLY = 12
+FILE_SIZE = 13
+DATE_ACCESSED = 14
+DATE_MODIFIED = 15
+DATE_CREATED = 16       # Windows
+DATE_META_MODIFIED = 16 # UNIX
 
 #EXTENTION = 6   ## TODO: Moved to PLACEMENT, might revisit if "multiple options" coded in
 
@@ -118,17 +129,18 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 10
+select_preset = 11
 
-preset0 = {
+preset0 = { # Defualts
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
-  ADD_TEXT      : '-F',     # 'Text' to Add -OR- Tuple(Modify Options, 'Text', Integer/Tuple/List, additional 'Text')
+  ADD_TEXT      : '',       # 'Text' to Add -OR- Tuple(Modify Options, 'Starting Text', Integer/Tuple/List, 'Ending Text')
   PLACEMENT     : END,      # START or END or BOTH (ends) or EXTENTION (add after or replace extention) -OR- Tuple(PLACE, OF_)
   MATCH_TEXT    : '',       # 'Text' to Find  -OR- Tuple(Search Options, text)
   REPLACE_TEXT  : '',       # 'Text' to Replace with -OR- Tuple(Modify Options, 'Starting Text', Integer/Tuple/List, 'Ending Text')
   RECURSIVE     : ALL,      # 1-999/ALL (how many match and replace edits to make per file name)
   SEARCH_FROM   : LEFT,     # Start searching from LEFT or RIGHT (important if using a recursive limit, i.e. not ALL)
-  SUB_DIRS      : True      # Search Sub-Directories (True or False)
+  SUB_DIRS      : False,    # Search Sub-Directories (True or False)
+  PRESORT_FILES : None      # Sort before renaming files.  Tuple(Sort Option, ASCENDING or DESCENDING)
 }
 preset1 = {
   EDIT_TYPE     : REPLACE,
@@ -178,14 +190,12 @@ preset7 = {
   PLACEMENT     : EXTENTION,
   MATCH_TEXT    : (NO_MATCH_CASE, 'txt'),
   REPLACE_TEXT  : ('doc'),
-  SUB_DIRS      : False
 }
 preset8 = {
   EDIT_TYPE     : ADD,
   PLACEMENT     : EXTENTION,
   MATCH_TEXT    : 'txt',
   ADD_TEXT      : 'bck',
-  SUB_DIRS      : False
 }
 preset9 = {
   EDIT_TYPE     : ADD,
@@ -194,7 +204,6 @@ preset9 = {
   ADD_TEXT      : 'XXX',
   RECURSIVE     : 2,
   SEARCH_FROM   : RIGHT,
-  SUB_DIRS      : False
 }
 preset10 = {
   EDIT_TYPE     : ADD,
@@ -203,9 +212,14 @@ preset10 = {
   ADD_TEXT      : (COUNT_TO, 3, 'XXX'),
   RECURSIVE     : 1,
   SEARCH_FROM   : RIGHT,
-  SUB_DIRS      : False
 }
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10]
+preset11 = {
+  EDIT_TYPE     : RENAME,
+  MATCH_TEXT    : (NO_MATCH_CASE, 'text'),
+  REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,7), ']'),
+  PRESORT_FILES : (DATE_MODIFIED, ASCENDING)
+}
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11]
 preset = preset_options[select_preset]
 
 
@@ -252,8 +266,7 @@ def displayPreset(presets, number = -1):
 ###     (include_sub_dirs) Search sub-directories for more files.  Booleon(True) or Boolean(False)
 ###     --> Returns a [Integer] Number of files renamed.
 def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
-    some_dir = some_dir.rstrip(os.path.sep)
-    assert os.path.isdir(some_dir) # Error if not directory or doen't exist
+    assert Path.is_dir(some_dir) # Error if not directory or doen't exist
     
     files_renamed = 0
     files_renamed_data = (0,0,-1, [])
@@ -265,9 +278,12 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
         #for dir in dirs:
             #print('--Directory: [ %s ]' % (dir))
         
-        for file in files:
-            #print('--File: [ %s ]' % (file))
-            file_path = Path(PurePath().joinpath(root,file))
+        ## TODO: Sort Files
+        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES), root)
+        
+        for file in files_meta:
+            #print('--File: [ %s ]' % (file[FILE_NAME]))
+            file_path = Path(file[FILE_PATH])
             
             files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
             #print(files_renamed_data)
@@ -282,6 +298,58 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
             break
     
     return files_renamed
+
+
+### Sort file functions for sorting files.
+###     (files) A List of file names.
+###     (sort_option) A Tuple with a file sorting option.
+###     (root) Root path of files if (files) is just names
+###     --> Returns a [List] 
+def sortFiles(files, sort_option, root = ''):
+    files_meta = []
+    for file in files:
+        if root == '':
+            file_path = Path(file)
+        else:
+            file_path = Path(PurePath().joinpath(root, file))
+        file_meta = os.stat(file_path)
+        files_meta.append((file_path, file_path.name, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime))
+    
+    if len(sort_option) == 2:
+        file_sort = sort_option[0]
+        descending = False if sort_option[1] == ASCENDING else True
+    else:
+        sort_option = False
+    
+    if sort_option != False:
+        if file_sort == ALPHABETICALLY:
+            files_meta.sort(reverse=descending, key=sortFilesAlphabetically)
+        if file_sort == FILE_SIZE:
+            files_meta.sort(reverse=descending, key=sortFilesByFileSize)
+        if file_sort == DATE_ACCESSED:
+            files_meta.sort(reverse=descending, key=sortFilesByAccessDate)
+        if file_sort == DATE_MODIFIED:
+            files_meta.sort(reverse=descending, key=sortFilesByModifyDate)
+        if file_sort == DATE_CREATED or file_sort == DATE_META_MODIFIED:
+            files_meta.sort(reverse=descending, key=sortFilesByCreationDate)
+    
+    return files_meta
+
+
+### Sort file functions.
+###     (file) A Tuple with the [0]full file path, [1]file name,      [2]file size, 
+###                             [3]access date,    [4]modify date, or [5]creation date (UNIX: meta data modified data).
+###     --> Returns a [String] or [Integer]
+def sortFilesAlphabetically(file):
+    return file[1]
+def sortFilesByFileSize(file):
+    return file[2]
+def sortFilesByAccessDate(file):
+    return file[3]
+def sortFilesByModifyDate(file):
+    return file[4]
+def sortFilesByCreationDate(file):
+    return file[5]
 
 
 ### Adds specific text to a filename.
@@ -734,7 +802,7 @@ def intToStrText(number, option = None, lvl = -1):
                 elif number == OF_MATCH:
                     text = 'Of Match'
             
-            if option == ADD_TEXT or option == MATCH_TEXT or option == REPLACE_TEXT:
+            if option == ADD_TEXT or option == MATCH_TEXT or option == REPLACE_TEXT or option == PRESORT_FILES:
                 if lvl == 0:
                     if number == MATCH_CASE:
                         text = 'Match Case'
@@ -750,6 +818,23 @@ def intToStrText(number, option = None, lvl = -1):
                         text = 'List Of Text Strings'
                     elif number == REGEX:
                         text = 'Regular Expressions'
+                    elif number == ALPHABETICALLY:
+                        text = 'Alphabetically'
+                    elif number == FILE_SIZE:
+                        text = 'By File Size'
+                    elif number == DATE_ACCESSED:
+                        text = 'By Date Last Accessed'
+                    elif number == DATE_MODIFIED:
+                        text = 'By Date Last Modified'
+                    elif number == DATE_CREATED:
+                        text = 'By Date Created'
+                    elif number == DATE_META_MODIFIED:
+                        text = 'By Date Meta Data Last Modified'
+                elif lvl == 1:
+                    if number == ASCENDING:
+                        text = 'In Ascending Order'
+                    elif number == DESCENDING:
+                        text = 'In Descending Order'
         
         elif option == EDIT_TYPE:
             if number == ADD:
@@ -792,6 +877,8 @@ def intToStrText(number, option = None, lvl = -1):
                 text = 'Start Search From The  '
             elif number == SUB_DIRS:
                 text = 'Include Sub Directories'
+            elif number == PRESORT_FILES:
+                text = 'Pre-Sort Files         '
     
     elif type(number) == bool:
         text = str(number)
@@ -908,22 +995,28 @@ def drop(files):
                     edit_details[RECURSIVE] = recursive
                     edit_details[SEARCH_FROM] = search_from
         
+        # Presort Files
+        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES))
+        
         # Iterate over all dropped files including all files in dropped directories
         include_sub_dirs = -1
-        for file_path in files:
+        for file in files_meta:
+            file_path = file[FILE_PATH]
             
-            if os.path.isdir(file_path):
+            #if os.path.isdir(file_path):
+            if Path.is_dir(file_path):
                 
                 if include_sub_dirs == -1 and not use_preset: # Only answer once
                     include_sub_dirs = input('Search through sub-directories too? [ Y / N ]: ')
                     include_sub_dirs = yesTrue(include_sub_dirs)
                 else:
-                    include_sub_dirs = preset[SUB_DIRS]
+                    include_sub_dirs = preset.get(SUB_DIRS, False)
                 
                 files_renamed += renameAllFilesInDirectory(file_path, edit_details, include_sub_dirs)
             
-            elif os.path.isfile(file_path):
-                print('\n')
+            #elif os.path.isfile(file_path):
+            elif Path.is_file(file_path):
+                #print('\n')
                 is_file_renamed = False
                 
                 files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
