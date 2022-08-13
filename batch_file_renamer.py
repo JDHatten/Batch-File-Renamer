@@ -129,7 +129,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 11
+select_preset = 3
 
 preset0 = { # Defualts
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
@@ -160,7 +160,7 @@ preset2 = {
 }
 preset3 = {
   EDIT_TYPE     : ADD,
-  ADD_TEXT      : '_(F)',
+  ADD_TEXT      : ' (U)',
   PLACEMENT     : END,
   SUB_DIRS      : True
 }
@@ -278,8 +278,8 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
         #for dir in dirs:
             #print('--Directory: [ %s ]' % (dir))
         
-        ## TODO: Sort Files
-        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES), root)
+        # Sort Files
+        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES,None), root)
         
         for file in files_meta:
             #print('--File: [ %s ]' % (file[FILE_NAME]))
@@ -300,7 +300,7 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
     return files_renamed
 
 
-### Sort file functions for sorting files.
+### Sort file in various ways before renaming.
 ###     (files) A List of file names.
 ###     (sort_option) A Tuple with a file sorting option.
 ###     (root) Root path of files if (files) is just names
@@ -315,7 +315,7 @@ def sortFiles(files, sort_option, root = ''):
         file_meta = os.stat(file_path)
         files_meta.append((file_path, file_path.name, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime))
     
-    if len(sort_option) == 2:
+    if type(sort_option) == tuple and len(sort_option) == 2:
         file_sort = sort_option[0]
         descending = False if sort_option[1] == ASCENDING else True
     else:
@@ -996,7 +996,7 @@ def drop(files):
                     edit_details[SEARCH_FROM] = search_from
         
         # Presort Files
-        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES))
+        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES,None))
         
         # Iterate over all dropped files including all files in dropped directories
         include_sub_dirs = -1
@@ -1017,7 +1017,6 @@ def drop(files):
             #elif os.path.isfile(file_path):
             elif Path.is_file(file_path):
                 #print('\n')
-                is_file_renamed = False
                 
                 files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
             
