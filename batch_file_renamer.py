@@ -7,10 +7,12 @@ Batch File Renamer by JDHatten
     Adding text can be placed at the start, end, or both sides of a matched text or the entire file name.
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
     Renameing will just rename the entire file, but an iterating number or some other modify option must be used.
+    Bonus: This script can also update any text based files that that have links to the renamed files to prevent 
+    broken links in whatever apps that use the renamed files.
 
 Usage:
-    Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex renaming methods.
-    Script can be opened directly but only one file or directory may be dropped/added at once.
+    Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex 
+    renaming methods.  Script can be opened directly but only one file or directory may be dropped/added at once.
 
 TODO:
     [] Rename directories too
@@ -21,12 +23,15 @@ TODO:
     [DONE] Display preset options and allow user to chose from cmd promt
     [DONE] Better handling of overwriting files
     [DONE] Sort files in a particular way before renameing
+    [DONE] Update one or more texted based files after a file has been renamed
     [] Special search and edits. Examples: 
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
         [X] Find file names with a string then add another string specifically next to matched string.
         [X] Add an iterated number to file names.
         [X] Find specific file names extentions and only change (or add to) the extention
+        [] Generate random numbers or text that is added to file names.
+        [] A List of Strings to search for or add to file names.
         [] Make use of regular expressions.  This could get complex.
 '''
 
@@ -63,7 +68,7 @@ OF_FILE_NAME = 6
 OF_MATCH = 7
 EXTENTION = 8
 
-# EDITS_DETAILS
+# EDIT_DETAILS
 EDIT_TYPE = 0
 ADD_TEXT = 1
 PLACEMENT = 2
@@ -71,13 +76,14 @@ MATCH_TEXT = 3
 REPLACE_TEXT = 4
 RECURSIVE = 5
 SEARCH_FROM = 6
-SUB_DIRS = 7
-PRESORT_FILES = 8
-SEARCHABLE_TEXT = 7
-SEARCH_OPTION = 8
-MODIFY_OPTION = 9
-RENAMED_COUNT = 10
-RENAMED_COUNT_MAX = 11
+LINKED_FILES = 7
+SUB_DIRS = 8
+PRESORT_FILES = 9
+SEARCHABLE_TEXT = 8
+SEARCH_OPTION = 9
+MODIFY_OPTION = 10
+RENAMED_COUNT = 11
+RENAMED_COUNT_MAX = 12
 
 FILE_PATH = 0
 FILE_NAME = 1
@@ -129,9 +135,9 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 3
+select_preset = 12
 
-preset0 = { # Defualts
+preset0 = {     # Defualts
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
   ADD_TEXT      : '',       # 'Text' to Add -OR- Tuple(Modify Options, 'Starting Text', Integer/Tuple/List, 'Ending Text')
   PLACEMENT     : END,      # START or END or BOTH (ends) or EXTENTION (add after or replace extention) -OR- Tuple(PLACE, OF_)
@@ -139,6 +145,7 @@ preset0 = { # Defualts
   REPLACE_TEXT  : '',       # 'Text' to Replace with -OR- Tuple(Modify Options, 'Starting Text', Integer/Tuple/List, 'Ending Text')
   RECURSIVE     : ALL,      # 1-999/ALL (how many match and replace edits to make per file name)
   SEARCH_FROM   : LEFT,     # Start searching from LEFT or RIGHT (important if using a recursive limit, i.e. not ALL)
+  LINKED_FILES  : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
   SUB_DIRS      : False,    # Search Sub-Directories (True or False)
   PRESORT_FILES : None      # Sort before renaming files.  Tuple(Sort Option, ASCENDING or DESCENDING)
 }
@@ -219,7 +226,23 @@ preset11 = {
   REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,7), ']'),
   PRESORT_FILES : (DATE_MODIFIED, ASCENDING)
 }
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11]
+preset12 = {
+  EDIT_TYPE     : ADD,
+  ADD_TEXT      : ' (U)',
+  PLACEMENT     : END,
+  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+  SUB_DIRS      : True
+}
+preset13 = {
+  EDIT_TYPE     : REPLACE,
+  MATCH_TEXT    : ' (U)',
+  REPLACE_TEXT  : '',
+  RECURSIVE     : 1,
+  SEARCH_FROM   : RIGHT,
+  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+  SUB_DIRS      : True
+}
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13]
 preset = preset_options[select_preset]
 
 
@@ -355,7 +378,7 @@ def sortFilesByCreationDate(file):
 ### Adds specific text to a filename.
 ###     (some_file) The full path to a file.
 ###     (edit_details) All the details on how to proceed with the file name edits. 
-###                    Dictionary[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
+###                    Dictionary[EDIT_TYPE, ADD_TEXT, PLACEMENT, MATCH_TEXT, REPLACE_TEXT, RECURSIVE, SEARCH_FROM, LINKED_FILES,...]
 ###     (files_renamed_data) Number of files renamed so far and the current count (added to file name if COUNT used)
 ###                          that should be looped back into function, and increased if file is renamed.
 ###     --> Returns a [Tuple] files_renamed_data
@@ -380,6 +403,7 @@ def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0
     replace_text = prepared_edit_data[REPLACE_TEXT]
     recursive = prepared_edit_data[RECURSIVE]
     search_from = prepared_edit_data[SEARCH_FROM]
+    linked_files = prepared_edit_data[LINKED_FILES]
     searchable_file_name = prepared_edit_data[SEARCHABLE_TEXT]
     #search_option = prepared_edit_data[SEARCH_OPTION]
     #modify_option = prepared_edit_data[MODIFY_OPTION]
@@ -410,6 +434,14 @@ def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0
         files_renamed_data = renameFile(file_path, new_file_path, edit_details, (renamed_number, renamed_count, renamed_count_max, files_to_skip))
         renamed_number = files_renamed_data[FILES_RENAMED]
         renamed_count = files_renamed_data[FILE_NAME_COUNT]
+        
+        for file in linked_files:
+            links_updated = updateLinksInFile(file, str(file_path), str(new_file_path))
+            if links_updated:
+                print('----Link File Updated: [ %s ]' % (file))
+            #else:
+                #print('----Link File Not Updated: [ %s ]' % (file))
+    
     else:
         print('--File Not Renamed: %s' % (file_path))
     
@@ -431,9 +463,10 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
         modify_data = edit_details.get(ADD_TEXT,'')
     else:
         modify_data = edit_details.get(REPLACE_TEXT,'')
+    placement = edit_details.get(PLACEMENT, END)
     recursive = edit_details.get(RECURSIVE, ALL)
     search_from = edit_details.get(SEARCH_FROM, LEFT)
-    placement = edit_details.get(PLACEMENT, END)
+    linked_files = edit_details.get(LINKED_FILES, [])
     
     search_option = None
     modify_option = None
@@ -521,7 +554,7 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
         if len(insert_text) > 0 and insert_text.find('.') != 0:
             insert_text = '.'+insert_text
     
-    return (edit_type, insert_text, placement, match_text, insert_text, recursive, search_from, searchable_text, search_option, modify_option, renamed_count, renamed_count_max)
+    return (edit_type, insert_text, placement, match_text, insert_text, recursive, search_from, linked_files, searchable_text, search_option, modify_option, renamed_count, renamed_count_max)
 
 
 ### "Find and Add" text within a file name.
@@ -714,6 +747,35 @@ def renameFile(file_path, new_file_path, edit_details, files_renamed_data):
     return (renamed_number, renamed_count, renamed_count_max, files_to_skip)
 
 
+### Update any files that have links to the renamed files to prevent broken links in whatever app that use the renamed files.
+###     (linked_file) The full path to a file with links.
+###     (old_file_path) A String of the full path to a file before renaming.
+###     (new_file_path) A String of the full path to a file after renaming.
+###     --> Returns a [Boolean] 
+def updateLinksInFile(linked_file, old_file_path, new_file_path):
+    linked_file = Path(linked_file)
+    
+    read_data = linked_file.read_text()
+    
+    # Replace all style of slashes in links
+    old_file_path_esc = old_file_path.replace('\\', '\\\\')
+    new_file_path_esc = new_file_path.replace('\\', '\\\\')
+    old_file_path_rev = old_file_path.replace('\\', '/')
+    new_file_path_rev = new_file_path.replace('\\', '/')
+    
+    write_data = read_data.replace(old_file_path_esc, new_file_path_esc)
+    write_data = write_data.replace(old_file_path_rev, new_file_path_rev)
+    write_data = write_data.replace(old_file_path, new_file_path)
+    
+    if read_data == write_data:
+        data_changed = False
+    else:
+        data_changed = True
+        linked_file.write_text(write_data)
+    
+    return data_changed
+
+
 ### Change specific user inputs (answer to a question) into a "True or False" Boolean.
 ###     (user_input) The String with variations of "yes or no" text in them.
 ###     --> Returns a [Boolean] True or False
@@ -875,12 +937,14 @@ def intToStrText(number, option = None, lvl = -1):
                 text = 'Edits Per Rename       '
             elif number == SEARCH_FROM:
                 text = 'Start Search From The  '
+            elif number == LINKED_FILES:
+                text = 'Files With Links       '
             elif number == SUB_DIRS:
                 text = 'Include Sub Directories'
             elif number == PRESORT_FILES:
                 text = 'Pre-Sort Files         '
     
-    elif type(number) == bool:
+    elif type(number) == bool or type(number) == list:
         text = str(number)
     else:
         text = f'"{str(number)}"'
@@ -920,7 +984,8 @@ def drop(files):
             edit_details = preset
             print('\nUsing...')
             displayPreset(preset_options, select_preset)
-            input('\nContinue...')
+            print('\n')
+            #input('\nContinue...')
         
         else:
             print('Do you wish to select a preset or do more simple file renaming by answering a few questions?')
@@ -1017,7 +1082,6 @@ def drop(files):
             #elif os.path.isfile(file_path):
             elif Path.is_file(file_path):
                 #print('\n')
-                
                 files_renamed_data = startingFileRenameProcedure(file_path, edit_details, files_renamed_data)
             
             else:
