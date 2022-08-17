@@ -4,15 +4,15 @@
 '''
 Batch File Renamer by JDHatten
     This script will rename one or more files either by adding new text or replacing text in the file names.
-    Adding text can be placed at the start, end, or both sides of a matched text or the entire file name.
+    Adding text can be placed at the start, end, or both sides of either matched text or the entire file name itself.
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
     Renameing will just rename the entire file, but an iterating number or some other modify option must be used.
-    Bonus: This script can also update any text based files that that have links to the renamed files to prevent 
+    Bonus: This script can also update any text based files that that have links to the renamed files to prevent
     broken links in whatever apps that use the renamed files.
 
 Usage:
     Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex 
-    renaming methods.  Script can be opened directly but only one file or directory may be dropped/added at once.
+    renaming methods.  Script can be opened directly but only one file or directory may be dropped/added/typed-in at once.
 
 TODO:
     [] Rename directories too
@@ -31,7 +31,7 @@ TODO:
         [X] Add an iterated number to file names.
         [X] Find specific file names extentions and only change (or add to) the extention
         [] Generate random numbers or text that is added to file names.
-        [] A List of Strings to search for or add to file names.
+        [X] A List of Strings to search for or add to file names.
         [] Make use of regular expressions.  This could get complex.
 '''
 
@@ -107,14 +107,26 @@ SAME_NAME = 4
 SAME = 4
 NO_CHANGE = 4
 
+TEXT = 0
+OPTIONS = 1
+
+STARTING_TEXT = 0
+DYNAMIC_TEXT = 1
+ENDING_TEXT = 2
+
+STARTING_COUNT = 0
+ENDING_COUNT = 1
+
 ### Modify/Search/Sort Options
-MATCH_CASE = 0  # Defualt
-NO_MATCH_CASE = 1
-COUNT = 2       # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional. (NOTE: Resets after each directory change.)
-COUNT_TO = 3    # Max amount of renames to make before stopping.  Similer to COUNT without adding an iterating number to file name.
-RANDOM = 4      ## TODO: Generate random numbers or text that is added to file names.
-TEXT_LIST = 5   ## TODO: A List of Strings to search for or add to file names.
-REGEX = 6       ## TODO:
+MATCH_CASE = 0       # Defualt
+NO_MATCH_CASE = 1    # Not case sensitive search
+COUNT = 2            # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional. (NOTE: Resets after each directory change.)
+COUNT_TO = 3         # Max amount of renames to make before stopping.  Similer to COUNT without adding an iterating number to file name.
+RANDOM = 4           ## TODO: Generate random numbers or text that is added to file names.
+TEXT_LIST = 5        ## TODO: A List of Strings to search for or add to file names.
+REGEX = 6            ## TODO:
+SAME_MATCH_INDEX = 7 # When a match is made from the "MATCH_TEXT List" use the same index when choosing text from the "REPLACE_TEXT List".
+REPEAT_TEXT_LIST = 8 ## TODO: Once the end of a text list is reached, repeat it.  Text must be dynamic, i.e. COUNT, RANDOM, etc.
 
 ASCENDING = 10
 DESCENDING = 11
@@ -135,7 +147,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 12
+select_preset = 14
 
 preset0 = {     # Defualts
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extention)
@@ -222,8 +234,8 @@ preset10 = {
 }
 preset11 = {
   EDIT_TYPE     : RENAME,
-  MATCH_TEXT    : (NO_MATCH_CASE, 'text'),
-  REPLACE_TEXT  : (COUNT, 'TextTextText-[', (1,7), ']'),
+  MATCH_TEXT    : { TEXT : 'text', OPTIONS : NO_MATCH_CASE },
+  REPLACE_TEXT  : { TEXT : ('TextTextText-[', (1,7), ']'), OPTIONS : COUNT },
   PRESORT_FILES : (DATE_MODIFIED, ASCENDING)
 }
 preset12 = {
@@ -242,7 +254,15 @@ preset13 = {
   LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
   SUB_DIRS      : True
 }
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13]
+preset14 = {
+  EDIT_TYPE     : RENAME,
+  MATCH_TEXT    : { TEXT : ['[1]','[2]','[5]'], OPTIONS : NO_MATCH_CASE }, ## TODO
+  REPLACE_TEXT  : { TEXT : ['NewName-01','NewName-02','NewName-03'], OPTIONS : SAME_MATCH_INDEX }, ## TODO
+  RECURSIVE     : ALL,
+  SEARCH_FROM   : LEFT,
+  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+}
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14]
 preset = preset_options[select_preset]
 
 
@@ -272,7 +292,7 @@ def displayPreset(presets, number = -1):
             opt_str = intToStrText(option, 'Preset Options')
             mod_str = ''
             i = 0
-            if type(mod) == tuple:
+            if type(mod) == tuple: ## TODO: Rewrite
                 for item in mod:
                     mod_str += intToStrText(item, option, i) + '  '
                     i += 1
@@ -405,8 +425,8 @@ def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0
     search_from = prepared_edit_data[SEARCH_FROM]
     linked_files = prepared_edit_data[LINKED_FILES]
     searchable_file_name = prepared_edit_data[SEARCHABLE_TEXT]
-    #search_option = prepared_edit_data[SEARCH_OPTION]
-    #modify_option = prepared_edit_data[MODIFY_OPTION]
+    search_option = prepared_edit_data[SEARCH_OPTION]
+    modify_option = prepared_edit_data[MODIFY_OPTION]
     renamed_count = prepared_edit_data[RENAMED_COUNT]
     renamed_count_max = prepared_edit_data[RENAMED_COUNT_MAX]
     #print(prepared_edit_data)
@@ -425,7 +445,7 @@ def startingFileRenameProcedure(some_file, edit_details, files_renamed_data = (0
     
     # Create The New File Name
     if not skip_file:
-        new_file_name = insertTextIntoFileName(file_path, edit_type, match_text, insert_text, placement, recursive, search_from, searchable_file_name)
+        new_file_name = insertTextIntoFileName(file_path, edit_type, match_text, insert_text, placement, modify_option, recursive, search_from, searchable_file_name, renamed_number)
         file_renamed = False if new_file_name == file_path.name else True
     
     # Rename The File Now
@@ -471,7 +491,37 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
     search_option = None
     modify_option = None
     
-    if type(match_data) == tuple and len(match_data) >= 2:
+    ## TODO: Skip edit data that has already been prepared and no changes needed.
+    if type(match_data) == dict and len(match_data) >= 1:
+        
+        match_text = match_data.get(TEXT, '')
+        search_option = match_data.get(OPTIONS, None)
+        
+        if search_option == NO_MATCH_CASE: # Right now this is only setup for "one" search option at a time.
+            if type(match_text) == list:
+                i = 0
+                while i < len(match_text):
+                    #text = match_text[i]
+                    text = match_text.pop(i)
+                    match_text.insert(i, text.casefold())
+                    i += 1
+            else:
+                match_text = match_text.casefold()
+            
+            searchable_text = file_name.casefold()
+        
+        elif search_option == REGEX: ## TODO
+            print('TODO REGEX')
+        
+        else: # Defualt MATCH_CASE
+            searchable_text = file_name
+    
+    else:
+        match_text = match_data
+        searchable_text = file_name
+    
+    '''
+    elif type(match_data) == tuple and len(match_data) >= 2:
         match_text = match_data[1]
         
         if match_data[0] == NO_MATCH_CASE:
@@ -483,12 +533,12 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
             search_option = REGEX
             print('TODO REGEX')
         
-            '''elif modify_data[0] == EXTENTION and len(modify_data) >= 2:
+        elif modify_data[0] == EXTENTION and len(modify_data) >= 2:
             search_option = EXTENTION
             match_text = match_text.casefold()
             if match_text.find('.') != 0:
                 match_text = '.'+match_text
-            searchable_text = file_name.casefold()'''
+            searchable_text = file_name.casefold()
         
         else: # Defualt MATCH_CASE
             searchable_text = file_name
@@ -499,8 +549,52 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
     else:
         match_text = match_data
         searchable_text = file_name
+    '''
     
-    if type(modify_data) == tuple and len(modify_data) >= 2:
+    if type(modify_data) == dict and len(modify_data) >= 1:
+        
+        insert_text = modify_data.get(TEXT, '')
+        modify_option = modify_data.get(OPTIONS, None)
+        
+        if type(insert_text) == list:
+            print('TEXT_LIST')
+            renamed_count_max = len(insert_text)
+        
+        elif type(insert_text) == tuple:
+            
+            if modify_option == COUNT:
+                
+                # Get Starting/Ending Count
+                if type(insert_text[DYNAMIC_TEXT]) == tuple:
+                    if insert_text[DYNAMIC_TEXT][STARTING_COUNT] > renamed_count:
+                        renamed_count = insert_text[DYNAMIC_TEXT][STARTING_COUNT]
+                        if len(insert_text[DYNAMIC_TEXT]) == 2:
+                            renamed_count_max = insert_text[DYNAMIC_TEXT][ENDING_COUNT]
+                else:
+                    if insert_text[DYNAMIC_TEXT] > renamed_count:
+                        renamed_count = insert_text[DYNAMIC_TEXT]
+                        renamed_count_max = -1
+                
+                insert_text = insert_text[STARTING_TEXT] + str(renamed_count) + insert_text[ENDING_TEXT] if len(insert_text) > 2 else ''
+            
+            elif modify_option == COUNT_TO:
+                
+                renamed_count_max = insert_text[DYNAMIC_TEXT] - 1
+                insert_text = insert_text[STARTING_TEXT]
+            
+            elif modify_option == RANDOM: ## TODO
+                print('TODO RANDOM')
+            
+            elif modify_option == TEXT_LIST: ## TODO
+                print('TODO TEXT_LIST')
+            
+            elif modify_option == REGEX: ## TODO
+                print('TODO REGEX')
+            
+        else:
+            insert_text = modify_data
+    
+    '''elif type(modify_data) == tuple and len(modify_data) >= 2:
         
         if modify_data[0] == COUNT and len(modify_data) >= 3:
             
@@ -530,21 +624,21 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
         elif match_data[0] == REGEX: ## TODO
             print('TODO REGEX')
         
-        '''elif modify_data[0] == EXTENTION and len(modify_data) >= 2:
+        elif modify_data[0] == EXTENTION and len(modify_data) >= 2:
             modify_option = EXTENTION
             insert_text = modify_data[1]
             if insert_text.find('.') != 0 and len(insert_text) > 0:
                 insert_text = '.'+insert_text
             recursive = 1
-            search_from = RIGHT'''
+            search_from = RIGHT
         
     elif type(modify_data) == tuple:
          insert_text = modify_data[0]
     else:
-         insert_text = modify_data
+         insert_text = modify_data'''
     
     if placement == EXTENTION or type(placement) == tuple and placement[0] == EXTENTION:
-        
+        ##TODO: if list, need to loop through it
         if len(match_text) > 0 and match_text.find('.') != 0:
             match_text = '.'+match_text
         
@@ -559,91 +653,110 @@ def prepareAllEditData(edit_details, file_name, renamed_count = 0, renamed_count
 
 ### "Find and Add" text within a file name.
 ###     (file_path) The full path to a file.
-###     (match_text) The text to find in the String.
-###     (insert_text) The text to add within the String.
+###     (match_text_list) The text to find in the String. Will be changed into a list if no already.
+###     (insert_text_list) The text to add within the String. Will be changed into a list if no already.
 ###     (placement) Where to place the inserted text
+###     (modify_option) 
 ###     (recursive) Search for all (all = 999) or a specific number of matched text.
 ###     (search_from) Begain searching from LEFT to right or from RIGHT to left of String.
 ###     (searchable_file_name) A String that has been modified (lower cased) as to make it searchable.
+###     (renamed_number) 
 ###     --> Returns a [String] 
-def insertTextIntoFileName(file_path, edit_type, match_text, insert_text, placement, recursive = ALL, search_from = LEFT, searchable_file_name = ''):
+def insertTextIntoFileName(file_path, edit_type, match_text_list, insert_text_list, placement, modify_option, recursive = ALL, search_from = LEFT, searchable_file_name = '', renamed_number = 0):
     
     searchable_file_name = file_path.name if searchable_file_name == '' else searchable_file_name
     
-    if searchable_file_name.find(match_text) == -1:
-        new_file_name = file_path.name
-    else:
-        match_size = len(match_text)
-        new_file_name = file_path.name
-        file_renamed = True
+    
+    if type(match_text_list) != list:
+        match_text_list = [match_text_list]
+    if type(insert_text_list) != list:
+        insert_text_list = [insert_text_list]
+    
+    i = -1
+    for match_text in match_text_list:
         
-        index_matches = []
-        index_match = 0
-        start = 0
-        end = -1
-        if match_size > 0:
-            while index_match > -1:
-                index_match = searchable_file_name.rfind(match_text, start, end) # Reverse Find
-                end = index_match
-                index_matches.append(index_match)
-            index_matches.pop(-1)
+        i += 1
+        if modify_option == SAME_MATCH_INDEX:
+            match_index = i
+        else:
+            match_index = renamed_number
         
-        ingnore = len(index_matches) - recursive 
-        ingnore = 0 if ingnore < 0 else ingnore
-        while ingnore > 0:
-            if search_from == LEFT:
-                index_matches.pop(0)
-            elif search_from == RIGHT:
+        if searchable_file_name.find(match_text) == -1:
+            new_file_name = file_path.name
+        else:
+            match_size = len(match_text)
+            new_file_name = file_path.name
+            file_renamed = True
+            
+            index_matches = []
+            index_match = 0
+            start = 0
+            end = -1
+            if match_size > 0:
+                while index_match > -1:
+                    index_match = searchable_file_name.rfind(match_text, start, end) # Reverse Find
+                    end = index_match
+                    index_matches.append(index_match)
                 index_matches.pop(-1)
-            ingnore -= 1
-        #print(index_matches)
-        
-        if edit_type == ADD:
             
-            if type(placement) == tuple and len(placement) >= 2:
+            ingnore = len(index_matches) - recursive
+            ingnore = 0 if ingnore < 0 else ingnore
+            while ingnore > 0:
+                if search_from == LEFT:
+                    index_matches.pop(0)
+                elif search_from == RIGHT:
+                    index_matches.pop(-1)
+                ingnore -= 1
+            #print(index_matches)
+            
+            if edit_type == ADD:
                 
-                if placement[1] == OF_MATCH:
+                if type(placement) == tuple and len(placement) >= 2:
                     
-                    for index in index_matches:
-                        if placement[0] == START: # or LEFT
-                            new_file_name = new_file_name[:index] + insert_text + new_file_name[index:]
-                        elif placement[0] == END: # or RIGHT
-                            new_file_name = new_file_name[:index + match_size] + insert_text + new_file_name[index + match_size:]
-                        elif placement[0] == BOTH:
-                            new_file_name = new_file_name[:index] + insert_text + new_file_name[index:index + match_size] + insert_text + new_file_name[index + match_size:]
-                        elif placement[0] == EXTENTION:
-                            new_file_name = f"{file_path.name}{insert_text}"
-                        else:
-                            file_renamed = False
+                    if placement[1] == OF_MATCH:
+                        
+                        for index in index_matches:
+                            if placement[0] == START: # or LEFT
+                                new_file_name = new_file_name[:index] + insert_text_list[match_index] + new_file_name[index:]
+                            elif placement[0] == END: # or RIGHT
+                                new_file_name = new_file_name[:index + match_size] + insert_text_list[match_index] + new_file_name[index + match_size:]
+                            elif placement[0] == BOTH:
+                                new_file_name = new_file_name[:index] + insert_text_list[match_index] + new_file_name[index:index + match_size] + insert_text_list[match_index] + new_file_name[index + match_size:]
+                            elif placement[0] == EXTENTION:
+                                new_file_name = f"{file_path.name}{insert_text_list[match_index]}"
+                            else:
+                                file_renamed = False
+                    
+                    elif placement[1] == OF_FILE_NAME:
+                        new_file_name = addToFileName(file_path, insert_text_list[match_index], placement[0])
                 
-                elif placement[1] == OF_FILE_NAME:
-                    new_file_name = addToFileName(file_path, insert_text, placement[0])
+                elif type(placement) == tuple:
+                    new_file_name = addToFileName(file_path, insert_text_list[match_index], placement[0])
+                
+                else:
+                    new_file_name = addToFileName(file_path, insert_text_list[match_index], placement)
             
-            elif type(placement) == tuple:
-                new_file_name = addToFileName(file_path, insert_text, placement[0])
+            elif edit_type == REPLACE:
+                
+                if type(placement) == tuple and placement[0] == EXTENTION:
+                    if searchable_file_name == match_text:
+                        new_file_name = f"{file_path.stem}{insert_text_list[match_index]}"
+                elif placement == EXTENTION:
+                    if searchable_file_name == match_text:
+                        new_file_name = f"{file_path.stem}{insert_text_list[match_index]}"
+                else:
+                    for index in index_matches:
+                        new_file_name = new_file_name[:index] + insert_text_list[match_index] + new_file_name[index + match_size:]
             
-            else:
-                new_file_name = addToFileName(file_path, insert_text, placement)
-        
-        elif edit_type == REPLACE:
+            elif edit_type == RENAME:
+                
+                if match_size == 0 or searchable_file_name.find(match_text) > -1:
+                    new_file_name = insert_text_list[match_index] + file_path.suffix  ## TODO: could/should I change extention along with the file name?
             
-            if type(placement) == tuple and placement[0] == EXTENTION:
-                if searchable_file_name == match_text:
-                    new_file_name = f"{file_path.stem}{insert_text}"
-            elif placement == EXTENTION:
-                if searchable_file_name == match_text:
-                    new_file_name = f"{file_path.stem}{insert_text}"
-            else:
-                for index in index_matches:
-                    new_file_name = new_file_name[:index] + insert_text + new_file_name[index + match_size:]
-        
-        elif edit_type == RENAME:
+            #if file_renamed: ## TODO: record all edits or just if the filename was renamed?
+            #    edit_count += 1
             
-            if match_size == 0 or searchable_file_name.find(match_text) > -1:
-                new_file_name = insert_text + file_path.suffix  ## TODO: could/should I change extention along with the file name?
-        
-        #if file_renamed: ## TODO: record all edits or just if the filename was renamed?
-        #    edit_count += 1
+            break # Match was found so break loop
     
     return new_file_name
 
