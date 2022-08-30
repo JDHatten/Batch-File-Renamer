@@ -25,7 +25,7 @@ TODO:
     [DONE] Sort files in a particular way before renameing
     [DONE] Update one or more texted based files after a file has been renamed
     [DONE] Use more than one search/modify option at a time.
-    [] Special search and edits. Examples: 
+    [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
         [X] Find file names with a string then add another string specifically next to matched string.
@@ -33,7 +33,7 @@ TODO:
         [X] Find specific file name extensions and only change (or add to) the extension
         [] Generate random numbers or text that is added to file names.
         [X] A List of Strings to search for or add to file names.
-        [] Make use of regular expressions.  This could get complex.
+        [] Make use of regular expressions.
 '''
 
 from pathlib import Path, PurePath
@@ -97,6 +97,7 @@ INDEX_POINTER = 0
 LIMIT = 1
 UPDATE_COUNT = 1
 UPDATE_LIMIT = 1
+UPDATE_SKIP = 1
 
 ALL = 999
 NONE = -1
@@ -163,7 +164,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 16
+select_preset = 11
 
 preset0 = {     # Defualts
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -432,14 +433,17 @@ def copyEditDetails(edit_details, files_renamed = 0):
                                                  CURRENT_LIST_INDEX : NONE,
                                                  CURRENT_FILE_NAME : '',
                                                  SKIPPED_FILES : [],
-                                                 SKIP_WARNINGS : [False]} } )
+                                                 SKIP_WARNINGS : [False],
+                                                 #LOG_DATA : { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : 0, END_TIME : 0 }
+                                               } } )
     
     return edit_details_copy
 
 
-### 
-###     (edit_details) 
-###     (update_data) 
+### Update edit details tracker with new values.
+###     (edit_details) The edit details with the TRACKED_DATA key added.
+###     (update_data) A Dictionary of all keys to be updated in tracker.
+###     (append_values) Update (add to) values or change them.
 ###     --> Returns a [Dictionary] 
 def updateTrackedData(edit_details, update_data, append_values = True):
     if FILES_RENAMED in update_data:
@@ -470,7 +474,7 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     
     if SKIP_WARNINGS in update_data:
         index = update_data[SKIP_WARNINGS][INDEX_POINTER]
-        edit_details[TRACKED_DATA][SKIP_WARNINGS][index] = update_data[SKIP_WARNINGS][1]
+        edit_details[TRACKED_DATA][SKIP_WARNINGS][index] = update_data[SKIP_WARNINGS][UPDATE_SKIP]
     
     return edit_details
 
@@ -530,15 +534,8 @@ def startingFileRenameProcedure(some_file, edit_details):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
     file_renamed = False
-    skip_file = False
     
-    # Skip any files that already had a name matching previous rename attempts (and not overwritten).
-    # Note: This keeps the starting and ending COUNT exactly as typed with no skipping numbers.
-    # (3,9) will always be (3,9) and not (5,9) due to files with that same name/count already existing.
-    for file in edit_details[TRACKED_DATA][SKIPPED_FILES]:
-        if file == file_path:
-            skip_file = True
-            break
+    skip_file = checkForSkippedFiles(file_path, edit_details[TRACKED_DATA][SKIPPED_FILES])
     
     # Create The New File Name
     if not skip_file:
@@ -551,14 +548,16 @@ def startingFileRenameProcedure(some_file, edit_details):
         new_file_path = Path(file_path.parent, new_file_name)
         edit_details = renameFile(file_path, new_file_path, edit_details)
         
-        linked_files = edit_details.get(LINKED_FILES, [])
+        skip_file = checkForSkippedFiles(new_file_path, edit_details[TRACKED_DATA][SKIPPED_FILES])
         
-        for file in linked_files:
-            links_updated = updateLinksInFile(file, str(file_path), str(new_file_path))
-            if links_updated:
-                print('----Link File Updated: [ %s ]' % (file))
-            #else:
-                #print('----Link File Not Updated: [ %s ]' % (file))
+        if not skip_file:
+            linked_files = edit_details.get(LINKED_FILES, [])
+            for file in linked_files:
+                links_updated = updateLinksInFile(file, str(file_path), str(new_file_path))
+                if links_updated:
+                    print('----Link File Updated: [ %s ]' % (file))
+                #else:
+                    #print('----Link File Not Updated: [ %s ]' % (file))
     
     else:
         print('--File Not Renamed: %s' % (file_path))
@@ -566,9 +565,25 @@ def startingFileRenameProcedure(some_file, edit_details):
     return edit_details
 
 
+### Skip any files that already had a name matching previous rename attempts (and not overwritten).
+### Note: This keeps the starting and ending COUNT exactly as typed with no skipping numbers.
+### (3,9) will always be (3,9) and not (5,9) due to files with that same name/count already existing.
+###     (file_path) The full path to a file to check.
+###     (skipped_files) A list of files flagged to skip.
+###     --> Returns a [Boolean] 
+def checkForSkippedFiles(file_path, skipped_files):
+    skip_file = False
+    for file in skipped_files:
+        if file == file_path:
+            skip_file = True
+            break
+    return skip_file
+
+
 ### Get the text from a Tuples() that requires an OPTION on how to handle it.
 ###     (dynamic_text_data) The dynamic text Tuple.
 ###     (the_dynamic_text) The dynamic text/number to insert into the regular text.
+###     (modify_options) 
 ###     --> Returns a [String] 
 def getDynamicText(dynamic_text_data, the_dynamic_text, modify_options = None):
     starting_text = dynamic_text_data[STARTING_TEXT]
@@ -1041,12 +1056,12 @@ def checkIfFileExist(file_path, org_file_path = None):
 ###     (edit_details) All the details on how to proceed with the file name edits. 
 ###     --> Returns a [Dictionary] 
 def renameFile(file_path, new_file_path, edit_details):
-    renamed_number = edit_details[TRACKED_DATA][FILES_RENAMED]
-    renamed_count = edit_details[TRACKED_DATA][FILE_NAME_COUNT][AMOUNT]
-    renamed_count_limit = edit_details[TRACKED_DATA][FILE_NAME_COUNT_LIMIT]
+    #renamed_number = edit_details[TRACKED_DATA][FILES_RENAMED]
+    #renamed_count = edit_details[TRACKED_DATA][FILE_NAME_COUNT][AMOUNT]
+    #renamed_count_limit = edit_details[TRACKED_DATA][FILE_NAME_COUNT_LIMIT]
     current_list_index = edit_details[TRACKED_DATA][CURRENT_LIST_INDEX]
     #current_file_name = edit_details[TRACKED_DATA][CURRENT_FILE_NAME]
-    files_to_skip = edit_details[TRACKED_DATA][SKIPPED_FILES]
+    #files_to_skip = edit_details[TRACKED_DATA][SKIPPED_FILES]
     
     does_file_exist = checkIfFileExist(new_file_path, file_path)
     
@@ -1063,7 +1078,6 @@ def renameFile(file_path, new_file_path, edit_details):
     elif does_file_exist == CONTINUE: # Skip this count (+1) and try again (recursively).
         file_renamed = False
         #renamed_count += 1
-        ## FILE_NAME_COUNT may be updated twice, fix later if so
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1], SKIPPED_FILES : new_file_path })
         
         edit_details = startingFileRenameProcedure(file_path, edit_details)
@@ -1103,8 +1117,15 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path):
         text_encoding = 'ascii'
         read_data = linked_file.read_text(encoding=text_encoding)
     except:
-        text_encoding = 'utf-8'
-        read_data = linked_file.read_text(encoding=text_encoding)
+        try:
+            text_encoding = 'utf-8'
+            read_data = linked_file.read_text(encoding=text_encoding)
+        except:
+            print('Failed to open linked file: [ %s ]' % linked_file)
+            print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
+            return False
+    
+    write_data = read_data
     
     # Check for all style of slashes in links
     old_file_path_esc = old_file_path.replace('\\', '\\\\')
@@ -1112,11 +1133,30 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path):
     old_file_path_rev = old_file_path.replace('\\', '/')
     new_file_path_rev = new_file_path.replace('\\', '/')
     
-    ##TODO Check for special characters & = &amp;
+    links_find = [old_file_path, old_file_path_esc, old_file_path_rev]
+    links_replace = [new_file_path, new_file_path_esc, new_file_path_rev]
     
-    write_data = read_data.replace(old_file_path_esc, new_file_path_esc)
-    write_data = write_data.replace(old_file_path_rev, new_file_path_rev)
-    write_data = write_data.replace(old_file_path, new_file_path)
+    # Check for special characters & = &amp;
+    if old_file_path.find('&') > -1:
+        old_file_path_amp = old_file_path.replace('&', '&amp;')
+        new_file_path_amp = new_file_path.replace('&', '&amp;')
+        old_file_path_amp_esc = old_file_path_amp.replace('\\', '\\\\')
+        new_file_path_amp_esc = new_file_path_amp.replace('\\', '\\\\')
+        old_file_path_amp_rev = old_file_path_amp.replace('\\', '/')
+        new_file_path_amp_rev = new_file_path_amp.replace('\\', '/')
+        links_find.append(old_file_path_amp)
+        links_find.append(old_file_path_amp_esc)
+        links_find.append(old_file_path_amp_rev)
+        links_replace.append(new_file_path_amp)
+        links_replace.append(new_file_path_amp_esc)
+        links_replace.append(new_file_path_amp_rev)
+    
+    i = 0
+    while i < len(links_find):
+        if read_data.find(links_find[i]) > -1:
+            write_data = read_data.replace(links_find[i], links_replace[i])
+            i = 99
+        i += 1
     
     if read_data == write_data:
         data_changed = False
@@ -1220,20 +1260,6 @@ def intToStrText(key, value, parent_key = None):
             elif key == TRACKED_DATA:
                 text = 'Data That Is Tracked   '
         
-            '''if parent_key == PLACEMENT:
-            if key == START:
-                text = 'Start'
-            elif key == END:
-                text = 'End'
-            elif key == BOTH_ENDS:
-                text = 'Both Ends'
-            if value == EXTENSION:
-                text += ' of Extension'
-            elif value == OF_FILE_NAME:
-                text += ' of File Name'
-            elif value == OF_MATCH:
-                text += ' of Match'''
-        
         elif parent_key == MATCH_TEXT or parent_key == INSERT_TEXT:
             if key == TEXT:
                 text = 'TEXT : ' + str(value)
@@ -1313,6 +1339,8 @@ def intToStrText(key, value, parent_key = None):
                 text = '\n                              Current File Name : ' + str(value)
             if key == SKIPPED_FILES:
                 text = '\n                              Files To Skip : ' + str(value)
+            if key == SKIP_WARNINGS:
+                text = '\n                              User Warning Skips : ' + str(value)
     
     if key == None:
         if type(value) == str:
