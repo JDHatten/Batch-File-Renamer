@@ -16,7 +16,7 @@ Usage:
 
 TODO:
     [] Rename directories too
-    [] Create a log of files renamed, time of completion, etc.
+    [Done] Create a log of files renamed, time of completion, etc.
     [DONE] Loop script after finishing and ask to drop another file before just closing.
     [DONE] When replacing only one or more but not all matched strings start searching from the right/end of string.
     [DONE] Preset options
@@ -36,6 +36,7 @@ TODO:
         [] Make use of regular expressions.
 '''
 
+from datetime import datetime
 from pathlib import Path, PurePath
 import os
 #import re
@@ -84,13 +85,20 @@ FILE_NAME = 1
 FILE_SIZE = 2
 
 # TRACKED_DATA
-FILES_RENAMED = 0
-FILE_NAME_COUNT = 1
-FILE_NAME_COUNT_LIMIT = 2
-CURRENT_LIST_INDEX = 3
-CURRENT_FILE_NAME = 4
-SKIPPED_FILES = 5
-SKIP_WARNINGS = 6
+FILES_REVIEWED = 0
+FILES_RENAMED = 1
+FILE_NAME_COUNT = 2
+FILE_NAME_COUNT_LIMIT = 3
+CURRENT_LIST_INDEX = 4
+CURRENT_FILE_NAME = 5
+SKIPPED_FILES = 6
+SKIP_WARNINGS = 7
+LOG_DATA = 8
+ORG_FILE_PATHS = 20
+NEW_FILE_PATHS = 21
+LINKED_FILES_UPDATED = 22
+START_TIME = 23
+END_TIME = 24
 
 AMOUNT = 0
 INDEX_POINTER = 0
@@ -164,7 +172,7 @@ loop = True
 ### Much more complex renaming possibilities are avaliable when using presets.
 ### Make sure to select the correct preset (select_preset)
 use_preset = True
-select_preset = 11
+select_preset = 12
 
 preset0 = {     # Defualts
   EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -189,7 +197,7 @@ preset2 = {
 }
 preset3 = {
   EDIT_TYPE     : ADD,
-  INSERT_TEXT   : { TEXT        : ' (U)',
+  INSERT_TEXT   : { TEXT        : '-W',
                     PLACEMENT   : END },
   SUB_DIRS      : True
 }
@@ -323,6 +331,8 @@ def displayPreset(presets, number = -1):
                 mod_str = intToStrText(None, mod, option)
             print('    %s : %s' % (opt_str, mod_str))
     
+    print('\n')
+    
     return None
 
 
@@ -331,11 +341,30 @@ def displayPreset(presets, number = -1):
 ###     (edit_details) All the details on how to proceed with the file name edits. 
 ###                    Dictionary[EDIT_TYPE, INSERT_TEXT, PLACEMENT, MATCH_TEXT, INSERT_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
 ###     (include_sub_dirs) Search sub-directories for more files.  Boolean(True) or Boolean(False)
-###     --> Returns a [Integer] Number of files renamed.
+###     --> Returns a [Dictionary] edit_details
 def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
     assert Path.is_dir(some_dir) # Error if not directory or doen't exist
     
-    files_renamed = 0
+    # Keep tracked data for additional drops
+    tracked_data = edit_details.get(TRACKED_DATA, {})
+    files_reviewed = tracked_data[FILES_REVIEWED][AMOUNT] if tracked_data else 0
+    files_renamed = tracked_data[FILES_RENAMED][AMOUNT] if tracked_data else 0
+    skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
+    log_data = tracked_data.get(LOG_DATA, {})
+    
+    
+    ## TODO rewrite for single files and dirs, change to "prepareEditDetails()"
+    '''
+    if Path.is_dir(some_dir):
+        
+    
+    elif Path.is_file(some_dir):
+        
+    
+    else:
+        print("\nThis is not a normal file of directory (socket, FIFO, device file, etc.) and so this script won't be renameing it." )
+    '''
+    
     
     for root, dirs, files in os.walk(some_dir):
         
@@ -347,39 +376,51 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
         # Sort Files
         files_meta = sortFiles(files, edit_details.get(PRESORT_FILES,None), root)
         
-        # Prepare Edit Details and add Tracker 
-        edit_details_copy = copyEditDetails(edit_details, files_renamed)
+        # Prepare Edit Details and add Tracker
+        if not log_data:
+            skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
+            log_data = tracked_data.get(LOG_DATA, {})
+        edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, skip_warnings, log_data)
         #displayPreset(edit_details_copy)
         
         for file in files_meta:
             #print('--File: [ %s ]' % (file[FILE_NAME]))
             file_path = Path(file[FILE_PATH])
-            
             edit_details_copy = startingFileRenameProcedure(file_path, edit_details_copy)
-            displayPreset(edit_details_copy)
-            tracked_data = edit_details_copy[TRACKED_DATA]
+            edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
+            #displayPreset(edit_details_copy)
             
+            tracked_data = edit_details_copy[TRACKED_DATA]
             if tracked_data[FILES_RENAMED][LIMIT] != NO_LIMIT and tracked_data[FILES_RENAMED][AMOUNT] > tracked_data[FILES_RENAMED][LIMIT]:
-                #print('[FILES_RENAMED][LIMIT] hit')
                 break # File rename limit hit, stop and move on to next directory.
             if allCountLimitsHitCheck(tracked_data):
-                #print('allCountLimitsHitCheck: True')
                 break # File count limit hit, stop and move on to next directory.
-        
-        files_renamed += edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
         
         if not include_sub_dirs:
             break
+        
+        # Save some tracked data for next directory loop
+        files_reviewed = edit_details_copy[TRACKED_DATA][FILES_REVIEWED][AMOUNT]
+        files_renamed = edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+        skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
+        log_data = tracked_data.get(LOG_DATA, {})
     
     # Add the entire amount of renames made in this last update; for this directory drop, which may include sub-directories.
-    edit_details_copy = updateTrackedData(edit_details_copy, { FILES_RENAMED : files_renamed }, False)
+    #edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : files_reviewed, FILES_RENAMED : files_renamed }, False)
     
     return edit_details_copy
 
+
 ### Copy and add a data tracker to edit_details
 ###     (edit_details) All the details on how to proceed with the file name edits.
+###     (files_reviewed) Keep files reviewed when creating additional edit details copies.
+###     (files_renamed) Keep files renamed when creating additional edit details copies.
+###     (skip_warnings) Keep skip warnings when creating additional edit details copies.
+###     (log_data) Keep log data when creating additional edit details copies.
 ###     --> Returns a [Dictionary] 
-def copyEditDetails(edit_details, files_renamed = 0):
+def copyEditDetails(edit_details, files_reviewed = 0, files_renamed = 0, skip_warnings = [], log_data = {}):
+    start_time = datetime.now().timestamp()
+    
     edit_details_copy = edit_details.copy()
     
     rename_limit = edit_details_copy.get(RENAME_LIMIT, NO_LIMIT)
@@ -422,19 +463,25 @@ def copyEditDetails(edit_details, files_renamed = 0):
                             fnc.append( 1 )
                             fncl.append( text[DYNAMIC_TEXT] )
     
+    # Defaults
     if not fnc:
         fnc.append(0)
     if not fncl:
         fncl.append(NO_LIMIT)
+    if not skip_warnings:
+        skip_warnings = [False]
+    if not log_data:
+        log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : start_time, END_TIME : 0 }
     
-    edit_details_copy.update( { TRACKED_DATA : { FILES_RENAMED : [files_renamed, rename_limit],
+    edit_details_copy.update( { TRACKED_DATA : { FILES_REVIEWED : [files_reviewed,-1],
+                                                 FILES_RENAMED : [files_renamed, rename_limit],
                                                  FILE_NAME_COUNT : fnc,
                                                  FILE_NAME_COUNT_LIMIT : fncl,
                                                  CURRENT_LIST_INDEX : NONE,
                                                  CURRENT_FILE_NAME : '',
                                                  SKIPPED_FILES : [],
-                                                 SKIP_WARNINGS : [False],
-                                                 #LOG_DATA : { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : 0, END_TIME : 0 }
+                                                 SKIP_WARNINGS : skip_warnings,
+                                                 LOG_DATA : log_data
                                                } } )
     
     return edit_details_copy
@@ -446,6 +493,13 @@ def copyEditDetails(edit_details, files_renamed = 0):
 ###     (append_values) Update (add to) values or change them.
 ###     --> Returns a [Dictionary] 
 def updateTrackedData(edit_details, update_data, append_values = True):
+    
+    if FILES_REVIEWED in update_data:
+        if append_values:
+            edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] = edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] + update_data[FILES_REVIEWED]
+        else:
+            edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] = update_data[FILES_REVIEWED]
+    
     if FILES_RENAMED in update_data:
         if append_values:
             edit_details[TRACKED_DATA][FILES_RENAMED][AMOUNT] = edit_details[TRACKED_DATA][FILES_RENAMED][AMOUNT] + update_data[FILES_RENAMED]
@@ -470,11 +524,26 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     
     if SKIPPED_FILES in update_data:
         edit_details[TRACKED_DATA][SKIPPED_FILES].append( update_data[SKIPPED_FILES] )
-        edit_details[TRACKED_DATA][FILE_NAME_COUNT] = edit_details[TRACKED_DATA][FILE_NAME_COUNT] + update_data[FILE_NAME_COUNT]
     
     if SKIP_WARNINGS in update_data:
         index = update_data[SKIP_WARNINGS][INDEX_POINTER]
         edit_details[TRACKED_DATA][SKIP_WARNINGS][index] = update_data[SKIP_WARNINGS][UPDATE_SKIP]
+    
+    if ORG_FILE_PATHS in update_data:
+        edit_details[TRACKED_DATA][LOG_DATA][ORG_FILE_PATHS].append( update_data[ORG_FILE_PATHS] )
+    
+    if NEW_FILE_PATHS in update_data:
+        edit_details[TRACKED_DATA][LOG_DATA][NEW_FILE_PATHS].append( update_data[NEW_FILE_PATHS] )
+    
+    if LINKED_FILES_UPDATED in update_data:
+        if update_data[LINKED_FILES_UPDATED]:
+            edit_details[TRACKED_DATA][LOG_DATA][LINKED_FILES_UPDATED].append( update_data[LINKED_FILES_UPDATED] )
+    
+    if START_TIME in update_data:
+        edit_details[TRACKED_DATA][LOG_DATA][START_TIME] = update_data[START_TIME]
+    
+    if END_TIME in update_data:
+        edit_details[TRACKED_DATA][LOG_DATA][END_TIME] = update_data[END_TIME]
     
     return edit_details
 
@@ -533,7 +602,7 @@ def sortFilesByCreationDate(file):
 def startingFileRenameProcedure(some_file, edit_details):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
-    file_renamed = False
+    file_name_new = False
     
     skip_file = checkForSkippedFiles(file_path, edit_details[TRACKED_DATA][SKIPPED_FILES])
     
@@ -541,10 +610,10 @@ def startingFileRenameProcedure(some_file, edit_details):
     if not skip_file:
         edit_details = insertTextIntoFileName(file_path, edit_details)
         new_file_name = edit_details[TRACKED_DATA][CURRENT_FILE_NAME]
-        file_renamed = False if new_file_name == file_path.name else True
+        file_name_new = False if new_file_name == file_path.name else True
     
-    # Rename The File Now
-    if file_renamed:
+    # Now Rename The File
+    if file_name_new:
         new_file_path = Path(file_path.parent, new_file_name)
         edit_details = renameFile(file_path, new_file_path, edit_details)
         
@@ -552,12 +621,16 @@ def startingFileRenameProcedure(some_file, edit_details):
         
         if not skip_file:
             linked_files = edit_details.get(LINKED_FILES, [])
+            linked_files_updates = []
             for file in linked_files:
                 links_updated = updateLinksInFile(file, str(file_path), str(new_file_path))
+                linked_files_updates.append(links_updated)
                 if links_updated:
                     print('----Link File Updated: [ %s ]' % (file))
                 #else:
                     #print('----Link File Not Updated: [ %s ]' % (file))
+            
+            edit_details = updateTrackedData(edit_details, { LINKED_FILES_UPDATED : linked_files_updates })
     
     else:
         print('--File Not Renamed: %s' % (file_path))
@@ -663,7 +736,10 @@ def getSearchData(search_data, file_path, rename_edit = False):
 ###     (default) If specific option not found return default
 ###     --> Returns a [List] or [Boolean] or [Integer]
 def getOptions(data, specific_option = None, default = False):
-    options = data.get(OPTIONS, [])
+    if type(data) == dict:
+        options = data.get(OPTIONS, [])
+    else:
+        options = []
     if type(options) != list:
         options = [options]
     if specific_option != None:
@@ -769,7 +845,7 @@ def getInsertText(edit_details, list_index = -1):
     edit_type = edit_details[EDIT_TYPE]
     modify_data = edit_details[INSERT_TEXT]
     tracked_data = edit_details[TRACKED_DATA]
-    search_options = getOptions(edit_details[MATCH_TEXT])
+    search_options = getOptions(edit_details.get(MATCH_TEXT, ''))
     same_match_index = SAME_MATCH_INDEX in search_options
     
     if type(modify_data) == dict:
@@ -868,18 +944,19 @@ def getInsertText(edit_details, list_index = -1):
 ###     --> Returns a [String] 
 def insertTextIntoFileName(file_path, edit_details):
     
+    match_text = edit_details.get(MATCH_TEXT, '')
     rename_edit = True if edit_details[EDIT_TYPE] == RENAME else False
-    search_data = getSearchData(edit_details[MATCH_TEXT], file_path, rename_edit)
+    search_data = getSearchData(match_text, file_path, rename_edit)
     match_text_list = search_data[0]
     searchable_file_name = search_data[1]
     #if type(match_text_list) != list:
     #    match_text_list = [match_text_list]
     
-    search_options = getOptions(edit_details[MATCH_TEXT])
+    search_options = getOptions(match_text)
     modify_options = getOptions(edit_details[INSERT_TEXT])
     repeat_text_list = REPEAT_TEXT_LIST in modify_options
     
-    match_limit = getOptions(edit_details[MATCH_TEXT], MATCH_LIMIT, ALL)
+    match_limit = getOptions(match_text, MATCH_LIMIT, ALL)
     match_limit = ALL if match_limit <= NO_LIMIT else match_limit
     same_match_index = SAME_MATCH_INDEX in search_options
     tracked_data = edit_details[TRACKED_DATA]
@@ -914,7 +991,7 @@ def insertTextIntoFileName(file_path, edit_details):
         else:
             match_size = len(match_text)
             new_file_name = file_path.name
-            file_renamed = True
+            #file_renamed = True
             
             index_matches = []
             index_match = 0
@@ -963,8 +1040,8 @@ def insertTextIntoFileName(file_path, edit_details):
                         
                         #elif placement[0] == EXTENSION:
                         #    new_file_name = f"{file_path.name}{insert_text}"
-                        else:
-                            file_renamed = False
+                        #else:
+                        #    file_renamed = False
                 
                 else: # placement[1] == OF_FILE_NAME:
                     new_file_name = addToFileName(file_path, insert_text, placement[0])
@@ -1071,20 +1148,18 @@ def renameFile(file_path, new_file_path, edit_details):
     
     elif does_file_exist == NO: # Actually renaming file
         new_file_path = file_path.rename(new_file_path)
-        edit_details = updateTrackedData(edit_details, { FILES_RENAMED : +1 })
+        edit_details = updateTrackedData(edit_details, { FILES_RENAMED : +1, ORG_FILE_PATHS : file_path, NEW_FILE_PATHS : new_file_path })
         file_renamed = True
-        #renamed_number += 1
     
-    elif does_file_exist == CONTINUE: # Skip this count (+1) and try again (recursively).
+    elif does_file_exist == CONTINUE: # Skip this count (+1) and try renaming file again (recursively).
         file_renamed = False
-        #renamed_count += 1
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1], SKIPPED_FILES : new_file_path })
         
         edit_details = startingFileRenameProcedure(file_path, edit_details)
         
         does_file_exist = NO
     
-    elif does_file_exist == SAME_NAME: # Basically skip, but don't add to renamed files. Count will still increase.
+    elif does_file_exist == SAME_NAME: # Skip this file and continue count, but don't add to renamed files.
         file_renamed = True
     
     if file_renamed:
@@ -1094,8 +1169,7 @@ def renameFile(file_path, new_file_path, edit_details):
             print('--File Already Renamed: %s\\ [ %s ]' % (new_file_path.parent, new_file_path.name))
             print('--You may have ran this script twice in a row.')
         else:
-            print('--File Renamed From: %s\\ [ %s ] to [ %s ]' % (new_file_path.parent, file_path.name, new_file_path.name))
-        #renamed_count += 1
+            print('--File Renamed From: %s\\%s to [ %s ]' % (new_file_path.parent, file_path.name, new_file_path.name))
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1] })
     
     elif does_file_exist != NO:
@@ -1165,6 +1239,88 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path):
         linked_file.write_text(write_data, encoding=text_encoding)
     
     return data_changed
+
+
+### Update log file and record files renamed.
+###     (edit_details) The edit details with the TRACKED_DATA key added.
+###     --> Returns a [Boolean] 
+def updateLogFile(edit_details):
+    
+    tracked_data = edit_details[TRACKED_DATA]
+    log_data = tracked_data[LOG_DATA]
+    
+    files_reviewed = edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT]
+    files_renamed = edit_details[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+    
+    if files_renamed > 0:
+        file_updated = True
+    else:
+        print('Log File Not Updated. Files Renamed: 0')
+        return False
+    
+    linked_files = edit_details[LINKED_FILES]
+    org_file_paths = log_data[ORG_FILE_PATHS]
+    new_file_paths = log_data[NEW_FILE_PATHS]
+    linked_files_updated = log_data[LINKED_FILES_UPDATED]
+    completion_time = log_data[END_TIME] - log_data[START_TIME]
+    
+    this_file = Path(__file__)
+    log_file_name = this_file.stem + '_log.txt' ## TODO: custom file names, options to append or create new log files or overwrite, etc
+    log_file_name_path = Path(PurePath().joinpath(this_file.parent, log_file_name))
+    
+    timestamp = datetime.now().timestamp()
+    date_time = datetime.fromtimestamp(timestamp)
+    time = datetime.fromtimestamp(completion_time)
+    str_date_time = date_time.strftime('On %d/%m/%Y at %I:%M:%S %p')
+    str_completion_time = time.strftime('%S.%f')
+    text_lines = []
+    text_lines.append( '============================' )
+    text_lines.append( str_date_time )
+    text_lines.append( '============================' )
+    
+    text_lines.append( '\nTotal File Names Reviewed: [ ' + str(files_reviewed) + ' ]' )
+    text_lines.append( 'Amount of Files Renamed: [ ' + str(files_renamed) + ' ]' )
+    text_lines.append( 'Amount of Files Not Renamed: [ ' + str(files_reviewed - files_renamed)  + ' ]' )
+    text_lines.append( 'Task Completed In: [ ' + str_completion_time + ' ]' )
+    
+    print_text_lines = text_lines.copy()
+    
+    text_lines.append( '\nLinked Files Updated:' )
+    n = 0
+    for linked_file in linked_files:
+        n += 1
+        text_lines.append( str(n) + '. ' + str(linked_file) )
+
+    text_lines.append( '\n\nFiles Renamed:' )
+    
+    i = 0
+    root = ''
+    links = ''
+    links_updated_str = ''
+    while i < len(org_file_paths):
+        if org_file_paths[i].parent != root:
+            root = org_file_paths[i].parent
+            text_lines.append( '\nRoot Path: ' + str(root))
+        if len(linked_files) > 0:
+            links_updated_str = '  | Links Updated In File #: '
+            x = 0
+            links_updated = ''
+            while x < len(linked_files_updated[i]):
+                links_updated += str(x+1) + ', ' if linked_files_updated[i][x] else ''
+                x += 1
+            links_updated = links_updated.rstrip(', ')
+            links_updated_str += links_updated
+        text_lines.append( '--> ' + str(org_file_paths[i].name) + ' --> ' + str(new_file_paths[i].name) + links_updated_str )
+        i += 1
+    
+    log_file_name_path.write_text('\n'.join(text_lines), encoding=None, errors=None, newline=None)
+    
+    print('\n')
+    print('\n'.join(print_text_lines))
+    print('Check Log for more details.')
+    os.startfile(log_file_name_path)
+    
+    return file_updated
 
 
 ### Change specific user inputs (answer to a question) into a "True or False" Boolean.
@@ -1327,8 +1483,10 @@ def intToStrText(key, value, parent_key = None):
                 text += 'In Descending Order'
         
         elif parent_key == TRACKED_DATA:
+            if key == FILES_REVIEWED:
+                text = 'Files Reviewed So Far : ' + str(value)
             if key == FILES_RENAMED:
-                text = 'Files Renamed So Far : ' + str(value)
+                text = '\n                              Files Renamed So Far : ' + str(value)
             if key == FILE_NAME_COUNT:
                 text = '\n                              Current File Count Number : ' + str(value)
             if key == FILE_NAME_COUNT_LIMIT:
@@ -1341,6 +1499,21 @@ def intToStrText(key, value, parent_key = None):
                 text = '\n                              Files To Skip : ' + str(value)
             if key == SKIP_WARNINGS:
                 text = '\n                              User Warning Skips : ' + str(value)
+            if key == LOG_DATA:
+                text = '\n                              Log Data : [Not Shown Here]'
+                if type(value[0]) != dict: # == Turned Off
+                    for key, items in value[0].items():
+                        if key == ORG_FILE_PATHS:
+                            text += 'Orginal File Paths : ' + str(items) + ', '
+                        elif key == NEW_FILE_PATHS:
+                            text += 'New (Renamed) File Paths : ' + str(items) + ', '
+                        elif key == LINKED_FILES_UPDATED:
+                            text += 'Linked Files Updated : ' + str(items) + ', '
+                        elif key == START_TIME:
+                            text += 'Renaming Process Start Time: ' + str(items) + ', '
+                        elif key == END_TIME:
+                            text += 'Renaming Process End Time : ' + str(items) + ', '
+                        text = text.rstrip(', ')
     
     if key == None:
         if type(value) == str:
@@ -1400,7 +1573,6 @@ def drop(files):
             edit_details = preset
             print('\nUsing...')
             displayPreset(preset_options, select_preset)
-            print('\n')
             input('\nContinue...')
         
         else:
@@ -1480,6 +1652,8 @@ def drop(files):
         # Presort Files
         files_meta = sortFiles(files, edit_details.get(PRESORT_FILES,None))
         
+        edit_details_copy = edit_details
+        
         # Iterate over all dropped files including all files in dropped directories
         include_sub_dirs = -1
         for file in files_meta:
@@ -1493,19 +1667,23 @@ def drop(files):
                 else:
                     include_sub_dirs = preset.get(SUB_DIRS, False)
                 
-                edit_details_copy = renameAllFilesInDirectory(file_path, edit_details, include_sub_dirs)
+                edit_details_copy = renameAllFilesInDirectory(file_path, edit_details_copy, include_sub_dirs)
                 
-                files_renamed += edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+                files_renamed = edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
             
             elif Path.is_file(file_path):
                 #print('\n')
-                edit_details_copy = startingFileRenameProcedure(file_path, edit_details)
+                edit_details_copy = startingFileRenameProcedure(file_path, edit_details_copy) ## TODO needs a rewrite of renameAllFilesInDirectory, no tracking here
                 
-                files_renamed += edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+                files_renamed = edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
             
             else:
                 print( os.path.isfile(file_path) )
                 print("\nThis is not a normal file of directory (socket, FIFO, device file, etc.) and so this script won't be renameing it." )
+        
+        edit_details_copy = updateTrackedData(edit_details_copy, { END_TIME : datetime.now().timestamp() })
+        displayPreset(edit_details_copy)
+        updateLogFile(edit_details_copy)
     
     except IndexError:
         print('\nNo Files or Directories Dropped')
