@@ -25,6 +25,7 @@ TODO:
     [DONE] Sort files in a particular way before renameing
     [DONE] Update one or more texted based files after a file has been renamed
     [DONE] Use more than one search/modify option at a time.
+    [] Option to revert name changes back to original names.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -54,35 +55,31 @@ elif sys.platform == "win32":
 MIN_VERSION = (3,8,0)
 MIN_VERSION_STR = '.'.join([str(n) for n in MIN_VERSION])
 
-# EDIT_TYPE
+# File Meta Data
+META_FILE_PATH = 0
+META_FILE_NAME = 1
+META_FILE_SIZE = 2
+
+### EDIT_DETAILS Keys
+EDIT_TYPE = 0
+MATCH_TEXT = 1
+INSERT_TEXT = 2
+SOFT_RENAME_LIMIT = 3
+HARD_RENAME_LIMIT = 4
+LINKED_FILES = 7
+INCLUDE_SUB_DIRS = 8
+PRESORT_FILES = 9
+TRACKED_DATA = 99
+
+### EDIT_TYPE Options
 ADD = 0
 REPLACE = 1
 RENAME = 2
 
-# PLACEMENT
-START = 3
-LEFT = 3
-END = 4
-RIGHT = 4
-BOTH = 5
-BOTH_ENDS = 5
-OF_FILE_NAME = 6
-OF_MATCH = 7
-#EXTENSION = 8 ## moved to OPTIONS
-
-# EDIT_DETAILS
-EDIT_TYPE = 0
-MATCH_TEXT = 1
-INSERT_TEXT = 2
-RENAME_LIMIT = 3 ## TODO should this be a hard limit or limit per drop/sub-dir?
-LINKED_FILES = 7
-SUB_DIRS = 8
-PRESORT_FILES = 9
-TRACKED_DATA = 99
-
-FILE_PATH = 0
-FILE_NAME = 1
-FILE_SIZE = 2
+### INSERT_TEXT Keys
+TEXT = 0
+OPTIONS = 1
+PLACEMENT = 2
 
 # TRACKED_DATA
 FILES_REVIEWED = 0
@@ -107,6 +104,7 @@ UPDATE_COUNT = 1
 UPDATE_LIMIT = 1
 UPDATE_SKIP = 1
 
+# Constants
 ALL = 999
 NONE = -1
 NO = -1
@@ -121,16 +119,23 @@ SAME_NAME = 4
 SAME = 4
 NO_CHANGE = 4
 
-TEXT = 0
-OPTIONS = 1
-PLACEMENT = 2
-
+# Dynamic Text
 STARTING_TEXT = 0
 DYNAMIC_TEXT = 1
 ENDING_TEXT = 2
 
 STARTING_COUNT = 0
 ENDING_COUNT = 1
+
+### Placement Options
+START = 0
+LEFT = 0
+END = 1
+RIGHT = 1
+BOTH = 2
+BOTH_ENDS = 2
+OF_FILE_NAME = 3
+OF_MATCH = 4
 
 ### Search Options
 MATCH_CASE = 0          # Defualt
@@ -174,123 +179,125 @@ loop = True
 use_preset = True
 select_preset = 12
 
-preset0 = {     # Defualts
-  EDIT_TYPE     : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
-  MATCH_TEXT    : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
-  INSERT_TEXT   : '',       # 'Text' to Replace with -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
-  RENAME_LIMIT  : NO_LIMIT, # Max number of file renames to make per directory drop. (0 to NO_LIMIT)
-  LINKED_FILES  : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
-  SUB_DIRS      : False,    # Search Sub-Directories (True or False)
-  PRESORT_FILES : None      # Sort before renaming files.  Dict{ Sort Option : ASCENDING or DESCENDING }
-}                           # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
+preset0 = {         # Defualts
+  EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
+  MATCH_TEXT        : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
+  INSERT_TEXT       : '',       # 'Text' to Replace with -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
+  SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual file drops. (0 to NO_LIMIT)
+  HARD_RENAME_LIMIT : NO_LIMIT, ## TODO Hard limit on how many files to rename each time script is ran, no mater how many directories or group of individual file dropped. (0 to NO_LIMIT)
+  LINKED_FILES      : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
+  INCLUDE_SUB_DIRS  : False,    # Search Sub-Directories (True or False)
+  PRESORT_FILES     : None      # Sort before renaming files.  Dict{ Sort Option : ASCENDING or DESCENDING }
+}                               # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
 preset1 = {
-  EDIT_TYPE     : REPLACE,
-  MATCH_TEXT    : { TEXT : '(Text)', OPTIONS : [ (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT   : { TEXT : '[Text]' },
-  SUB_DIRS      : True
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : { TEXT : '(Text)', OPTIONS : [ (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT       : { TEXT : '[Text]' },
+  INCLUDE_SUB_DIRS  : True
 }
 preset2 = {
-  EDIT_TYPE     : REPLACE,
-  MATCH_TEXT    : '123',
-  INSERT_TEXT   : 'abc',
-  SUB_DIRS      : False
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : '123',
+  INSERT_TEXT       : 'abc',
+  INCLUDE_SUB_DIRS  : False
 }
 preset3 = {
-  EDIT_TYPE     : ADD,
-  INSERT_TEXT   : { TEXT        : '-W',
-                    PLACEMENT   : END },
-  SUB_DIRS      : True
+  EDIT_TYPE         : ADD,
+  INSERT_TEXT       : { TEXT : '-W', PLACEMENT : END },
+  INCLUDE_SUB_DIRS  : True
 }
 preset4 = {
-  EDIT_TYPE     : RENAME,
-  MATCH_TEXT    : { TEXT : '', OPTIONS : NO_MATCH_CASE },
-  INSERT_TEXT   : { TEXT : ('TextTextText-[', (1,7), ']'), OPTIONS : COUNT },
-  SUB_DIRS      : True
+  EDIT_TYPE         : RENAME,
+  MATCH_TEXT        : { TEXT : '', OPTIONS : NO_MATCH_CASE },
+  INSERT_TEXT       : { TEXT : ('TextTextText-[', (1,7), ']'), OPTIONS : COUNT },
+  INCLUDE_SUB_DIRS  : True
 }
 preset5 = {
-  EDIT_TYPE     : ADD,
-  MATCH_TEXT    : { TEXT : 'Text', OPTIONS : MATCH_CASE },
-  INSERT_TEXT   : { TEXT : ('--(', 1, ')'), OPTIONS : COUNT, PLACEMENT : END },
-  SUB_DIRS      : True
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT : 'Text', OPTIONS : MATCH_CASE },
+  INSERT_TEXT       : { TEXT : ('--(', 1, ')'), OPTIONS : COUNT, PLACEMENT : END },
+  INCLUDE_SUB_DIRS  : True
 }
 preset6 = {
-  EDIT_TYPE     : REPLACE,
-  MATCH_TEXT    : { TEXT : 'Tex', OPTIONS : [ MATCH_CASE, (MATCH_LIMIT, 4), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT   : { TEXT : ('(', 0, ')'), OPTIONS : COUNT },
-  SUB_DIRS      : False
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : { TEXT : 'Tex', OPTIONS : [ MATCH_CASE, (MATCH_LIMIT, 4), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT       : { TEXT : ('(', 0, ')'), OPTIONS : COUNT },
+  INCLUDE_SUB_DIRS  : False
 }
 preset7 = {
-  EDIT_TYPE     : REPLACE,
-  MATCH_TEXT    : { TEXT : '.r00', OPTIONS : [ NO_MATCH_CASE, EXTENSION ] },
-  INSERT_TEXT   : { TEXT : '.rar', OPTIONS : EXTENSION },
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : { TEXT : '.r00', OPTIONS : [ NO_MATCH_CASE, EXTENSION ] },
+  INSERT_TEXT       : { TEXT : '.rar', OPTIONS : EXTENSION },
 }
 preset8 = {
-  EDIT_TYPE     : ADD,
-  MATCH_TEXT    : { TEXT : 'txt', OPTIONS : [ EXTENSION ] },
-  INSERT_TEXT   : { TEXT : 'bck', OPTIONS : EXTENSION },
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT : 'txt', OPTIONS : [ EXTENSION ] },
+  INSERT_TEXT       : { TEXT : 'bck', OPTIONS : EXTENSION },
 }
 preset9 = {
-  EDIT_TYPE     : ADD,
-  MATCH_TEXT    : { TEXT        : 'text',
-                    OPTIONS     : [ MATCH_CASE, (MATCH_LIMIT, 2), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT   : { TEXT        : 'XXX',
-                    PLACEMENT   : ( BOTH_ENDS, OF_MATCH ) },
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT        : 'text',
+                        OPTIONS     : [ MATCH_CASE, (MATCH_LIMIT, 2), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT       : { TEXT        : 'XXX',
+                        PLACEMENT   : ( BOTH_ENDS, OF_MATCH ) },
 }
 preset10 = {
-  EDIT_TYPE     : ADD,
-  MATCH_TEXT    : { TEXT : 'name', OPTIONS : [ NO_MATCH_CASE, (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT   : { TEXT : ('-XXX', 3), OPTIONS : COUNT_TO, PLACEMENT : (END, OF_MATCH) },
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT : 'name', OPTIONS : [ NO_MATCH_CASE, (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT       : { TEXT : ('-XXX', 3), OPTIONS : COUNT_TO, PLACEMENT : (END, OF_MATCH) },
 }
 preset11 = {
-  EDIT_TYPE     : RENAME,
-  MATCH_TEXT    : { TEXT : '', OPTIONS : NO_MATCH_CASE },
-  INSERT_TEXT   : { TEXT : ('TextTextText-[', (1,7), ']'), OPTIONS : COUNT },
-  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
-  PRESORT_FILES : { DATE_MODIFIED : DESCENDING }
+  EDIT_TYPE         : RENAME,
+  MATCH_TEXT        : { TEXT : '', OPTIONS : NO_MATCH_CASE },
+  INSERT_TEXT       : { TEXT : ('TextTextText-[', (1,7), ']'), OPTIONS : COUNT },
+  LINKED_FILES      : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+  PRESORT_FILES     : { DATE_MODIFIED : DESCENDING }
 }
 preset12 = {
-  EDIT_TYPE     : ADD,
-  INSERT_TEXT   : { TEXT : ' (U)', PLACEMENT : END },
-  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
-  SUB_DIRS      : True
+  EDIT_TYPE         : ADD,
+  INSERT_TEXT       : { TEXT : ' (U)', PLACEMENT : END },
+  SOFT_RENAME_LIMIT : 3,
+  HARD_RENAME_LIMIT : 5, ## TODO
+  LINKED_FILES      : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+  INCLUDE_SUB_DIRS  : True
 }
 preset13 = {
-  EDIT_TYPE     : REPLACE,
-  MATCH_TEXT    : { TEXT : ' (U)', OPTIONS : [ MATCH_CASE, (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT   : { TEXT : '' },
-  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
-  SUB_DIRS      : True
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : { TEXT : ' (U)', OPTIONS : [ MATCH_CASE, (MATCH_LIMIT, 10), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT       : { TEXT : '' },
+  LINKED_FILES      : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+  INCLUDE_SUB_DIRS  : True
 }
 preset14 = {
-  EDIT_TYPE     : RENAME,
-  MATCH_TEXT    : { TEXT        : ['[1]','[2]','[3]','[4]','[5]'],
-                    OPTIONS     : [NO_MATCH_CASE, SAME_MATCH_INDEX] },
-  INSERT_TEXT   : { TEXT        : ['NewName-01','ThisName-02','AName-03','NotAName-04','NameName-05'],
-                    OPTIONS     : None },
-  LINKED_FILES  : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
+  EDIT_TYPE         : RENAME,
+  MATCH_TEXT        : { TEXT        : ['[1]','[2]','[3]','[4]','[5]'],
+                        OPTIONS     : [NO_MATCH_CASE, SAME_MATCH_INDEX] },
+  INSERT_TEXT       : { TEXT        : ['NewName-01','ThisName-02','AName-03','NotAName-04','NameName-05'],
+                        OPTIONS     : None },
+  LINKED_FILES      : ['V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt'],
 }
 preset15 = {
-  EDIT_TYPE     : ADD,
-  MATCH_TEXT    : { TEXT        : [ 'text', 'name' ],
-                    OPTIONS     : [ NO_MATCH_CASE, (MATCH_LIMIT, 3), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT   : { TEXT        : [ ('-(', (1,2), ')-'), ('--[', (1,2), ']--') ],
-                    OPTIONS     : [ COUNT, REPEAT_TEXT_LIST ],
-                    PLACEMENT   : ( END, OF_MATCH ) },
-  RENAME_LIMIT  : NO_LIMIT,
-  LINKED_FILES  : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT        : [ 'text', 'name' ],
+                        OPTIONS     : [ NO_MATCH_CASE, (MATCH_LIMIT, 3), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT       : { TEXT        : [ ('-(', (1,2), ')-'), ('--[', (1,2), ']--') ],
+                        OPTIONS     : [ COUNT, REPEAT_TEXT_LIST ],
+                        PLACEMENT   : ( END, OF_MATCH ) },
+  SOFT_RENAME_LIMIT : NO_LIMIT,
+  LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
 }
 preset16 = {
-  EDIT_TYPE     : REPLACE,
-  MATCH_TEXT    : { TEXT        : [ '.rar', '.zip' ],
-                    OPTIONS     : [ NO_MATCH_CASE, EXTENSION, SAME_MATCH_INDEX ] },
-  INSERT_TEXT   : { TEXT        : [ ('.r', (0), ''), ('.z', (0), '') ],
-                    OPTIONS     : [ COUNT, EXTENSION, REPEAT_TEXT_LIST, (MINIMUM_DIGITS, 2) ] },
-  RENAME_LIMIT  : NO_LIMIT,
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : { TEXT        : [ '.rar', '.zip' ],
+                        OPTIONS     : [ NO_MATCH_CASE, EXTENSION, SAME_MATCH_INDEX ] },
+  INSERT_TEXT       : { TEXT        : [ ('.r', (0), ''), ('.z', (0), '') ],
+                        OPTIONS     : [ COUNT, EXTENSION, REPEAT_TEXT_LIST, (MINIMUM_DIGITS, 2) ] },
+  SOFT_RENAME_LIMIT : NO_LIMIT,
 }
 preset17 = {
-  EDIT_TYPE     : RENAME,
-  MATCH_TEXT    : { TEXT : '.rar', OPTIONS : [ NO_MATCH_CASE, EXTENSION ] },
-  INSERT_TEXT   : { TEXT : ('WinRAR File Part-',1,'.rar'), OPTIONS : [ EXTENSION, COUNT] },
+  EDIT_TYPE         : RENAME,
+  MATCH_TEXT        : { TEXT : '.rar', OPTIONS : [ NO_MATCH_CASE, EXTENSION ] },
+  INSERT_TEXT       : { TEXT : ('WinRAR File Part-',1,'.rar'), OPTIONS : [ EXTENSION, COUNT] },
 }
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14,preset15,preset16,preset17]
 preset = preset_options[select_preset]
@@ -336,14 +343,14 @@ def displayPreset(presets, number = -1):
     return None
 
 
-### Iterate over all files in a directory for the purpose of renaming each file that matches the edit conditions.
-###     (some_dir) The full path to a directory. Str("path\to\file")
-###     (edit_details) All the details on how to proceed with the file name edits. 
-###                    Dictionary[EDIT_TYPE, INSERT_TEXT, PLACEMENT, MATCH_TEXT, INSERT_TEXT, RECURSIVE, SEARCH_FROM, SUB_DIRS]
+### Starting file rename procedures using the edit details.
+###     (full_path) The full path to a directory or file.
+###     (edit_details) A Dictionary of all the details on how to proceed with the file name edits.
+###                    Dictionary[EDIT_TYPE, MATCH_TEXT, INSERT_TEXT, SOFT_RENAME_LIMIT, HARD_RENAME_LIMIT, LINKED_FILES, INCLUDE_SUB_DIRS, PRESORT_FILES]
 ###     (include_sub_dirs) Search sub-directories for more files.  Boolean(True) or Boolean(False)
 ###     --> Returns a [Dictionary] edit_details
-def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
-    assert Path.is_dir(some_dir) # Error if not directory or doen't exist
+def startingFileRenameProcedure(full_path, edit_details, include_sub_dirs = False):
+    #assert Path.is_dir(full_path) # Error if not directory or doen't exist
     
     # Keep tracked data for additional drops
     tracked_data = edit_details.get(TRACKED_DATA, {})
@@ -352,61 +359,75 @@ def renameAllFilesInDirectory(some_dir, edit_details, include_sub_dirs = False):
     skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
     log_data = tracked_data.get(LOG_DATA, {})
     
+    edit_details_copy = edit_details
     
-    ## TODO rewrite for single files and dirs, change to "prepareEditDetails()"
-    '''
-    if Path.is_dir(some_dir):
-        
+    ##TODO hard limits
     
-    elif Path.is_file(some_dir):
+    if Path.is_dir(full_path):
         
+        for root, dirs, files in os.walk(full_path):
+            
+            print('\n-Root: %s\n' % (root))
+            
+            #for dir in dirs:
+                #print('--Directory: [ %s ]' % (dir))
+            
+            # Sort Files
+            files_meta = sortFiles(files, edit_details.get(PRESORT_FILES, None), root)
+            
+            # Prepare Edit Details and add Tracker
+            if not log_data:
+                skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
+                log_data = tracked_data.get(LOG_DATA, {})
+            edit_details_copy = copyEditDetails(edit_details, files_reviewed, 0, skip_warnings, log_data)
+            #displayPreset(edit_details_copy)
+            
+            for file in files_meta:
+                #print('--File: [ %s ]' % (file[FILE_NAME]))
+                
+                tracked_data = edit_details_copy[TRACKED_DATA]
+                if tracked_data[FILES_RENAMED][LIMIT] != NO_LIMIT and tracked_data[FILES_RENAMED][AMOUNT] >= tracked_data[FILES_RENAMED][LIMIT]:
+                    break # File rename limit hit, stop and move on to next directory.
+                if allCountLimitsHitCheck(tracked_data):
+                    break # File count limit hit, stop and move on to next directory.
+                
+                file_path = Path(file[META_FILE_PATH])
+                edit_details_copy = createNewFileName(file_path, edit_details_copy)
+                edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
+                displayPreset(edit_details_copy)
+            
+            # Save some tracked data for next directory loop
+            files_reviewed = edit_details_copy[TRACKED_DATA][FILES_REVIEWED][AMOUNT]
+            files_renamed += edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+            skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
+            log_data = tracked_data.get(LOG_DATA, {})
+            
+            if not include_sub_dirs:
+                break
+    
+    elif Path.is_file(full_path):
+        
+        # Prepare Edit Details and add Tracker
+        edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, skip_warnings, log_data)
+        
+        tracked_data = edit_details_copy[TRACKED_DATA]
+        limit_reached = False
+        if tracked_data[FILES_RENAMED][LIMIT] != NO_LIMIT and tracked_data[FILES_RENAMED][AMOUNT] >= tracked_data[FILES_RENAMED][LIMIT]:
+            limit_reached = True # File rename limit hit
+        if allCountLimitsHitCheck(tracked_data):
+            limit_reached = True # File count limit hit
+        
+        if not limit_reached:
+            edit_details_copy = createNewFileName(full_path, edit_details_copy)
+            edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
+        
+        files_renamed += edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
     
     else:
         print("\nThis is not a normal file of directory (socket, FIFO, device file, etc.) and so this script won't be renameing it." )
-    '''
     
-    
-    for root, dirs, files in os.walk(some_dir):
-        
-        print('\n-Root: %s\n' % (root))
-        
-        #for dir in dirs:
-            #print('--Directory: [ %s ]' % (dir))
-        
-        # Sort Files
-        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES,None), root)
-        
-        # Prepare Edit Details and add Tracker
-        if not log_data:
-            skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
-            log_data = tracked_data.get(LOG_DATA, {})
-        edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, skip_warnings, log_data)
-        #displayPreset(edit_details_copy)
-        
-        for file in files_meta:
-            #print('--File: [ %s ]' % (file[FILE_NAME]))
-            file_path = Path(file[FILE_PATH])
-            edit_details_copy = startingFileRenameProcedure(file_path, edit_details_copy)
-            edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
-            #displayPreset(edit_details_copy)
-            
-            tracked_data = edit_details_copy[TRACKED_DATA]
-            if tracked_data[FILES_RENAMED][LIMIT] != NO_LIMIT and tracked_data[FILES_RENAMED][AMOUNT] > tracked_data[FILES_RENAMED][LIMIT]:
-                break # File rename limit hit, stop and move on to next directory.
-            if allCountLimitsHitCheck(tracked_data):
-                break # File count limit hit, stop and move on to next directory.
-        
-        if not include_sub_dirs:
-            break
-        
-        # Save some tracked data for next directory loop
-        files_reviewed = edit_details_copy[TRACKED_DATA][FILES_REVIEWED][AMOUNT]
-        files_renamed = edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
-        skip_warnings = tracked_data.get(SKIP_WARNINGS, [])
-        log_data = tracked_data.get(LOG_DATA, {})
-    
-    # Add the entire amount of renames made in this last update; for this directory drop, which may include sub-directories.
-    #edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : files_reviewed, FILES_RENAMED : files_renamed }, False)
+    # Just in case the files renamed was reset make sure to re-add the correct amount of files renamed back.
+    edit_details_copy = updateTrackedData(edit_details_copy, { FILES_RENAMED : files_renamed }, False)
     
     return edit_details_copy
 
@@ -423,7 +444,8 @@ def copyEditDetails(edit_details, files_reviewed = 0, files_renamed = 0, skip_wa
     
     edit_details_copy = edit_details.copy()
     
-    rename_limit = edit_details_copy.get(RENAME_LIMIT, NO_LIMIT)
+    soft_rename_limit = edit_details_copy.get(SOFT_RENAME_LIMIT, NO_LIMIT)
+    hard_rename_limit = edit_details_copy.get(HARD_RENAME_LIMIT, NO_LIMIT) ## TODO
     modify_options = getOptions(edit_details_copy[INSERT_TEXT])
     
     fnc = []
@@ -447,7 +469,7 @@ def copyEditDetails(edit_details, files_reviewed = 0, files_renamed = 0, skip_wa
                     fncl.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT] )
         
         elif type(edit_details_copy[INSERT_TEXT][TEXT]) == list:
-            rename_limit = NO_LIMIT if REPEAT_TEXT_LIST in modify_options else len(edit_details_copy[INSERT_TEXT][TEXT])
+            soft_rename_limit = NO_LIMIT if REPEAT_TEXT_LIST in modify_options else len(edit_details_copy[INSERT_TEXT][TEXT])
             
             for text in edit_details_copy[INSERT_TEXT][TEXT]:
                 if type(text) == tuple:
@@ -473,8 +495,8 @@ def copyEditDetails(edit_details, files_reviewed = 0, files_renamed = 0, skip_wa
     if not log_data:
         log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : start_time, END_TIME : 0 }
     
-    edit_details_copy.update( { TRACKED_DATA : { FILES_REVIEWED : [files_reviewed,-1],
-                                                 FILES_RENAMED : [files_renamed, rename_limit],
+    edit_details_copy.update( { TRACKED_DATA : { FILES_REVIEWED : [files_reviewed, hard_rename_limit],
+                                                 FILES_RENAMED : [files_renamed, soft_rename_limit],
                                                  FILE_NAME_COUNT : fnc,
                                                  FILE_NAME_COUNT_LIMIT : fncl,
                                                  CURRENT_LIST_INDEX : NONE,
@@ -493,6 +515,10 @@ def copyEditDetails(edit_details, files_reviewed = 0, files_renamed = 0, skip_wa
 ###     (append_values) Update (add to) values or change them.
 ###     --> Returns a [Dictionary] 
 def updateTrackedData(edit_details, update_data, append_values = True):
+    
+    if edit_details.get(TRACKED_DATA, None) == None:
+        print('Tracker Not Found. Something likely went wrong.')
+        return edit_details
     
     if FILES_REVIEWED in update_data:
         if append_values:
@@ -595,11 +621,11 @@ def sortFilesByCreationDate(file):
     return file[5]
 
 
-### Starting file name procedures using the edit details.
+### Using the edit details create a new file name and try renaming file and updating any linked files.
 ###     (some_file) The full path to a file.
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [Dictionary] 
-def startingFileRenameProcedure(some_file, edit_details):
+def createNewFileName(some_file, edit_details):
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
     file_name_new = False
@@ -952,6 +978,11 @@ def insertTextIntoFileName(file_path, edit_details):
     #if type(match_text_list) != list:
     #    match_text_list = [match_text_list]
     
+    if type(edit_details[INSERT_TEXT]) == dict:
+        is_text_list = True if type(edit_details[INSERT_TEXT].get(TEXT)) == list else False
+    else:
+        is_text_list = False
+    
     search_options = getOptions(match_text)
     modify_options = getOptions(edit_details[INSERT_TEXT])
     repeat_text_list = REPEAT_TEXT_LIST in modify_options
@@ -977,7 +1008,7 @@ def insertTextIntoFileName(file_path, edit_details):
                 input('Else press "Enter" if you wish to continue anyways...')
                 skip_warning_smi = True
             match_index = i
-        elif renamed_limit > 1:
+        elif is_text_list and renamed_limit > 1:
             if repeat_text_list:
                 renamed_number = resetIfMaxed(renamed_number, renamed_limit)
             match_index = renamed_number
@@ -991,7 +1022,6 @@ def insertTextIntoFileName(file_path, edit_details):
         else:
             match_size = len(match_text)
             new_file_name = file_path.name
-            #file_renamed = True
             
             index_matches = []
             index_match = 0
@@ -1155,7 +1185,7 @@ def renameFile(file_path, new_file_path, edit_details):
         file_renamed = False
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1], SKIPPED_FILES : new_file_path })
         
-        edit_details = startingFileRenameProcedure(file_path, edit_details)
+        edit_details = createNewFileName(file_path, edit_details)
         
         does_file_exist = NO
     
@@ -1170,6 +1200,7 @@ def renameFile(file_path, new_file_path, edit_details):
             print('--You may have ran this script twice in a row.')
         else:
             print('--File Renamed From: %s\\%s to [ %s ]' % (new_file_path.parent, file_path.name, new_file_path.name))
+        print(current_list_index)
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1] })
     
     elif does_file_exist != NO:
@@ -1246,7 +1277,10 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path):
 ###     --> Returns a [Boolean] 
 def updateLogFile(edit_details):
     
-    tracked_data = edit_details[TRACKED_DATA]
+    tracked_data = edit_details.get(TRACKED_DATA)
+    if not tracked_data:
+        return False
+    
     log_data = tracked_data[LOG_DATA]
     
     files_reviewed = edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT]
@@ -1271,7 +1305,7 @@ def updateLogFile(edit_details):
     timestamp = datetime.now().timestamp()
     date_time = datetime.fromtimestamp(timestamp)
     time = datetime.fromtimestamp(completion_time)
-    str_date_time = date_time.strftime('On %d/%m/%Y at %I:%M:%S %p')
+    str_date_time = date_time.strftime('On %m/%d/%Y at %I:%M:%S %p')
     str_completion_time = time.strftime('%S.%f')
     text_lines = []
     text_lines.append( '============================' )
@@ -1302,14 +1336,15 @@ def updateLogFile(edit_details):
             root = org_file_paths[i].parent
             text_lines.append( '\nRoot Path: ' + str(root))
         if len(linked_files) > 0:
-            links_updated_str = '  | Links Updated In File #: '
             x = 0
+            links_updated_str = '  | Links Updated In File #: '
             links_updated = ''
             while x < len(linked_files_updated[i]):
                 links_updated += str(x+1) + ', ' if linked_files_updated[i][x] else ''
                 x += 1
             links_updated = links_updated.rstrip(', ')
-            links_updated_str += links_updated
+            links_updated_str = links_updated_str + links_updated if links_updated != '' else ''
+            #links_updated_str += links_updated
         text_lines.append( '--> ' + str(org_file_paths[i].name) + ' --> ' + str(new_file_paths[i].name) + links_updated_str )
         i += 1
     
@@ -1405,11 +1440,13 @@ def intToStrText(key, value, parent_key = None):
                 text = 'Match Text             '
             elif key == INSERT_TEXT:
                 text = 'Text To Insert         '
-            elif key == RENAME_LIMIT:
-                text = 'File Rename Limit      '
+            elif key == SOFT_RENAME_LIMIT:
+                text = 'File Rename Soft Limit '
+            elif key == HARD_RENAME_LIMIT:
+                text = 'File Rename Hard Limit '
             elif key == LINKED_FILES:
                 text = 'Files With Links       '
-            elif key == SUB_DIRS:
+            elif key == INCLUDE_SUB_DIRS:
                 text = 'Include Sub Directories'
             elif key == PRESORT_FILES:
                 text = 'Pre-Sort Files         '
@@ -1542,10 +1579,12 @@ def resetIfMaxed(number, max):
     return number
 
 
-### Drop one of more files and directories here to be renamed after answering a series of questions regarding how to properly rename said files.
+### Drop one of more files and directories here to be renamed via presets or after answering a series of questions regarding how to properly rename said files.
 ###     (files) A List of files, which can include directories pointing to many more files.
 ###     --> Returns a [Integer] Number of files renamed.
 def drop(files):
+    
+    files_renamed = 0
     
     # If script is ran on it's own then ask for a file to rename.
     if len(files) == 0:
@@ -1555,13 +1594,21 @@ def drop(files):
         if os.path.exists(dropped_file):
             files.append(dropped_file)
         else:
-            print('\nNo Files or Directories Dropped')
-            return 0
-    elif not os.path.exists(files[0]):
-        print('\nNo Files or Directories Dropped')
-        return 0
+            print('This file or directory does not exist: [ %s ]' % dropped_file)
+            return files_renamed
     
-    files_renamed = 0
+    else:
+        path_not_exist = []
+        i = -1
+        for file in files:
+            i += 1
+            if not os.path.exists(file):
+                print('This file or directory does not exists: [ %s ]' % file)
+                input('Continue on with additional dropped files or directories...')
+                path_not_exist.append(i)
+        path_not_exist.reverse()
+        for index in path_not_exist:
+            files.pop(index)
     
     try:
         # Check if at least one file or directory was dropped
@@ -1606,7 +1653,7 @@ def drop(files):
                         preset_selection = NONE
             
             else:
-                ## TODO: Rewrite...
+                ## TODO: None of this works anymore, Rewrite It...
                 edit_details = [EDIT_TYPE, PLACEMENT, MATCH_TEXT, INSERT_TEXT, RECURSIVE, SEARCH_FROM]
                 
                 edit_type = NONE
@@ -1646,18 +1693,18 @@ def drop(files):
                     
                     edit_details[MATCH_TEXT] = match_text
                     edit_details[INSERT_TEXT] = replace_text
-                    edit_details[RECURSIVE] = recursive ## TODO fix this
+                    edit_details[RECURSIVE] = recursive
                     edit_details[SEARCH_FROM] = search_from
         
         # Presort Files
-        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES,None))
+        files_meta = sortFiles(files, edit_details.get(PRESORT_FILES, None))
         
         edit_details_copy = edit_details
         
         # Iterate over all dropped files including all files in dropped directories
         include_sub_dirs = -1
         for file in files_meta:
-            file_path = file[FILE_PATH]
+            file_path = file[META_FILE_PATH]
             
             if Path.is_dir(file_path):
                 
@@ -1665,21 +1712,19 @@ def drop(files):
                     include_sub_dirs = input('Search through sub-directories too? [ Y / N ]: ')
                     include_sub_dirs = yesTrue(include_sub_dirs)
                 else:
-                    include_sub_dirs = preset.get(SUB_DIRS, False)
+                    include_sub_dirs = preset.get(INCLUDE_SUB_DIRS, False)
                 
-                edit_details_copy = renameAllFilesInDirectory(file_path, edit_details_copy, include_sub_dirs)
-                
-                files_renamed = edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+                edit_details_copy = startingFileRenameProcedure(file_path, edit_details_copy, include_sub_dirs)
             
             elif Path.is_file(file_path):
-                #print('\n')
-                edit_details_copy = startingFileRenameProcedure(file_path, edit_details_copy) ## TODO needs a rewrite of renameAllFilesInDirectory, no tracking here
                 
-                files_renamed = edit_details_copy[TRACKED_DATA][FILES_RENAMED][AMOUNT]
+                edit_details_copy = startingFileRenameProcedure(file_path, edit_details_copy)
             
             else:
                 print( os.path.isfile(file_path) )
                 print("\nThis is not a normal file of directory (socket, FIFO, device file, etc.) and so this script won't be renameing it." )
+            
+            files_renamed = edit_details_copy.get(TRACKED_DATA, {}).get(FILES_RENAMED, [0])[AMOUNT]
         
         edit_details_copy = updateTrackedData(edit_details_copy, { END_TIME : datetime.now().timestamp() })
         displayPreset(edit_details_copy)
