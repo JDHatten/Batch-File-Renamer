@@ -6,7 +6,7 @@ Batch File Renamer by JDHatten
     This script will rename one or more files either by adding new text or replacing text in the file names.
     Adding text can be placed at the start, end, or both sides of either matched text or the entire file name itself.
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
-    Renameing will just rename the entire file, but an iterating number or some other modify option must be used.
+    Renameing will just rename the entire file, but an iterating number or some other modify option should be used.
     Bonus: This script can also update any text based files that that have links to the renamed files to prevent
     broken links in whatever apps that use the renamed files.
 
@@ -38,6 +38,7 @@ TODO:
 '''
 
 from datetime import datetime
+import math
 from pathlib import Path, PurePath
 import os
 #import re
@@ -190,14 +191,15 @@ log_dir_name = 'Logs of File Renames'
 log_file_limit = 10
 log_file_name_suffix = '__log.txt'
 
-### After initial drop and file renaming, ask for additional files or just quit the script.
+### If False the script will just run after file(s) dropped with current selected preset and quit.
+### If True the script will ask for a slected preset and ask for additional file drops after initial drop.
 loop = True
 
 ### Present Options - Used to skip questions and immediately start renaming all dropped files.
 ### Much more complex renaming possibilities are avaliable when using presets.
-### Make sure to select the correct preset (select_preset)
-use_preset = True
-select_preset = 12
+### Make sure to select the correct preset (selected_preset)
+#use_preset = True
+selected_preset = 12
 
 preset0 = {         # Defualts
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -326,7 +328,7 @@ preset18 = {
 }
 
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18]
-preset = preset_options[select_preset]
+#preset = preset_options[selected_preset]
 
 
 ### Show/Print tracking data and maybe some other variables.
@@ -356,13 +358,16 @@ def displayPreset(presets, number = -1, log_preset = False):
                 else:
                     mod_str = intToStrText(None, mod, option)
                 if not log_preset: print('    %s : %s' % (opt_str, mod_str))
+            
+            if math.remainder(number, 5) == 0 and number != 0:
+                input('Show More...')
     
     else:
         if type(presets) == dict:
             if not log_preset: print('\nCurrent Preset In Use')
         else:
             presets = presets[number]
-            if not log_preset: print('\nPreset %s' % str(number))
+            if not log_preset: print('\nCurrent Preset #%s' % str(number))
         for option, mod in presets.items():
             opt_str = intToStrText(option, 'Preset Options')
             mod_str = ''
@@ -425,8 +430,6 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     log_data = getTrackedData(edit_details_copy, LOG_DATA)
                 edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, skip_warnings, log_data)
                 #if debug: displayPreset(edit_details_copy)
-                
-                updateLogFile(edit_details_copy)
                 
                 for file in files_meta:
                     #print('--File: [ %s ]' % (file[META_FILE_NAME]))
@@ -1625,7 +1628,8 @@ def updateLogFile(edit_details, log_revert = False):
         
         # Add edit details or preset used to log file.
         if log_edit_details and not log_revert:
-            preset_str = ' (preset' + str(preset_options.index(preset)) + ')' if use_preset else ''
+            #preset_str = ' (preset' + str(preset_options.index(preset)) + ')' if use_preset else ''
+            preset_str = ' (preset' + str(selected_preset) + ')'
             text_lines.append( '\n\nEdit Criteria Used:' + preset_str)
             text_lines.extend(displayPreset(edit_details, -1, True))
         
@@ -1705,16 +1709,19 @@ def strToIntConstant(user_input, category):
     return number
 
 
-### Change a String into an Integer.
-###     (string) The String to change into an Integer.
+### Get proper user preset selection.
+###     (string_num) A user typed String to change into an Integer or keep blank ('').
 ###     --> Returns a [Integer]
-def strNumberToInt(string_num):
+def getUserPresetSelection(string_num):
     string_num = string_num.casefold()
-    if string_num == 'a' or string_num == 'all' or string_num == 'showall' or string_num == 'sa':
+    #if string_num == 'a' or string_num == 'all' or string_num == 'showall' or string_num == 'sa':
+    if string_num == '':
+        number = ''
+    elif 'showall'.find(string_num) > -1:
         number = ALL
-    elif string_num.find('show') > -1:
+        '''elif string_num.find('show') > -1:
         number = string_num.partition('show')[2]
-        number = strNumberToInt(str(int(number)+1000))
+        number = getUserPresetSelection(str(int(number)+1000))'''
     elif string_num.isnumeric():
         number = int(string_num)
     else:
@@ -1738,7 +1745,7 @@ def intToStrText(key, value, parent_key = None):
             if key == EDIT_TYPE:
                 text = 'Edit Type              '
             elif key == MATCH_TEXT:
-                text = 'Match Text             '
+                text = 'Text To Match          '
             elif key == INSERT_TEXT:
                 text = 'Text To Insert         '
             elif key == SOFT_RENAME_LIMIT:
@@ -1890,6 +1897,7 @@ def resetIfMaxed(number, max):
 ###     --> Returns a [Integer] Number of files renamed.
 def drop(files):
     
+    global selected_preset
     files_renamed = 0
     
     # If script is ran on it's own then ask for a file to rename.
@@ -1921,13 +1929,36 @@ def drop(files):
         dropped_file = files[0]
         print('Number of Files or Directories Dropped: [ %s ]' % len(files))
         
-        global use_preset
-        if use_preset:
-            edit_details = preset
-            print('\nUsing...')
-            displayPreset(preset_options, select_preset)
-            input('\nContinue...')
+        #global use_preset
+        #if use_preset:
         
+        preset_loop = loop
+        while preset_loop:
+            #print('\nSelect a Preset Option [ # ] ')
+            #preset_selection = input('Or Type [ Show# ] or [ ShowAll ] To Display Presets: ')
+            displayPreset(preset_options, selected_preset)
+            preset_selection = input('Continue with this Preset [ Enter ] or choose another? [ # ] or [ ShowAll ]: ')
+            preset_selection = getUserPresetSelection(preset_selection)
+            #print(preset_selection)
+            
+            if preset_selection == ALL:
+                displayPreset(preset_options)
+                preset_selection = input('Select a Preset [ # ]: ')
+                preset_selection = getUserPresetSelection(preset_selection)
+            
+            elif preset_selection == '':
+                preset_selection = selected_preset
+                preset_loop = False
+            
+            if preset_selection < len(preset_options) and preset_selection > NONE:
+                selected_preset = preset_selection
+            else:
+                print('That Preset Doesn\'t Exist.')
+        
+        print('\nPreset [ #%s ] Selected' % selected_preset)
+        edit_details = preset_options[selected_preset]
+        
+        '''
         else:
             print('Do you wish to select a preset or do more simple file renaming by answering a few questions?')
             use_preset = input('Use Presets [ Y / N ]: ')
@@ -1939,7 +1970,7 @@ def drop(files):
                 while preset_selection == NONE:
                     print('\nSelect a Preset Option [ # ] ')
                     preset_selection = input('Or Type [ Show# ] or [ ShowAll ] To Display Presets: ')
-                    preset_selection = strNumberToInt(preset_selection)
+                    preset_selection = getUserPresetSelection(preset_selection)
                     
                     if preset_selection == ALL:
                         displayPreset(preset_options)
@@ -1987,7 +2018,7 @@ def drop(files):
                     recursive = NONE
                     while recursive == NONE:
                         recursive = input('How many matches per file name are to be replaced? [ (A)LL / 1 / # ]: ') # All = 999
-                        recursive = strNumberToInt(recursive)
+                        recursive = getUserPresetSelection(recursive)
                     
                     if recursive != ALL:
                         search_from = NONE
@@ -2001,7 +2032,7 @@ def drop(files):
                     edit_details[INSERT_TEXT] = replace_text
                     edit_details[RECURSIVE] = recursive
                     edit_details[SEARCH_FROM] = search_from
-        
+        '''
         # Presort Files
         files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None))
         
@@ -2032,11 +2063,11 @@ def drop(files):
         
         else:
             
-            if not use_preset:
-                include_sub_dirs = input('Search through sub-directories too? [ Y / N ]: ')
-                include_sub_dirs = yesTrue(include_sub_dirs)
-            else:
-                include_sub_dirs = preset.get(INCLUDE_SUB_DIRS, False)
+            #if not use_preset:
+            #    include_sub_dirs = input('Search through sub-directories too? [ Y / N ]: ')
+            #    include_sub_dirs = yesTrue(include_sub_dirs)
+            #else:
+            include_sub_dirs = edit_details.get(INCLUDE_SUB_DIRS, False)
             
             # Start Renaming...
             edit_details_copy = startingFileRenameProcedure(files_meta, edit_details, include_sub_dirs)
