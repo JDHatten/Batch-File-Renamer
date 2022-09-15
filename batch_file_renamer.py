@@ -3,12 +3,18 @@
 
 '''
 Batch File Renamer by JDHatten
+    
     This script will rename one or more files either by adding new text or replacing text in the file names.
     Adding text can be placed at the start, end, or both sides of either matched text or the entire file name itself.
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
     Renameing will just rename the entire file, but an iterating number or some other modify option should be used.
-    Bonus: This script can also update any text based files that that have links to the renamed files to prevent
-    broken links in whatever apps that use the renamed files.
+    
+    Extra Features: 
+    - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps 
+      that use the those files.
+    - Revert any file name changes by dropping the generated log file back into the script.
+    - Sort groups of files before renaming using file meta data.
+
 
 Usage:
     Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex 
@@ -26,6 +32,7 @@ TODO:
     [DONE] Update one or more texted based files after a file has been renamed
     [DONE] Use more than one search/modify option at a time.
     [DONE] Option to revert name changes back to original names.
+    [] Ignore option that will skip files that match the ignore text.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -137,12 +144,12 @@ STARTING_COUNT = 0
 ENDING_COUNT = 1
 
 ### Search Options
-MATCH_CASE = 0          # [Defualt]
+MATCH_CASE = 0          # [Default]
 NO_MATCH_CASE = 1       # Not a case sensitive search.
-SEARCH_FROM_RIGHT = 2   # Start searching from right to left.  Defualt: SEARCH_FROM_LEFT
-MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name.  Defualt: (MATCH_LIMIT, NO_LIMIT)
+SEARCH_FROM_RIGHT = 2   # Start searching from right to left.  Default: SEARCH_FROM_LEFT
+MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name.  Default: (MATCH_LIMIT, NO_LIMIT)
 SAME_MATCH_INDEX = 4    # When a match is made from the "MATCH_TEXT List" use the same index when choosing text from the "INSERT_TEXT List".
-                        # Useful when makeing a long lists of specfic files to find and rename.
+                        # Useful when making a long lists of specific files to find and rename.
 
 ### Search & Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
@@ -154,7 +161,7 @@ REGEX = 11              ## TODO: Regular Expressions
 ### Modify Options
 COUNT = 20              # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional.
                         # NOTE: Resets after each directory change.
-COUNT_TO = 21           # Max amount of renames to make before stopping.  Similer to COUNT's ending number without adding an iterating number to a file name.
+COUNT_TO = 21           # Max amount of renames to make before stopping.  Similar to COUNT's ending number without adding an iterating number to a file name.
 MINIMUM_DIGITS = 23     # Minimum digits for any dynamic text used, i.e. 3 = 003
 RANDOM = 24             ## TODO: Generate random numbers or text that is added to file names.
 REPEAT_TEXT_LIST = 25   # Once the end of a text list is reached, repeat it.  Text must be dynamic, i.e. COUNT, RANDOM, etc.
@@ -162,23 +169,24 @@ REPEAT_TEXT_LIST = 25   # Once the end of a text list is reached, repeat it.  Te
 ### Placement Options
 START = 30              # Place at the start of...
 LEFT = 30               # Place at the left of...
-END = 31                # Place at the end of... [Defualt]
+END = 31                # Place at the end of... [Default]
 RIGHT = 31              # Place at the right of...
 BOTH = 32               # Place at both sides of...
 BOTH_ENDS = 32          # Place at both ends of...
 
-OF_FILE_NAME = 40       # Placed at file name minus extension [Defualt]
+OF_FILE_NAME = 40       # Placed at file name minus extension [Default]
 OF_MATCH = 41           # Placed at one or more matches found
 
-### Sort Options
-ASCENDING = 50          # 0-9, A-Z [Defualt]
+### Sort Options        ## TODO: add more sorting options, image sizes, format/extension, etc
+ASCENDING = 50          # 0-9, A-Z [Default]
 DESCENDING = 61         # 9-0, Z-A
-ALPHABETICALLY = 62     # Alphabetically Ordered [Defualt]
+ALPHABETICALLY = 62     # File name [Default]
 FILE_SIZE = 63          # File size in bytes
 DATE_ACCESSED = 64      # Date file last opened.
 DATE_MODIFIED = 65      # Date file last changed.
 DATE_CREATED = 66       # Date file created. (Windows Only)
 DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
+
 
 ### Create a log file for each rename task ran, and include edit details or preset used.
 ### Directory name can be relative to this script or an absolute path.
@@ -192,21 +200,21 @@ log_file_limit = 10
 log_file_name_suffix = '__log.txt'
 
 ### If False the script will just run after file(s) dropped with current selected preset and quit.
-### If True the script will ask for a slected preset and ask for additional file drops after initial drop.
+### If True the script will ask for a selected preset and ask for additional file drops after initial drop.
 loop = True
 
 ### Present Options - Used to skip questions and immediately start renaming all dropped files.
-### Much more complex renaming possibilities are avaliable when using presets.
+### Much more complex renaming possibilities are available when using presets.
 ### Make sure to select the correct preset (selected_preset)
 #use_preset = True
 selected_preset = 12
 
-preset0 = {         # Defualts
+preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
   MATCH_TEXT        : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
   INSERT_TEXT       : '',       # 'Text' to Replace with -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
   SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
-  HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no mater how many directories or group of individual files dropped. (0 to NO_LIMIT)
+  HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
   LINKED_FILES      : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
   INCLUDE_SUB_DIRS  : False,    # Search Sub-Directories (True or False)
   PRESORT_FILES     : None      # Sort before renaming files.  Dict{ Sort Option : ASCENDING or DESCENDING }
@@ -326,9 +334,17 @@ preset18 = {
   MATCH_TEXT        : { TEXT : '.rar', OPTIONS : [ NO_MATCH_CASE, EXTENSION ] }, # With EXTENSION search option...
   INSERT_TEXT       : { TEXT : '-123-', OPTIONS : None, PLACEMENT : (START, OF_MATCH) }, # OF_MATCH is ignored, only OF_FILE_NAME is used
 }
+preset19 = {
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT        : [ '.jpg', '.png' ],
+                        OPTIONS     : [ NO_MATCH_CASE, EXTENSION, SAME_MATCH_INDEX ] },
+  INSERT_TEXT       : { TEXT        : [ ('-', (1,200), ''), ('-', (1000,2200), '') ],
+                        OPTIONS     : [ COUNT, (MINIMUM_DIGITS, 4) ],
+                        PLACEMENT   : ( END, OF_FILE_NAME ) },
+  LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
+}
 
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18]
-#preset = preset_options[selected_preset]
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19]
 
 
 ### Show/Print tracking data and maybe some other variables.
@@ -398,7 +414,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
     
     edit_details_copy = edit_details
     
-    # Keep tracked data from previous drops (Note: Not being used anymore, but will still return defualt values so keeping it in.)
+    # Keep tracked data from previous drops (Note: Not being used anymore, but will still return default values so keeping it in.)
     files_reviewed = getTrackedData(edit_details_copy, FILES_REVIEWED, [AMOUNT])
     files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [AMOUNT])
     individual_files_renamed = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [AMOUNT])
@@ -983,7 +999,7 @@ def getSearchData(search_data, file_path, rename_edit = False):
             print('TODO REGEX')
         #else: ## this should override every other option, when added.
         
-        # Defualt MATCH_CASE
+        # Default MATCH_CASE
         if NO_MATCH_CASE in search_options:
             
             i = 0
@@ -1326,7 +1342,7 @@ def insertTextIntoFileName(file_path, edit_details):
                         elif placement[0] == BOTH:
                             new_file_name = new_file_name[:index] + insert_text + new_file_name[index:index + match_size] + insert_text + new_file_name[index + match_size:]
                 
-                else: # placement[1] == OF_FILE_NAME: # Defualt
+                else: # placement[1] == OF_FILE_NAME: # Default
                     new_file_name = addToFileName(file_path, insert_text, placement[0])
             
             elif edit_details[EDIT_TYPE] == REPLACE:
@@ -1892,6 +1908,36 @@ def resetIfMaxed(number, max):
     return number
 
 
+
+def dropFileCheck(files):
+    
+    if type(files) != list:
+        files = [files]
+    
+    if len(files) == 1:
+        if files[0].find('""') > -1:
+            # Multiple files dropped into promt, split and remove quotes
+            files = files[0].split('""')
+            i = 0
+            while i < len(files):
+                files[i] = files[i].replace('"','')
+                i += 1
+        else:
+            files[0] = files[0].replace('"','')
+    
+    i = len(files)-1
+    while i > -1:
+        if not os.path.exists(files[i]):
+            print('\nThis file or directory does not exists: [ %s ]' % files[i])
+            if i > 0:
+                input('Continue on with additional dropped files or directories...')
+            files.pop(i)
+        i -= 1
+    
+    if debug: print(files)
+    
+    return files
+
 ### Drop one of more files and directories here to be renamed via presets or after answering a series of questions regarding how to properly rename said files.
 ###     (files) A List of files, which can include directories pointing to many more files.
 ###     --> Returns a [Integer] Number of files renamed.
@@ -1899,35 +1945,54 @@ def drop(files):
     
     global selected_preset
     files_renamed = 0
-    
+    '''
     # If script is ran on it's own then ask for a file to rename.
     if len(files) == 0:
         dropped_file = input('No files or directories found, drop one here now to proceed: ')
-        dropped_file = dropped_file.replace('"','') # Remove the auto quotes.
         
-        if os.path.exists(dropped_file):
-            files.append(dropped_file)
+        if dropped_file.find('""') > -1:
+            print('multi-files')
+            files = dropped_file.split('""')
+            i = 0
+            while i < len(files):
+                files[i] = files[i].replace('"','')
+                i += 1
+        
+        
         else:
-            print('This file or directory does not exist: [ %s ]' % dropped_file)
-            return files_renamed
+            dropped_file = dropped_file.replace('"','') # Remove the auto quotes.
+            
+            if os.path.exists(dropped_file):
+                files.append(dropped_file)
+            else:
+                print('This file or directory does not exist: [ %s ]' % dropped_file)
+                return files_renamed
+
+    #else:
+    path_not_exist = []
+    i = -1
+    for file in files:
+        i += 1
+        if not os.path.exists(file):
+            print('This file or directory does not exists: [ %s ]' % file)
+            input('Continue on with additional dropped files or directories...')
+            path_not_exist.append(i)
+    path_not_exist.reverse()
+    for index in path_not_exist:
+        files.pop(index)
+    '''
     
-    else:
-        path_not_exist = []
-        i = -1
-        for file in files:
-            i += 1
-            if not os.path.exists(file):
-                print('This file or directory does not exists: [ %s ]' % file)
-                input('Continue on with additional dropped files or directories...')
-                path_not_exist.append(i)
-        path_not_exist.reverse()
-        for index in path_not_exist:
-            files.pop(index)
+    # If script is ran on it's own then ask for a file to rename.
+    if len(files) == 0:
+        files = input('No files or directories found, drop one here now to proceed: ')
     
-    try:
+    files = dropFileCheck(files)
+    
+    if files:
+    #try:
         # Check if at least one file or directory was dropped
-        dropped_file = files[0]
-        print('Number of Files or Directories Dropped: [ %s ]' % len(files))
+        #dropped_file = files[0]
+        print('\nNumber of Files or Directories Dropped: [ %s ]' % len(files))
         
         #global use_preset
         #if use_preset:
@@ -2076,8 +2141,9 @@ def drop(files):
             if debug: displayPreset(edit_details_copy)
             updateLogFile(edit_details_copy)
     
-    except IndexError:
-        print('\nNo Files or Directories Dropped')
+    #except IndexError:
+    else:
+        print('\nNo Existing Files or Directories Dropped')
     
     return files_renamed
 
@@ -2098,16 +2164,18 @@ if __name__ == '__main__':
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub2')
     #sys.argv.append(os.path.join(ROOT_DIR,'Logs of File Renames'))
     
+    ## TODO handle multiple drops in promt
+    
     files_renamed = drop(sys.argv[1:])
     print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
     
     if loop:
-        newFile = 'startloop'
+        new_file = 'startloop'
         prev_files_renamed = 0
-        while newFile != '':
-            newFile = input('\nDrop another file or directory here to go again or press enter to quit: ')
-            newFile = newFile.replace('"','') # Remove the auto quotes around file paths with spaces.
-            files_renamed += drop([newFile])
+        while new_file != '':
+            new_file = input('\nDrop another file or directory here to go again or press enter to quit: ')
+            #new_file = new_file.replace('"','') # Remove the auto quotes around file paths with spaces.
+            files_renamed += drop(new_file)
             if files_renamed > prev_files_renamed:
                 print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
                 prev_files_renamed = files_renamed
