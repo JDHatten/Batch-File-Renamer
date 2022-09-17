@@ -15,7 +15,6 @@ Batch File Renamer by JDHatten
     - Revert any file name changes by dropping the generated log file back into the script.
     - Sort groups of files before renaming using file meta data.
 
-
 Usage:
     Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex 
     renaming methods.  Script can be opened directly but only one file or directory may be dropped/added/typed-in at once.
@@ -26,13 +25,13 @@ TODO:
     [DONE] Loop script after finishing and ask to drop another file before just closing.
     [DONE] When replacing only one or more but not all matched strings start searching from the right/end of string.
     [DONE] Preset options
-    [DONE] Display preset options and allow user to chose from cmd promt
+    [DONE] Display preset options and allow user to chose from cmd prompt
     [DONE] Better handling of overwriting files
     [DONE] Sort files in a particular way before renameing
     [DONE] Update one or more texted based files after a file has been renamed
     [DONE] Use more than one search/modify option at a time.
     [DONE] Option to revert name changes back to original names.
-    [] Ignore option that will skip files that match the ignore text.
+    [] Ignore text option that will skip files that match the ignore text.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -75,9 +74,10 @@ META_FILE_METADATA = 6
 ### EDIT_DETAILS Keys
 EDIT_TYPE = 0
 MATCH_TEXT = 1
-INSERT_TEXT = 2
-SOFT_RENAME_LIMIT = 3
-HARD_RENAME_LIMIT = 4
+IGNORE_TEXT = 2        ## TODO Skip and ignore any matches made, effectively renaming every other file not matched.
+INSERT_TEXT = 3
+SOFT_RENAME_LIMIT = 4
+HARD_RENAME_LIMIT = 5
 LINKED_FILES = 7
 INCLUDE_SUB_DIRS = 8
 PRESORT_FILES = 9
@@ -144,10 +144,10 @@ STARTING_COUNT = 0
 ENDING_COUNT = 1
 
 ### Search Options
-MATCH_CASE = 0          # [Default]
+MATCH_CASE = 0          # Case sensitive search. [Default]
 NO_MATCH_CASE = 1       # Not a case sensitive search.
-SEARCH_FROM_RIGHT = 2   # Start searching from right to left.  Default: SEARCH_FROM_LEFT
-MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name.  Default: (MATCH_LIMIT, NO_LIMIT)
+SEARCH_FROM_RIGHT = 2   # Start searching from right to left.
+MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name. Default: (MATCH_LIMIT, NO_LIMIT)
 SAME_MATCH_INDEX = 4    # When a match is made from the "MATCH_TEXT List" use the same index when choosing text from the "INSERT_TEXT List".
                         # Useful when making a long lists of specific files to find and rename.
 
@@ -203,10 +203,8 @@ log_file_name_suffix = '__log.txt'
 ### If True the script will ask for a selected preset and ask for additional file drops after initial drop.
 loop = True
 
-### Present Options - Used to skip questions and immediately start renaming all dropped files.
-### Much more complex renaming possibilities are available when using presets.
-### Make sure to select the correct preset (selected_preset)
-#use_preset = True
+### Presets provide complex renaming possibilities and can be customized to your needs.
+### Select the default preset to use here. Can be changed again once script is running.
 selected_preset = 12
 
 preset0 = {         # Defaults
@@ -343,9 +341,8 @@ preset19 = {
                         PLACEMENT   : ( END, OF_FILE_NAME ) },
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
 }
-
+### Add any newly created presets to preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19]
-
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -1684,45 +1681,11 @@ def updateLogFile(edit_details, log_revert = False):
 ###     --> Returns a [Boolean] True or False
 def yesTrue(user_input):
     user_input = user_input.casefold()
-    if user_input == 'y' or user_input == 'yes' or user_input == 'yea' or user_input == 'ye':
+    if 'yes'.find(user_input) > -1:
         response = True
     else:
         response = False
     return response
-
-
-### Change specific user inputs (answer to a question) into an integer constant.
-###     (user_input) The user input from a question asked.
-###     (category) The category of the question ask.
-###     --> Returns a [Integer]
-def strToIntConstant(user_input, category):
-    user_input = str(user_input).casefold()
-    number = NONE
-    if category == 'edit_type':
-        if user_input == 'a' or user_input == 'add':
-            number = ADD
-        elif user_input == 'r' or user_input == 'replace':
-            number = REPLACE
-    elif category == 'placement':
-        if user_input == 's' or user_input == 'start':
-            number = START
-        elif user_input == 'e' or user_input == 'end':
-            number = END
-        elif user_input == 'b' or user_input == 'both':
-            number = BOTH
-    elif category == 'search_from':
-        if user_input == 'l' or user_input == 'left':
-            number = LEFT
-        elif user_input == 'r' or user_input == 'right':
-            number = RIGHT
-    elif category == 'file_saving':
-        if user_input == '2' or user_input == 'c' or user_input == 'cancel':
-            number = CANCEL
-        if user_input == '10' or user_input == 't' or user_input == 'try' or user_input == 'try again':
-            number = TRY_AGAIN
-        elif user_input == '11' or user_input == 's' or user_input == 'skip':
-            number = SKIP
-    return number
 
 
 ### Get proper user preset selection.
@@ -1730,14 +1693,10 @@ def strToIntConstant(user_input, category):
 ###     --> Returns a [Integer]
 def getUserPresetSelection(string_num):
     string_num = string_num.casefold()
-    #if string_num == 'a' or string_num == 'all' or string_num == 'showall' or string_num == 'sa':
     if string_num == '':
         number = ''
     elif 'showall'.find(string_num) > -1:
         number = ALL
-        '''elif string_num.find('show') > -1:
-        number = string_num.partition('show')[2]
-        number = getUserPresetSelection(str(int(number)+1000))'''
     elif string_num.isnumeric():
         number = int(string_num)
     else:
@@ -1908,211 +1867,77 @@ def resetIfMaxed(number, max):
     return number
 
 
-
-def dropFileCheck(files):
-    
-    if type(files) != list:
-        files = [files]
-    
-    if len(files) == 1:
-        if files[0].find('""') > -1:
-            # Multiple files dropped into promt, split and remove quotes
-            files = files[0].split('""')
-            i = 0
-            while i < len(files):
-                files[i] = files[i].replace('"','')
-                i += 1
-        else:
-            files[0] = files[0].replace('"','')
-    
-    i = len(files)-1
-    while i > -1:
-        if not os.path.exists(files[i]):
-            print('\nThis file or directory does not exists: [ %s ]' % files[i])
-            if i > 0:
-                input('Continue on with additional dropped files or directories...')
-            files.pop(i)
-        i -= 1
-    
-    if debug: print(files)
-    
-    return files
-
 ### Drop one of more files and directories here to be renamed via presets or after answering a series of questions regarding how to properly rename said files.
 ###     (files) A List of files, which can include directories pointing to many more files.
 ###     --> Returns a [Integer] Number of files renamed.
 def drop(files):
     
     global selected_preset
+    start_reverting_renames = False
     files_renamed = 0
-    '''
+    
     # If script is ran on it's own then ask for a file to rename.
-    if len(files) == 0:
-        dropped_file = input('No files or directories found, drop one here now to proceed: ')
+    if not files:
+        files = input('No files or directories found, drop one or more here to proceed: ')
+    
+    if type(files) != list:
+        files = [files]
+    
+    if len(files) == 1:
         
-        if dropped_file.find('""') > -1:
-            print('multi-files')
-            files = dropped_file.split('""')
-            i = 0
-            while i < len(files):
-                files[i] = files[i].replace('"','')
-                i += 1
-        
-        
-        else:
-            dropped_file = dropped_file.replace('"','') # Remove the auto quotes.
+        if files[0].find(':\\', 3) > -1:
             
-            if os.path.exists(dropped_file):
-                files.append(dropped_file)
-            else:
-                print('This file or directory does not exist: [ %s ]' % dropped_file)
-                return files_renamed
-
-    #else:
-    path_not_exist = []
-    i = -1
-    for file in files:
-        i += 1
-        if not os.path.exists(file):
-            print('This file or directory does not exists: [ %s ]' % file)
-            input('Continue on with additional dropped files or directories...')
-            path_not_exist.append(i)
-    path_not_exist.reverse()
-    for index in path_not_exist:
-        files.pop(index)
-    '''
+            # Multiple files dropped into prompt, split between drive letters and remove quotes
+            split_files = []
+            start = 0
+            end = None
+            while start > -1:
+                start = files[0].find(':\\', start, end) + 1
+                end = files[0].find(':\\', start, end) - 1
+                if end > -1:
+                    split_files.append( files[0][ start-2 : end ].replace('"','') )
+                    end = None
+                else:
+                    split_files.append( files[0][ start-2 : ].replace('"','') )
+                    start = -1
+            
+            files = split_files
+            
+        else:
+            files[0] = files[0].replace('"','')
     
-    # If script is ran on it's own then ask for a file to rename.
-    if len(files) == 0:
-        files = input('No files or directories found, drop one here now to proceed: ')
+    # Check if files or directories exist and remove any that don't exist.
+    i = len(files)-1
+    while i > -1:
+        if not os.path.exists(files[i]):
+            print('\nThis file or directory does not exists: [ %s ]' % files[i])
+            if i > 0:
+                input('\nPress [ Enter ] to continue on with additional dropped files or directories...')
+            files.pop(i)
+        i -= 1
     
-    files = dropFileCheck(files)
+    if debug: print(files)
     
     if files:
-    #try:
-        # Check if at least one file or directory was dropped
-        #dropped_file = files[0]
+        
         print('\nNumber of Files or Directories Dropped: [ %s ]' % len(files))
         
-        #global use_preset
-        #if use_preset:
+        # Check if first file is a log file and ask if it is ok to start reverting file renames.
+        if files[0].find(log_dir_name) > -1 and files[0].find(log_file_name_suffix) > -1:
+            start_reverting_renames = input('\nA log file was detected, do you wish to revert the file renames made in this log file? [ Yes / No ] ')
+            start_reverting_renames = yesTrue(start_reverting_renames)
         
-        preset_loop = loop
-        while preset_loop:
-            #print('\nSelect a Preset Option [ # ] ')
-            #preset_selection = input('Or Type [ Show# ] or [ ShowAll ] To Display Presets: ')
-            displayPreset(preset_options, selected_preset)
-            preset_selection = input('Continue with this Preset [ Enter ] or choose another? [ # ] or [ ShowAll ]: ')
-            preset_selection = getUserPresetSelection(preset_selection)
-            #print(preset_selection)
-            
-            if preset_selection == ALL:
-                displayPreset(preset_options)
-                preset_selection = input('Select a Preset [ # ]: ')
-                preset_selection = getUserPresetSelection(preset_selection)
-            
-            elif preset_selection == '':
-                preset_selection = selected_preset
-                preset_loop = False
-            
-            if preset_selection < len(preset_options) and preset_selection > NONE:
-                selected_preset = preset_selection
-            else:
-                print('That Preset Doesn\'t Exist.')
-        
-        print('\nPreset [ #%s ] Selected' % selected_preset)
-        edit_details = preset_options[selected_preset]
-        
-        '''
-        else:
-            print('Do you wish to select a preset or do more simple file renaming by answering a few questions?')
-            use_preset = input('Use Presets [ Y / N ]: ')
-            use_preset = yesTrue(use_preset)
-            
-            if use_preset:
-                
-                preset_selection = NONE
-                while preset_selection == NONE:
-                    print('\nSelect a Preset Option [ # ] ')
-                    preset_selection = input('Or Type [ Show# ] or [ ShowAll ] To Display Presets: ')
-                    preset_selection = getUserPresetSelection(preset_selection)
-                    
-                    if preset_selection == ALL:
-                        displayPreset(preset_options)
-                        preset_selection = NONE
-                    
-                    elif preset_selection > 999:
-                        preset_selection -= 1000
-                        if preset_selection < len(preset_options):
-                            displayPreset(preset_options, preset_selection)
-                        preset_selection = NONE
-                    
-                    elif preset_selection < len(preset_options) and preset_selection > NONE:
-                        edit_details = preset_options[preset_selection]
-                        print('Preset [ #%s ] Selected' % preset_selection)
-                    
-                    else:
-                        preset_selection = NONE
-            
-            else:
-                ## TODO: None of this works anymore, Rewrite It...
-                edit_details = [EDIT_TYPE, PLACEMENT, MATCH_TEXT, INSERT_TEXT, RECURSIVE, SEARCH_FROM]
-                
-                edit_type = NONE
-                while edit_type == NONE:
-                    edit_type = input('Do you wish to add text or replace text in filename(s)? [ (A)DD / (R)EPLACE ]: ')
-                    edit_type = strToIntConstant(edit_type, 'edit_type')
-                
-                edit_details[EDIT_TYPE] = edit_type
-                
-                if edit_type == ADD:
-                    add_text = input('Text To Add: ')
-                    
-                    placement = NONE
-                    while placement == NONE:
-                        placement = input('Where To Place Text [ (S)TART / (E)ND / (B)OTH ]: ')
-                        placement = strToIntConstant(placement, 'placement')
-                    
-                    edit_details[INSERT_TEXT] = add_text
-                    edit_details[PLACEMENT] = placement
-                
-                elif edit_type == REPLACE:
-                    match_text = input('Search File Name(s) For: ')
-                    replace_text = input('And Replace With: ')
-                    
-                    recursive = NONE
-                    while recursive == NONE:
-                        recursive = input('How many matches per file name are to be replaced? [ (A)LL / 1 / # ]: ') # All = 999
-                        recursive = getUserPresetSelection(recursive)
-                    
-                    if recursive != ALL:
-                        search_from = NONE
-                        while search_from == NONE:
-                            search_from = input('Begin searching from "Left to Right" or from "Right to Left"? [ (L)EFT / (R)IGHT ]: ')
-                            search_from = strToIntConstant(search_from, 'search_from')
-                    else:
-                        search_from = LEFT
-                    
-                    edit_details[MATCH_TEXT] = match_text
-                    edit_details[INSERT_TEXT] = replace_text
-                    edit_details[RECURSIVE] = recursive
-                    edit_details[SEARCH_FROM] = search_from
-        '''
-        # Presort Files
-        files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None))
-        
-        # Check if first file is a log file and start reverting the renames made in those log files.
-        if type(files_meta[0][0]) == tuple and files_meta[0][0][META_FILE_NAME].find(log_file_name_suffix) > -1 and str(files_meta[0][0][META_FILE_PATH]).find(log_dir_name) > -1:
-            #print('Reverting File Renames Done On: [ %s ]' % files_meta[0][0][META_FILE_NAME])
+        # Start reverting renames made in log files else do normal file renaming to dropped files.
+        if start_reverting_renames:
             
             # Make sure log files are sorted in order of when the renames were made.
-            files_meta[0].sort(reverse=True, key=sortFilesByModifyDate)
-
+            files_meta = getFileMetaData(files, {DATE_MODIFIED : DESCENDING})
+            
             for log_file in files_meta[0]:
                 revert_files_meta, edit_details = getRenameRevertFilesAndEditDetails(log_file)
                 
                 if revert_files_meta:
-                
+                    
                     # Start Renaming...
                     edit_details_copy = startingFileRenameProcedure(revert_files_meta, edit_details)
                     files_renamed += getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
@@ -2123,15 +1948,36 @@ def drop(files):
                         delay.sleep(1) # Log files are named using time so wait a second to make sure next log file name is +1 second.
                 
                 else:
-                    print('The files in this log file no longer exist: [ %s ]' % log_file[META_FILE_NAME])
+                    print('\nThe files in this log file no longer exist: [ %s ]' % log_file[META_FILE_NAME])
                     print('You may have already reverted, renamed or deleted these files. ')
         
         else:
+            preset_loop = loop
+            while preset_loop:
+                displayPreset(preset_options, selected_preset)
+                preset_selection = input('Continue with this Preset [ Enter ] or choose another? [ # ] or [ (S)howAll ]: ')
+                preset_selection = getUserPresetSelection(preset_selection)
+                
+                if preset_selection == ALL:
+                    displayPreset(preset_options)
+                    preset_selection = input('Select a Preset [ # ]: ')
+                    preset_selection = getUserPresetSelection(preset_selection)
+                
+                elif preset_selection == '':
+                    preset_selection = selected_preset
+                    preset_loop = False
+                
+                if preset_selection < len(preset_options) and preset_selection > NONE:
+                    selected_preset = preset_selection
+                else:
+                    print('That Preset Doesn\'t Exist.')
             
-            #if not use_preset:
-            #    include_sub_dirs = input('Search through sub-directories too? [ Y / N ]: ')
-            #    include_sub_dirs = yesTrue(include_sub_dirs)
-            #else:
+            print('\nPreset [ #%s ] Selected' % selected_preset)
+            edit_details = preset_options[selected_preset]
+            
+            # Presort Files
+            files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None))
+            
             include_sub_dirs = edit_details.get(INCLUDE_SUB_DIRS, False)
             
             # Start Renaming...
@@ -2141,9 +1987,8 @@ def drop(files):
             if debug: displayPreset(edit_details_copy)
             updateLogFile(edit_details_copy)
     
-    #except IndexError:
     else:
-        print('\nNo Existing Files or Directories Dropped')
+        print('\nNo Existing Files or Directories Found.')
     
     return files_renamed
 
@@ -2164,8 +2009,6 @@ if __name__ == '__main__':
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub2')
     #sys.argv.append(os.path.join(ROOT_DIR,'Logs of File Renames'))
     
-    ## TODO handle multiple drops in promt
-    
     files_renamed = drop(sys.argv[1:])
     print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
     
@@ -2173,9 +2016,9 @@ if __name__ == '__main__':
         new_file = 'startloop'
         prev_files_renamed = 0
         while new_file != '':
-            new_file = input('\nDrop another file or directory here to go again or press enter to quit: ')
-            #new_file = new_file.replace('"','') # Remove the auto quotes around file paths with spaces.
-            files_renamed += drop(new_file)
+            new_file = input('\nDrop more files or directories here to go again or just press enter to quit: ')
+            if new_file != '':
+                files_renamed += drop(new_file)
             if files_renamed > prev_files_renamed:
                 print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
                 prev_files_renamed = files_renamed
