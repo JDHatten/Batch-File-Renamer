@@ -10,18 +10,18 @@ Batch File Renamer by JDHatten
     Renameing will just rename the entire file, but an iterating number or some other modify option should be used.
     
     Extra Features: 
-    - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps 
+    - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps
       that use the those files.
     - Revert any file name changes by dropping the generated log file back into the script.
     - Sort groups of files before renaming using file meta data.
 
 Usage:
-    Simply drag and drop one or more files or directories onto the script.  Use custom presets for more complex 
-    renaming methods.  Script can be opened directly but only one file or directory may be dropped/added/typed-in at once.
+    Simply drag and drop one or more files or directories onto the script. Create your own custom presets for more
+    complex renaming tasks.
 
 TODO:
     [] Rename directories too
-    [Done] Create a log of files renamed, time of completion, etc.
+    [DONE] Create a log of files renamed, time of completion, etc.
     [DONE] Loop script after finishing and ask to drop another file before just closing.
     [DONE] When replacing only one or more but not all matched strings start searching from the right/end of string.
     [DONE] Preset options
@@ -31,7 +31,8 @@ TODO:
     [DONE] Update one or more texted based files after a file has been renamed
     [DONE] Use more than one search/modify option at a time.
     [DONE] Option to revert name changes back to original names.
-    [] Ignore text option that will skip files that match the ignore text.
+    [DONE] Ignore text option that will skip files that match the ignore text.
+    [] Match file conent or file meta data.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -72,16 +73,16 @@ META_FILE_CREATE = 5
 META_FILE_METADATA = 6
 
 ### EDIT_DETAILS Keys
-EDIT_TYPE = 0
-MATCH_TEXT = 1
-IGNORE_TEXT = 2        ## TODO Skip and ignore any matches made, effectively renaming every other file not matched.
-INSERT_TEXT = 3
-SOFT_RENAME_LIMIT = 4
-HARD_RENAME_LIMIT = 5
-LINKED_FILES = 7
-INCLUDE_SUB_DIRS = 8
-PRESORT_FILES = 9
-TRACKED_DATA = 99
+EDIT_TYPE = 0           # The type of edit to make on a file name: ADD text, REPLACE text or RENAME entire file name. [Required]
+MATCH_TEXT = 1          # The text to search for and match before renaming a file name.
+IGNORE_TEXT = 2         # The text to search for and if found in a file name skip that file renaming, effectively renaming every other file not matched.
+INSERT_TEXT = 3         # The text used in renaming files. This can be static text or dynamic text that changes depending on the OPTIONS used. [Required]
+SOFT_RENAME_LIMIT = 4   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
+HARD_RENAME_LIMIT = 5   # A hard limit stops renaming files once hit and ends all further renaming tasks.
+LINKED_FILES = 7        # Full file path to text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
+INCLUDE_SUB_DIRS = 8    # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
+PRESORT_FILES = 9       # Before renaming any group of files, sort them using the file's meta data.
+TRACKED_DATA = 99       # Internal use only, do not use.
 
 ### EDIT_TYPE Options
 ADD = 0
@@ -205,12 +206,13 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 12
+selected_preset = 21
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
   MATCH_TEXT        : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
-  INSERT_TEXT       : '',       # 'Text' to Replace with -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
+  IGNORE_TEXT       : None,     # 'Text' to Find and Skip -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
+  INSERT_TEXT       : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
   SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
   LINKED_FILES      : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
@@ -341,8 +343,28 @@ preset19 = {
                         PLACEMENT   : ( END, OF_FILE_NAME ) },
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
 }
-### Add any newly created presets to preset_options List.
-preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19]
+preset20 = {
+  EDIT_TYPE         : ADD,
+  MATCH_TEXT        : { TEXT        : 'tXt',
+                        OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
+  IGNORE_TEXT       : { TEXT        : [ 'skIp', 'fIle' ],
+                        OPTIONS     : [ NO_MATCH_CASE ] },
+  INSERT_TEXT       : { TEXT        : ('-', (1,20), ''),
+                        OPTIONS     : [ COUNT, (MINIMUM_DIGITS, 4) ],
+                        PLACEMENT   : ( END, OF_FILE_NAME ) }
+}
+preset21 = {
+  EDIT_TYPE         : REPLACE,
+  MATCH_TEXT        : { TEXT        : 'Text',
+                        OPTIONS     : [ MATCH_CASE ] },
+  IGNORE_TEXT       : 'skIp',
+  INSERT_TEXT       : { TEXT        : ('-', (10,20), ''),
+                        OPTIONS     : [ COUNT ] }
+}
+### Add any newly created presets to this preset_options List.
+preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
+                  preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
+                  preset21]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -978,58 +1000,72 @@ def getDynamicText(dynamic_text_data, the_dynamic_text, modify_options = None):
 
 ### Get all text needed to make a proper search.
 ###     (search_data) All the search or match data.
+###     (ignore_data) All the ignore data.
 ###     (file_path) The file path with a file name that will be searched through.
-###     (rename_edit) Full file rename edit flag.
-###     --> Returns a [List] and [String]
-def getSearchData(search_data, file_path, rename_edit = False):
-    if type(search_data) == dict and len(search_data) >= 1:
-        
-        match_text = search_data.get(TEXT, [''])
-        match_text_list = [match_text] if type(match_text) != list else match_text
-        search_options = search_data.get(OPTIONS, [])
-        searchable_file_name = file_path.name
-        
-        if type(search_options) != list:
-            search_options = [search_options]
-        
-        if REGEX in search_options: ## TODO
+###     --> Returns a [List] and [String] and [List] and [String]
+def getSearchData(search_data, ignore_data, file_path):
+    
+    match_text_list = getText(search_data)
+    ignore_text_list = getText(ignore_data, [])
+    search_options = getOptions(search_data)
+    ignore_options = getOptions(ignore_data)
+    searchable_match_file_name = [file_path.name]
+    searchable_ignore_file_name = [file_path.name]
+    
+    data_loop = [[match_text_list, search_options, searchable_match_file_name],
+                 [ignore_text_list, ignore_options, searchable_ignore_file_name]]
+    
+    for data in data_loop:
+        if REGEX in data[1]: ## TODO
             print('TODO REGEX')
         #else: ## this should override every other option, when added.
         
         # Default MATCH_CASE
-        if NO_MATCH_CASE in search_options:
+        if NO_MATCH_CASE in data[1]:
             
             i = 0
-            while i < len(match_text_list):
-                text = match_text_list.pop(i)
-                match_text_list.insert(i, text.casefold())
+            while i < len(data[0]):
+                text = data[0].pop(i)
+                data[0].insert(i, text.casefold())
                 i += 1
             
-            searchable_file_name = file_path.name.casefold()
+            data[2][0] = file_path.name.casefold()
         
-        if EXTENSION in search_options:# and not rename_edit:
+        if EXTENSION in data[1]:
             
             i = 0
-            while i < len(match_text_list):
-                if match_text_list[i] != '' and match_text_list[i].find('.') != 0 :
-                    text = match_text_list.pop(i)
-                    match_text_list.insert(i, '.'+text) # Add a '.' if missing
+            while i < len(data[0]):
+                if data[0][i] != '' and data[0][i].find('.') != 0 :
+                    text = data[0].pop(i)
+                    data[0].insert(i, '.'+text) # Add a '.' if missing
                 i += 1
             
-            if NO_MATCH_CASE in search_options:
-                searchable_file_name = file_path.suffix
-                searchable_file_name = searchable_file_name.casefold()
+            if NO_MATCH_CASE in data[1]:
+                ext = file_path.suffix
+                data[2][0] = ext.casefold()
             else:
-                searchable_file_name = file_path.suffix
+                data[2][0] = file_path.suffix
     
+    return match_text_list, searchable_match_file_name[0], ignore_text_list, searchable_ignore_file_name[0]
+
+
+### Return the TEXT value from a Dictionary.
+###     (data) A Dictionary that has a TEXT key.
+###     (default) If text not found return default
+###     --> Returns a [List]
+def getText(data, default = ['']):
+    if type(data) == dict:
+        text = data.get(TEXT, default)
+        if type(text) != list:
+            text = [text]
+    elif data == None or data == '':
+        text = default
     else:
-        match_text_list = [search_data] if type(search_data) != list else search_data
-        searchable_file_name = file_path.name
-    
-    return match_text_list, searchable_file_name
+        text = data if type(data) == list else [data]
+    return text
 
 
-### Return all or a specific option's value from a data Dictionary.
+### Return all or a specific option's value from a Dictionary.
 ###     (data) A Dictionary that has an OPTIONS key.
 ###     (specific_option) Return True (or a value) if specific option found
 ###     (default) If specific option not found return default
@@ -1037,10 +1073,10 @@ def getSearchData(search_data, file_path, rename_edit = False):
 def getOptions(data, specific_option = None, default = False):
     if type(data) == dict:
         options = data.get(OPTIONS, [])
+        if type(options) != list:
+            options = [options]
     else:
         options = []
-    if type(options) != list:
-        options = [options]
     if specific_option != None:
         return getSpecificOption(options, specific_option, default)
     return options
@@ -1241,8 +1277,9 @@ def getInsertText(edit_details, list_index = -1):
 def insertTextIntoFileName(file_path, edit_details):
     
     match_text = edit_details.get(MATCH_TEXT, '')
-    rename_edit = True if edit_details[EDIT_TYPE] == RENAME else False
-    match_text_list, searchable_file_name = getSearchData(match_text, file_path, rename_edit)
+    ignore_text = edit_details.get(IGNORE_TEXT, None)
+    #rename_edit = True if edit_details[EDIT_TYPE] == RENAME else False
+    match_text_list, searchable_match_file_name, ignore_text_list, searchable_ignore_file_name = getSearchData(match_text, ignore_text, file_path)
     
     if type(edit_details[INSERT_TEXT]) == dict:
         is_text_list = True if type(edit_details[INSERT_TEXT].get(TEXT)) == list else False
@@ -1250,6 +1287,7 @@ def insertTextIntoFileName(file_path, edit_details):
         is_text_list = False
     
     search_options = getOptions(match_text)
+    ignore_options = getOptions(ignore_text)
     modify_options = getOptions(edit_details[INSERT_TEXT])
     repeat_text_list = REPEAT_TEXT_LIST in modify_options
     
@@ -1268,6 +1306,7 @@ def insertTextIntoFileName(file_path, edit_details):
         
         if same_match_index:
             if len(match_text_list) != renamed_limit and not repeat_text_list and not skip_warning_smi:
+                ## TODO: use a windows message box?
                 print('\nYour using the SAME_MATCH_INDEX (MATCH_TEXT) option, but your MATCH_TEXT list is larger or smaller than your INSERT_TEXT list.')
                 print('Try using the REPEAT_TEXT_LIST (INSERT_TEXT) option next time if your using dynamic text like COUNT, RANDOM, etc.')
                 input('Else press "Enter" if you wish to continue anyways...')
@@ -1282,7 +1321,7 @@ def insertTextIntoFileName(file_path, edit_details):
         #if debug: print('match_index: %s' % match_index)
         insert_text = getInsertText(edit_details, match_index)
         
-        if type(insert_text) == bool or searchable_file_name.find(match_text) == -1:
+        if type(insert_text) == bool or searchable_match_file_name.find(match_text) == -1:
             new_file_name = file_path.name
         else:
             match_size = len(match_text)
@@ -1294,7 +1333,7 @@ def insertTextIntoFileName(file_path, edit_details):
             end = None
             if match_size > 0:
                 while index_match > -1:
-                    index_match = searchable_file_name.rfind(match_text, start, end) # Reverse Find
+                    index_match = searchable_match_file_name.rfind(match_text, start, end) # Reverse Find
                     end = index_match
                     index_matches.append(index_match)
                 index_matches.pop(-1)
@@ -1311,68 +1350,81 @@ def insertTextIntoFileName(file_path, edit_details):
             
             placement = getPlacement(edit_details[INSERT_TEXT])
             
-            if edit_details[EDIT_TYPE] == ADD:
-                
-                # Add extension only if...
-                if EXTENSION in modify_options:
-                    if EXTENSION in search_options:
-                        if match_text == searchable_file_name: # A perfect match is made
-                            new_file_name = file_path.name + insert_text # Only to the end, placement is ignored.
-                    else:
-                        new_file_name = file_path.name + insert_text # Only to the end, placement is ignored.
-                
-                elif EXTENSION in search_options:
-                    if match_text == searchable_file_name: # A perfect match is made
-                        new_file_name = addToFileName(file_path, insert_text, placement[0]) # Simple placement OF_FILE_NAME only
-                
-                # Else use normal placement options...
-                elif placement[1] == OF_MATCH:
-                    
-                    for index in index_matches:
-                        
-                        if placement[0] == START: # or LEFT
-                            new_file_name = new_file_name[:index] + insert_text + new_file_name[index:]
-                        
-                        elif placement[0] == END: # or RIGHT
-                            new_file_name = new_file_name[:index + match_size] + insert_text + new_file_name[index + match_size:]
-                        
-                        elif placement[0] == BOTH:
-                            new_file_name = new_file_name[:index] + insert_text + new_file_name[index:index + match_size] + insert_text + new_file_name[index + match_size:]
-                
-                else: # placement[1] == OF_FILE_NAME: # Default
-                    new_file_name = addToFileName(file_path, insert_text, placement[0])
-            
-            elif edit_details[EDIT_TYPE] == REPLACE:
-                
-                # Replace extension only if...
-                if EXTENSION in search_options:
-                    if match_text == searchable_file_name: # A perfect match is made
-                        new_file_name = file_path.stem + insert_text
-                
-                elif EXTENSION in modify_options: # Any match is made
-                    new_file_name = file_path.stem + insert_text
-                
+            # Look for ignore text in file name.
+            ignore_match = False
+            for ignore_text in ignore_text_list:
+                if EXTENSION in ignore_options:
+                    if searchable_ignore_file_name == ignore_text:
+                        ignore_match = True # Ignore match made, skip this file rename.
+                        break
                 else:
-                    for index in index_matches:
-                        new_file_name = new_file_name[:index] + insert_text + new_file_name[index + match_size:]
+                    if searchable_ignore_file_name.find(ignore_text) > -1:
+                        ignore_match = True # Ignore match made, skip this file rename.
+                        break
             
-            elif edit_details[EDIT_TYPE] == RENAME:
-                
-                # Rename entire file name plus extension if...
-                if EXTENSION in search_options:
-                    if match_text == searchable_file_name: # A perfect match is made
+            if not ignore_match:
+                if edit_details[EDIT_TYPE] == ADD:
                     
-                        if EXTENSION in modify_options and insert_text.find('.') > -1: # An .extension is included
-                            new_file_name = insert_text
+                    # Add extension if...
+                    if EXTENSION in modify_options:
+                        if EXTENSION in search_options:
+                            if match_text == searchable_match_file_name: # A perfect match is made
+                                new_file_name = file_path.name + insert_text # Only to the end, placement is ignored.
                         else:
-                            new_file_name = insert_text + file_path.suffix
+                            new_file_name = file_path.name + insert_text # Only to the end, placement is ignored.
                     
-                    #else: # No perfect match, no rename
+                    # Add extension if...
+                    elif EXTENSION in search_options:
+                        if match_text == searchable_match_file_name: # A perfect match is made
+                            new_file_name = addToFileName(file_path, insert_text, placement[0]) # Simple placement OF_FILE_NAME only
+                    
+                    # Else use normal placement options...
+                    elif placement[1] == OF_MATCH:
+                        for index in index_matches:
+                            
+                            if placement[0] == START: # or LEFT
+                                new_file_name = new_file_name[:index] + insert_text + new_file_name[index:]
+                            
+                            elif placement[0] == END: # or RIGHT
+                                new_file_name = new_file_name[:index + match_size] + insert_text + new_file_name[index + match_size:]
+                            
+                            elif placement[0] == BOTH:
+                                new_file_name = new_file_name[:index] + insert_text + new_file_name[index:index + match_size] + insert_text + new_file_name[index + match_size:]
+                    
+                    else: # placement[1] == OF_FILE_NAME: # Default
+                        new_file_name = addToFileName(file_path, insert_text, placement[0])
                 
-                elif EXTENSION in modify_options and insert_text.find('.') > -1: # An .extension is included
-                    new_file_name = insert_text
-                else:
-                    new_file_name = insert_text + file_path.suffix
+                elif edit_details[EDIT_TYPE] == REPLACE:
+                    
+                    # Replace extension only if...
+                    if EXTENSION in search_options:
+                        if match_text == searchable_match_file_name: # A perfect match is made
+                            new_file_name = file_path.stem + insert_text
+                    
+                    elif EXTENSION in modify_options: # Any match is made
+                        new_file_name = file_path.stem + insert_text
+                    
+                    else:
+                        for index in index_matches:
+                            new_file_name = new_file_name[:index] + insert_text + new_file_name[index + match_size:]
+                
+                elif edit_details[EDIT_TYPE] == RENAME:
+                    
+                    # Rename entire file name plus extension if...
+                    if EXTENSION in search_options:
+                        if match_text == searchable_match_file_name: # A perfect match is made
+                        
+                            if EXTENSION in modify_options and insert_text.find('.') > -1: # An .extension is included
+                                new_file_name = insert_text
+                            else:
+                                new_file_name = insert_text + file_path.suffix
+                        
+                        #else: # No perfect match, no rename
+                    
+                    elif EXTENSION in modify_options and insert_text.find('.') > -1: # An .extension is included
+                        new_file_name = insert_text
+                    else:
+                        new_file_name = insert_text + file_path.suffix
             
             break # If here then a match was found so break loop
     
@@ -1721,6 +1773,8 @@ def intToStrText(key, value, parent_key = None):
                 text = 'Edit Type              '
             elif key == MATCH_TEXT:
                 text = 'Text To Match          '
+            elif key == IGNORE_TEXT:
+                text = 'Text To Ignore         '
             elif key == INSERT_TEXT:
                 text = 'Text To Insert         '
             elif key == SOFT_RENAME_LIMIT:
@@ -1736,7 +1790,7 @@ def intToStrText(key, value, parent_key = None):
             elif key == TRACKED_DATA:
                 text = 'Data That Is Tracked   '
         
-        elif parent_key == MATCH_TEXT or parent_key == INSERT_TEXT:
+        elif parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == INSERT_TEXT:
             if key == TEXT:
                 text = 'TEXT : ' + str(value)
             if key == OPTIONS:
@@ -1751,7 +1805,11 @@ def intToStrText(key, value, parent_key = None):
                     text += 'Add An Incrementing Number To Text, '
                 if COUNT_TO in value:
                     text += 'Limit Specific File Renames Made, '
-                if EXTENSION in value:
+                if EXTENSION in value and parent_key == MATCH_TEXT:
+                    text += 'Only Search The Extension, '
+                if EXTENSION in value and parent_key == IGNORE_TEXT:
+                    text += 'Ignore This Extension, '
+                if EXTENSION in value and parent_key == INSERT_TEXT:
                     text += 'Allow Extension To Be Modified, '
                 if RANDOM in value:
                     text += 'Add Random Numbers/Text, '
@@ -1885,9 +1943,11 @@ def drop(files):
     
     if len(files) == 1:
         
+        files[0] = files[0].replace('"','') # Remove Quotes
+        
         if files[0].find(':\\', 3) > -1:
             
-            # Multiple files dropped into prompt, split between drive letters and remove quotes
+            # Multiple files dropped into prompt, split them up between drive letters.
             split_files = []
             start = 0
             end = None
@@ -1895,16 +1955,13 @@ def drop(files):
                 start = files[0].find(':\\', start, end) + 1
                 end = files[0].find(':\\', start, end) - 1
                 if end > -1:
-                    split_files.append( files[0][ start-2 : end ].replace('"','') )
+                    split_files.append( files[0][ start-2 : end ] )
                     end = None
                 else:
-                    split_files.append( files[0][ start-2 : ].replace('"','') )
+                    split_files.append( files[0][ start-2 : ] )
                     start = -1
             
             files = split_files
-            
-        else:
-            files[0] = files[0].replace('"','')
     
     # Check if files or directories exist and remove any that don't exist.
     i = len(files)-1
@@ -1922,12 +1979,12 @@ def drop(files):
         
         print('\nNumber of Files or Directories Dropped: [ %s ]' % len(files))
         
-        # Check if first file is a log file and ask if it is ok to start reverting file renames.
+        # Check if first file drop is a log file and ask if it is ok to start reverting file renames.
         if files[0].find(log_dir_name) > -1 and files[0].find(log_file_name_suffix) > -1:
             start_reverting_renames = input('\nA log file was detected, do you wish to revert the file renames made in this log file? [ Yes / No ] ')
             start_reverting_renames = yesTrue(start_reverting_renames)
         
-        # Start reverting renames made in log files else do normal file renaming to dropped files.
+        # Either reverting renames made in log files OR do normal file renaming to dropped files.
         if start_reverting_renames:
             
             # Make sure log files are sorted in order of when the renames were made.
@@ -1938,7 +1995,7 @@ def drop(files):
                 
                 if revert_files_meta:
                     
-                    # Start Renaming...
+                    # Start Reverting File Renames...
                     edit_details_copy = startingFileRenameProcedure(revert_files_meta, edit_details)
                     files_renamed += getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
                     
@@ -1952,10 +2009,12 @@ def drop(files):
                     print('You may have already reverted, renamed or deleted these files. ')
         
         else:
+            
+            # Get User Preset Selection
             preset_loop = loop
             while preset_loop:
                 displayPreset(preset_options, selected_preset)
-                preset_selection = input('Continue with this Preset [ Enter ] or choose another? [ # ] or [ (S)howAll ]: ')
+                preset_selection = input('Continue with this Preset [ Enter ] or choose another? [ # ] or [ (S)how(A)ll ]: ')
                 preset_selection = getUserPresetSelection(preset_selection)
                 
                 if preset_selection == ALL:
@@ -1980,10 +2039,11 @@ def drop(files):
             
             include_sub_dirs = edit_details.get(INCLUDE_SUB_DIRS, False)
             
-            # Start Renaming...
+            # Start Renaming Files...
             edit_details_copy = startingFileRenameProcedure(files_meta, edit_details, include_sub_dirs)
             files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
             
+            # Show and record details of file renames.
             if debug: displayPreset(edit_details_copy)
             updateLogFile(edit_details_copy)
     
