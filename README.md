@@ -41,6 +41,18 @@ This script will rename one or more files either by adding new text or replacing
 >> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
 
 
+`IGNORE_TEXT : "Text"`<br>
+*-or-*<br>
+`IGNORE_TEXT : { TEXT : "Text", OPTIONS : ["Search Option 1",2,3,...] }`<br>
+
+> `TEXT` to search for and if found in a file name skip that file renaming, effectively renaming every other file not matched.<br>
+
+> `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
+>> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
+>> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
+>> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
+
+
 `INSERT_TEXT : "Text"` [*Required*]<br>
 *-or-*<br>
 `INSERT_TEXT : { TEXT : "Text", OPTIONS : ["Modify Options 1",2,3,...], PLACEMENT : (PLACE, OF_) }`<br>
