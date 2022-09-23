@@ -7,7 +7,7 @@ Batch File Renamer by JDHatten
     This script will rename one or more files either by adding new text or replacing text in the file names.
     Adding text can be placed at the start, end, or both sides of either matched text or the entire file name itself.
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
-    Renameing will just rename the entire file, but an iterating number or some other modify option should be used.
+    Renaming will just rename the entire file, but an iterating number or some other modify option should be used.
     
     Extra Features: 
     - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps
@@ -25,29 +25,32 @@ TODO:
     [DONE] Loop script after finishing and ask to drop another file before just closing.
     [DONE] When replacing only one or more but not all matched strings start searching from the right/end of string.
     [DONE] Preset options
-    [DONE] Display preset options and allow user to chose from cmd prompt
+    [DONE] Display preset options and allow user to choose from cmd prompt
     [DONE] Better handling of overwriting files
-    [DONE] Sort files in a particular way before renameing
+    [DONE] Sort files in a particular way before renaming
     [DONE] Update one or more texted based files after a file has been renamed
     [DONE] Use more than one search/modify option at a time.
     [DONE] Option to revert name changes back to original names.
     [DONE] Ignore text option that will skip files that match the ignore text.
-    [] Match file conent or file meta data.
+    [] Match file contents or file meta data.
+    [] Import separate settings and/or preset file.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
         [X] Find file names with a string then add another string specifically next to matched string.
         [X] Add an iterated number to file names.
         [X] Find specific file name extensions and only change (or add to) the extension
-        [] Generate random numbers or text that is added to file names.
+        [X] Generate random characters that can be added to file names.
         [X] A List of Strings to search for or add to file names.
         [] Make use of regular expressions.
 '''
+
 
 from datetime import datetime
 import math
 from pathlib import Path, PurePath
 import os
+import random
 #import re
 import sys
 if sys.platform == "linux" or sys.platform == "linux2":
@@ -70,7 +73,7 @@ META_FILE_SIZE = 2
 META_FILE_ACCESS = 3
 META_FILE_MODIFY = 4
 META_FILE_CREATE = 5
-META_FILE_METADATA = 6
+META_FILE_METADATA = 5
 
 ### EDIT_DETAILS Keys
 EDIT_TYPE = 0           # The type of edit to make on a file name: ADD text, REPLACE text or RENAME entire file name. [Required]
@@ -104,9 +107,10 @@ FILE_NAME_COUNT = 5
 FILE_NAME_COUNT_LIMIT = 6
 CURRENT_LIST_INDEX = 7
 CURRENT_FILE_NAME = 8
-SKIPPED_FILES = 9
-SKIP_WARNINGS = 10
-LOG_DATA = 11
+USED_RANDOM_CHARS = 9
+SKIPPED_FILES = 10
+SKIP_WARNINGS = 11
+LOG_DATA = 12
 ORG_FILE_PATHS = 20
 NEW_FILE_PATHS = 21
 LINKED_FILES_UPDATED = 22
@@ -152,7 +156,7 @@ MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name. Defau
 SAME_MATCH_INDEX = 4    # When a match is made from the "MATCH_TEXT List" use the same index when choosing text from the "INSERT_TEXT List".
                         # Useful when making a long lists of specific files to find and rename.
 
-### Search & Modify Options
+### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
                         # Use EXTENSION in search options for matching "only" the exact file extension (.doc != .docx).
                         # Using EXTENSION in modify options means only the extension will be replaced or added to (END), unless RENAME where the entire file name may be rewritten.
@@ -162,10 +166,15 @@ REGEX = 11              ## TODO: Regular Expressions
 ### Modify Options
 COUNT = 20              # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional.
                         # NOTE: Resets after each directory change.
-COUNT_TO = 21           # Max amount of renames to make before stopping.  Similar to COUNT's ending number without adding an iterating number to a file name.
+COUNT_TO = 21           # Max amount of renames to make before stopping. Similar to COUNT's ending number without adding an iterating number to a file name.
 MINIMUM_DIGITS = 23     # Minimum digits for any dynamic text used, i.e. 3 = 003
-RANDOM = 24             ## TODO: Generate random numbers or text that is added to file names.
-REPEAT_TEXT_LIST = 25   # Once the end of a text list is reached, repeat it.  Text must be dynamic, i.e. COUNT, RANDOM, etc.
+RANDOM_NUMBERS = 24     # Generate random numbers.              (All random generators can be used together.)
+RANDOM_LETTERS = 25     # Generate random letters.              (Edit which characters randomly selected in below varaibles "list_leters")
+RANDOM_SPECIALS = 26    # Generate random special characters.   ('text', Random String Length, 'text')
+RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) characters.
+RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
+REPEAT_TEXT_LIST = 29   # Once the end of a text list is reached, repeat it.  Text should be dynamic, i.e. COUNT, RANDOM_NUMBERS, etc.
+## TODO make REPEAT_TEXT_LIST default and NO_REPEAT_TEXT_LIST the option?
 
 ### Placement Options
 START = 30              # Place at the start of...
@@ -179,7 +188,7 @@ OF_FILE_NAME = 40       # Placed at file name minus extension [Default]
 OF_MATCH = 41           # Placed at one or more matches found
 
 ### Sort Options        ## TODO: add more sorting options, image sizes, format/extension, etc
-ASCENDING = 50          # 0-9, A-Z [Default]
+ASCENDING = 60          # 0-9, A-Z [Default]
 DESCENDING = 61         # 9-0, Z-A
 ALPHABETICALLY = 62     # File name [Default]
 FILE_SIZE = 63          # File size in bytes
@@ -188,6 +197,17 @@ DATE_MODIFIED = 65      # Date file last changed.
 DATE_CREATED = 66       # Date file created. (Windows Only)
 DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
 
+
+### Edit characters used in random generators. You may also choose to use an even amount/weight
+### of characters in each list when using multiple random lists.
+### Note: Some characters can't be used in file names and are not included here.
+list_numbers = list('1234567890')
+list_leters = list('abcdefghijklmnopqrstuvwxyz')
+list_special = list("~`!@#$%^&()-_=+[{]};',.") # ASCII
+list_other = list("¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ") # UTF-8 Unicode
+#list_other = list("") # Add special foreign language or other characters not included above. Or use this as a custom list of random characters.
+even_weighted_random_char_list = True
+no_repeat_random_chars = False # Ex. True = 1212, False = 1324
 
 ### Create a log file for each rename task ran, and include edit details or preset used.
 ### Directory name can be relative to this script or an absolute path.
@@ -206,7 +226,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 21
+selected_preset = 22
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -294,7 +314,7 @@ preset12 = {
 preset13 = {
   EDIT_TYPE         : REPLACE,
   MATCH_TEXT        : { TEXT : ' (U)', OPTIONS : [ MATCH_CASE, (MATCH_LIMIT, 10), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT       : { TEXT : '' },
+  INSERT_TEXT       : { TEXT : ' (u)' }, ## TODO: fix cap change only
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
   INCLUDE_SUB_DIRS  : True
 }
@@ -361,10 +381,18 @@ preset21 = {
   INSERT_TEXT       : { TEXT        : ('-', (10,20), ''),
                         OPTIONS     : [ COUNT ] }
 }
+preset22 = {
+  EDIT_TYPE         : RENAME,
+  MATCH_TEXT        : { TEXT        : 'tXt',
+                        OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
+  INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ], ## TODO: handle excluded or illegal file name characters used in presets
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), REPEAT_TEXT_LIST ],
+                        PLACEMENT   : ( END, OF_FILE_NAME ) }
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21]
+                  preset21,preset22]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -644,15 +672,13 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
     
     if type(edit_details_copy[INSERT_TEXT]) == dict:
         
-        ##TODO: if RANDOM, REGEX, etc., get correct starting data
-        
         if type(edit_details_copy[INSERT_TEXT][TEXT]) == tuple:
             if type(edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT]) == tuple:
-                # Assumed COUNT
-                fnc.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT][STARTING_COUNT] )
-                fncl.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT][ENDING_COUNT] )
-            else:
                 if COUNT in modify_options:
+                    fnc.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT][STARTING_COUNT] )
+                    fncl.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT][ENDING_COUNT] )
+            else:
+                if COUNT in modify_options or RANDOM_NUMBERS in modify_options:
                     fnc.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT] )
                     fncl.append( NO_LIMIT )
                 elif COUNT_TO in modify_options:
@@ -665,9 +691,9 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
             for text in edit_details_copy[INSERT_TEXT][TEXT]:
                 if type(text) == tuple:
                     if type(text[DYNAMIC_TEXT]) == tuple:
-                        # Assumed COUNT
-                        fnc.append( text[DYNAMIC_TEXT][STARTING_COUNT] )
-                        fncl.append( text[DYNAMIC_TEXT][ENDING_COUNT] )
+                        if COUNT in modify_options:
+                            fnc.append( text[DYNAMIC_TEXT][STARTING_COUNT] )
+                            fncl.append( text[DYNAMIC_TEXT][ENDING_COUNT] )
                     else:
                         if COUNT in modify_options:
                             fnc.append( text[DYNAMIC_TEXT] )
@@ -678,6 +704,10 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                 else:
                     fnc.append( value_reset )
                     fncl.append( NO_LIMIT )
+    
+    # Set the seed for random character generators
+    random_seed = getSpecificOption(modify_options, RANDOM_SEED, None)
+    random.seed(random_seed)
     
     # Defaults
     if not fnc:
@@ -690,7 +720,6 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
         log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : start_time, END_TIME : value_reset }
     
     edit_details_copy.update( { TRACKED_DATA : { FILES_REVIEWED : [files_reviewed, hard_rename_limit],
-                                                 #FILES_RENAMED : [files_renamed, soft_rename_limit],
                                                  DIRECTORY_FILES_RENAMED : [value_reset, soft_rename_limit, directory_files_renamed],
                                                  INDIVIDUAL_FILES_RENAMED : [individual_files_renamed, soft_rename_limit],
                                                  INDIVIDUAL_FILE_GROUP : individual_file_group,
@@ -698,6 +727,7 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                                                  FILE_NAME_COUNT_LIMIT : fncl,
                                                  CURRENT_LIST_INDEX : NONE,
                                                  CURRENT_FILE_NAME : '',
+                                                 USED_RANDOM_CHARS : [],
                                                  SKIPPED_FILES : [],
                                                  SKIP_WARNINGS : skip_warnings,
                                                  LOG_DATA : log_data
@@ -733,7 +763,7 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
         elif specific_data == INDIVIDUAL_FILE_GROUP:
             td = tracked_data.get(specific_data, False)
         
-        elif specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES or specific_data == SKIP_WARNINGS:
+        elif specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES or specific_data == SKIP_WARNINGS or specific_data == USED_RANDOM_CHARS:
             td = tracked_data.get(specific_data, [])
             for i in key_index:
                 if i < len(td):
@@ -801,7 +831,8 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     if FILE_NAME_COUNT in update_data:
         index = update_data[FILE_NAME_COUNT][INDEX_POINTER]
         update_count = update_data[FILE_NAME_COUNT][UPDATE_COUNT]
-        edit_details[TRACKED_DATA][FILE_NAME_COUNT][index] = edit_details[TRACKED_DATA][FILE_NAME_COUNT][index] + update_count
+        if index < len(edit_details[TRACKED_DATA][FILE_NAME_COUNT]):
+            edit_details[TRACKED_DATA][FILE_NAME_COUNT][index] = edit_details[TRACKED_DATA][FILE_NAME_COUNT][index] + update_count
     
     if FILE_NAME_COUNT_LIMIT in update_data:
         index = update_data[FILE_NAME_COUNT_LIMIT][INDEX_POINTER]
@@ -813,6 +844,12 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     
     if CURRENT_FILE_NAME in update_data:
         edit_details[TRACKED_DATA][CURRENT_FILE_NAME] = update_data[CURRENT_FILE_NAME]
+    
+    if USED_RANDOM_CHARS in update_data:
+        if append_values:
+            edit_details[TRACKED_DATA][USED_RANDOM_CHARS].append( update_data[USED_RANDOM_CHARS] )
+        else:
+            edit_details[TRACKED_DATA][USED_RANDOM_CHARS].pop()
     
     if SKIPPED_FILES in update_data:
         edit_details[TRACKED_DATA][SKIPPED_FILES].append( update_data[SKIPPED_FILES] )
@@ -898,7 +935,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
 
 ### Sort file functions.
 ###     (file) A Tuple with the [0]full file path, [1]file name,      [2]file size, 
-###                             [3]access date,    [4]modify date, or [5]creation date (UNIX: meta data modified data).
+###                             [3]access date,    [4]modify date, or [5]creation date (UNIX: meta data modified date).
 ###     --> Returns a [String] or [Integer]
 def sortFilesAlphabetically(file):
     return file[1]
@@ -1201,8 +1238,6 @@ def getInsertText(edit_details, list_index = -1):
                     
                     if COUNT in modify_options or COUNT_TO in modify_options:
                         
-                        #dynamic_count = tracked_data[FILE_NAME_COUNT][list_index]
-                        #dynamic_count_limit = tracked_data[FILE_NAME_COUNT_LIMIT][list_index]
                         dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
                         
                         list_index = checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_length, same_match_index, repeat_text_list)
@@ -1220,8 +1255,16 @@ def getInsertText(edit_details, list_index = -1):
                             insert_text = False
                             #print('A max count limit hit.')
                     
-                    elif RANDOM in modify_options: ## TODO
-                        print('TODO RANDOM')
+                    elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
+                        
+                        random_characters = getRandomCharacters(edit_details, list_index)
+                        
+                        insert_text = getDynamicText(insert_text[list_index], random_characters, modify_options)
+                        
+                        edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
+                        
+                        #print(insert_text[list_index])
+                        #input('...')
                     
                     elif REGEX in modify_options: ## TODO
                         print('TODO REGEX')
@@ -1247,8 +1290,13 @@ def getInsertText(edit_details, list_index = -1):
                 elif COUNT_TO in modify_options:
                     insert_text = insert_text[STARTING_TEXT] if has_count_limit_hit > -1 else False
             
-            elif RANDOM in modify_options: ## TODO
-                print('TODO RANDOM')
+            elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
+                
+                random_characters = getRandomCharacters(edit_details)
+                
+                insert_text = getDynamicText(insert_text, random_characters, modify_options)
+                
+                edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
             
             elif REGEX in modify_options: ## TODO
                 print('TODO REGEX')
@@ -1266,7 +1314,73 @@ def getInsertText(edit_details, list_index = -1):
     
     #print(insert_text)
     
-    return insert_text
+    return insert_text, edit_details
+
+
+### Get random characters to be used in creating a new file name.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     (list_index) If text list is used provide current index.
+###     --> Returns a [String] 
+def getRandomCharacters(edit_details, list_index = -1):
+    
+    if list_index > -1:
+        dynamic_text = getText(edit_details[INSERT_TEXT])[list_index][DYNAMIC_TEXT]
+    else:
+        dynamic_text = getText(edit_details[INSERT_TEXT])[DYNAMIC_TEXT]
+    
+    modify_options = getOptions(edit_details[INSERT_TEXT])
+    random_list = []
+    random_characters = ''
+    smallest_char_list = None
+    
+    if even_weighted_random_char_list:
+        length_numbers, length_leters, length_special, length_other = 999, 999, 999, 999
+        if RANDOM_NUMBERS in modify_options:
+            length_numbers = len(list_numbers)
+        if RANDOM_LETTERS in modify_options:
+            length_letters = len(list_leters)
+        if RANDOM_SPECIALS in modify_options:
+            length_special = len(list_special)
+        if RANDOM_OTHER in modify_options:
+            length_other = len(list_other)
+        smallest_char_list = min(length_numbers, length_leters, length_special, length_other)
+    
+    if RANDOM_NUMBERS in modify_options:
+        random.shuffle(list_numbers)
+        random_list.extend( list_numbers[:smallest_char_list] )
+    if RANDOM_LETTERS in modify_options:
+        random.shuffle(list_leters)
+        random_list.extend( list_leters[:smallest_char_list] )
+    if RANDOM_SPECIALS in modify_options:
+        random.shuffle(list_special)
+        random_list.extend( list_special[:smallest_char_list] )
+    if RANDOM_OTHER in modify_options:
+        random.shuffle(list_other)
+        random_list.extend( list_other[:smallest_char_list] )
+    
+    if type(dynamic_text) == tuple:
+        random_length = dynamic_text[0]
+    else:
+        random_length = int(dynamic_text)
+    
+    if no_repeat_random_chars:
+        random_characters = random.shuffle(random_list)[:random_length]
+    else:
+        length = 0
+        while length < random_length:
+            random_characters += random.choice(random_list)
+            length += 1
+    
+    #print(random_list)
+    #print(random_characters)
+    #print(used_random_chars)
+    
+    # Check if string of random characters has been used already in current group of file renames.
+    used_random_chars = getTrackedData(edit_details, USED_RANDOM_CHARS)
+    if random_characters in used_random_chars:
+        random_characters = getRandomCharacters(edit_details, insert_text_data)
+    
+    return random_characters
 
 
 ### Prepare the text to be inserted into file making and changes or text matches before renaming.
@@ -1283,6 +1397,8 @@ def insertTextIntoFileName(file_path, edit_details):
     
     if type(edit_details[INSERT_TEXT]) == dict:
         is_text_list = True if type(edit_details[INSERT_TEXT].get(TEXT)) == list else False
+        if is_text_list:
+            text_list_size = len(edit_details[INSERT_TEXT].get(TEXT))
     else:
         is_text_list = False
     
@@ -1312,14 +1428,14 @@ def insertTextIntoFileName(file_path, edit_details):
                 input('Else press "Enter" if you wish to continue anyways...')
                 skip_warning_smi = True
             match_index = i
-        elif is_text_list and renamed_limit > 1:
+        elif is_text_list: # and renamed_limit > 1:
             if repeat_text_list:
-                renamed_number = resetIfMaxed(renamed_number, renamed_limit)
+                renamed_number = resetIfMaxed(renamed_number, text_list_size)
             match_index = renamed_number
         else:
             match_index = 0
         #if debug: print('match_index: %s' % match_index)
-        insert_text = getInsertText(edit_details, match_index)
+        insert_text, edit_details = getInsertText(edit_details, match_index)
         
         if type(insert_text) == bool or searchable_match_file_name.find(match_text) == -1:
             new_file_name = file_path.name
@@ -1473,7 +1589,7 @@ def checkIfFileExist(file_path, org_file_path = None):
                 file_already_exist_user_input = windll.user32.MessageBoxW(0, file_already_exist_text, "File Renaming Failed!", 0x00001016)
             else:
                 print('--File Name Already Exists: %s' % (file_path))
-                file_already_exist_user_input = input('Skip this file and continue? [ (C)ancel / (T)ry Again / (S)kip ]')
+                file_already_exist_user_input = input('Skip this file and continue? [ (C)ancel / (T)ryAgain / (S)kip ]')
             
             does_file_exist = strToIntConstant(file_already_exist_user_input, 'file_saving')
         else:
@@ -1740,6 +1856,40 @@ def yesTrue(user_input):
     return response
 
 
+### Change specific user inputs (answer to a question) into an integer constant.
+###     (user_input) The user input from a question asked.
+###     (category) The category of the question ask.
+###     --> Returns a [Integer]
+def strToIntConstant(user_input, category):
+    user_input = str(user_input).casefold()
+    number = NONE
+    '''if category == 'edit_type':
+        if user_input == 'a' or user_input == 'add':
+            number = ADD
+        elif user_input == 'r' or user_input == 'replace':
+            number = REPLACE
+    elif category == 'placement':
+        if user_input == 's' or user_input == 'start':
+            number = START
+        elif user_input == 'e' or user_input == 'end':
+            number = END
+        elif user_input == 'b' or user_input == 'both':
+            number = BOTH
+    elif category == 'search_from':
+        if user_input == 'l' or user_input == 'left':
+            number = LEFT
+        elif user_input == 'r' or user_input == 'right':
+            number = RIGHT'''
+    if category == 'file_saving':
+        if user_input == '2' or 'cancel'.find(user_input) > -1:
+            number = CANCEL
+        elif user_input == '10' or 'tryagain'.find(user_input) > -1:
+            number = TRY_AGAIN
+        elif user_input == '11' or 'skip'.find(user_input) > -1:
+            number = SKIP
+    return number
+
+
 ### Get proper user preset selection.
 ###     (string_num) A user typed String to change into an Integer or keep blank ('').
 ###     --> Returns a [Integer]
@@ -1811,8 +1961,14 @@ def intToStrText(key, value, parent_key = None):
                     text += 'Ignore This Extension, '
                 if EXTENSION in value and parent_key == INSERT_TEXT:
                     text += 'Allow Extension To Be Modified, '
-                if RANDOM in value:
-                    text += 'Add Random Numbers/Text, '
+                if RANDOM_NUMBERS in value:
+                    text += 'Add Random Numbers, '
+                if RANDOM_LETTERS in value:
+                    text += 'Add Random Letters, '
+                if RANDOM_SPECIALS in value:
+                    text += 'Add Random Special Characters, '
+                if RANDOM_OTHER in value:
+                    text += 'Add Random Other Characters, '
                 if REGEX in value:
                     text += 'Regular Expressions, '
                 if SAME_MATCH_INDEX in value:
@@ -1824,7 +1980,10 @@ def intToStrText(key, value, parent_key = None):
                         if MATCH_LIMIT in item:
                             text += 'Limit Matches to ' + str(item[1]) + ', '
                         if MINIMUM_DIGITS in item:
-                            text += 'Minimum Digits ' + str(item[1]) + ', '
+                            text += 'Minimum ' + str(item[1]) + ' Digits, '
+                        if RANDOM_SEED in item:
+                            text += 'Random Seed used ' + str(item[1]) + ', '
+                        
                 text = text.rstrip(', ')
             
             if key == PLACEMENT:
@@ -1877,6 +2036,8 @@ def intToStrText(key, value, parent_key = None):
                 text = '\n                              Current List Index : ' + str(value)
             if key == CURRENT_FILE_NAME:
                 text = '\n                              Current File Name : ' + str(value)
+            if key == USED_RANDOM_CHARS:
+                text = '\n                              Used Random Characters : ' + str(value)
             if key == SKIPPED_FILES:
                 text = '\n                              Files To Skip : ' + str(value)
             if key == SKIP_WARNINGS:
