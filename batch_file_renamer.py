@@ -314,7 +314,7 @@ preset12 = {
 preset13 = {
   EDIT_TYPE         : REPLACE,
   MATCH_TEXT        : { TEXT : ' (U)', OPTIONS : [ MATCH_CASE, (MATCH_LIMIT, 10), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT       : { TEXT : ' (u)' }, ## TODO: fix cap change only
+  INSERT_TEXT       : { TEXT : ' (u)' },
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
   INCLUDE_SUB_DIRS  : True
 }
@@ -383,9 +383,9 @@ preset21 = {
 }
 preset22 = {
   EDIT_TYPE         : RENAME,
-  MATCH_TEXT        : { TEXT        : 'tXt',
+  MATCH_TEXT        : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ], ## TODO: handle excluded or illegal file name characters used in presets
+  INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), REPEAT_TEXT_LIST ],
                         PLACEMENT   : ( END, OF_FILE_NAME ) }
 }
@@ -398,6 +398,82 @@ preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
 debug = False
 show_log_data = False
+
+
+### Check for any use of excluded or illegal file name characters.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [Boolean] 
+def illegalCharacterCheck(edit_details):
+    
+    illegal_characters_found = False
+    illegal_characters = list('\\|:"<>/?')
+    
+    match_text = getText(edit_details.get(MATCH_TEXT))
+    ignore_text = getText(edit_details.get(IGNORE_TEXT))
+    insert_text = getText(edit_details.get(INSERT_TEXT))
+    before = ', ...'
+    after = '..., '
+    
+    for char in illegal_characters:
+        
+        i = -1
+        for text in match_text:
+            i += 1
+            
+            if char in text:
+                if not illegal_characters_found: print('')
+                text_mistake = '\'' + str(text) + '\''
+                if i > 0: text_mistake = after + text_mistake
+                if i < len(match_text): text_mistake += before
+                print('Found  %s  in  MATCH_TEXT  : [ %s ]' % (char, text_mistake))
+                illegal_characters_found = True
+        
+        i = -1
+        for text in ignore_text:
+            i += 1
+            
+            if char in text:
+                if not illegal_characters_found: print('')
+                text_mistake = '\'' + str(text) + '\''
+                if i > 0: text_mistake = after + text_mistake
+                if i < len(ignore_text): text_mistake += before
+                print('Found  %s  in  IGNORE_TEXT : [ %s ]' % (char, text_mistake))
+                illegal_characters_found = True
+        
+        i = -1
+        for text in insert_text:
+            i += 1
+            
+            if type(text) == tuple:
+                
+                text_mistake = str(text)
+                if i > 0: text_mistake = after + text_mistake
+                if i < len(insert_text): text_mistake += before
+                
+                if char in text[STARTING_TEXT]:
+                    if not illegal_characters_found: print('')
+                    print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                    illegal_characters_found = True
+                
+                if len(text) > 2 and char in text[ENDING_TEXT]:
+                    if not illegal_characters_found: print('')
+                    print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                    illegal_characters_found = True
+            
+            else:
+                if char in text:
+                    if not illegal_characters_found: print('')
+                    text_mistake = '\'' + str(text) + '\''
+                    if i > 0: text_mistake = after + text_mistake
+                    if i < len(insert_text): text_mistake += before
+                    print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                    illegal_characters_found = True
+    
+    if illegal_characters_found:
+        print('\nWARNING: Excluded or illegal file name characters were found in [ Preset #%s ].' % selected_preset)
+        print('These characters can not be used in file names and need to be removed before this preset can be used.')
+    
+    return illegal_characters_found
 
 
 ### Display one or all file rename preset options.
@@ -457,7 +533,9 @@ def displayPreset(presets, number = -1, log_preset = False):
 ###     (include_sub_dirs) Search sub-directories for more files.  Boolean(True) or Boolean(False)
 ###     --> Returns a [Dictionary] edit_details
 def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs = False):
-    #assert Path.is_dir(full_path) # Error if not directory or doen't exist
+    
+    if illegalCharacterCheck(edit_details):
+        return edit_details # Full Stop
     
     edit_details_copy = edit_details
     
@@ -1145,11 +1223,11 @@ def getPlacement(data):
 ### Returns +0 finding an index not currently limited, "-1" if index hit limit and no other indexes are avalible, or -2 when all avalible indexes in list hit limit.
 ###     (tracked_data) 
 ###     (list_index) 
-###     (insert_text_length) 
+###     (insert_text_list_size) 
 ###     (same_match_index) 
 ###     (repeat_text_list) 
 ###     --> Returns a [Integer] 
-def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_length = -1, same_match_index = False, repeat_text_list = False, recursive_count = 0):
+def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size = -1, same_match_index = False, repeat_text_list = False, recursive_count = 0):
     dynamic_count = tracked_data[FILE_NAME_COUNT][list_index]
     dynamic_count_limit = tracked_data[FILE_NAME_COUNT_LIMIT][list_index]
     
@@ -1159,26 +1237,26 @@ def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_length = -
         
         if same_match_index:
             list_index = -1 # No choosing another index to return, will either be -1 or -2 in the end
-            next_list_index = 0 if next_list_index >= insert_text_length else next_list_index
+            next_list_index = 0 if next_list_index >= insert_text_list_size else next_list_index
             recursive_count += 1
-            if recursive_count <= insert_text_length:
-                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_length, same_match_index, repeat_text_list, recursive_count)
+            if recursive_count <= insert_text_list_size:
+                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_list_size, same_match_index, repeat_text_list, recursive_count)
                 if list_index > -2: # Only checking if all limits hit, if not go with first called index check, which we alreayd know is -1
                     list_index = -1
             else:
                 list_index = -2
         
-        elif next_list_index >= insert_text_length:
+        elif next_list_index >= insert_text_list_size:
             recursive_count += 1
-            if recursive_count <= insert_text_length:
-                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_length, same_match_index, repeat_text_list, recursive_count)
+            if recursive_count <= insert_text_list_size:
+                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_list_size, same_match_index, repeat_text_list, recursive_count)
             else:
                 list_index = -2
         
         elif repeat_text_list:
             recursive_count += 1
-            if recursive_count <= insert_text_length:
-                list_index = checkAllAvalibleCountLimits(tracked_data, 0, insert_text_length, same_match_index, repeat_text_list, recursive_count)
+            if recursive_count <= insert_text_list_size:
+                list_index = checkAllAvalibleCountLimits(tracked_data, 0, insert_text_list_size, same_match_index, repeat_text_list, recursive_count)
             else:
                 list_index = -2
         
@@ -1214,87 +1292,49 @@ def allCountLimitsHitCheck(tracked_data):
 ###     --> Returns a [String] 
 def getInsertText(edit_details, list_index = -1):
     
-    edit_type = edit_details[EDIT_TYPE]
-    modify_data = edit_details[INSERT_TEXT]
-    tracked_data = getTrackedData(edit_details)
+    edit_type = edit_details[EDIT_TYPE] # No get, force error if missing
+    modify_data = edit_details[INSERT_TEXT] # No get, force error if missing
     search_options = getOptions(edit_details.get(MATCH_TEXT, ''))
     same_match_index = SAME_MATCH_INDEX in search_options
+    insert_text = getText(modify_data) # Always a List
+    modify_options = getOptions(modify_data)
+    repeat_text_list = REPEAT_TEXT_LIST in modify_options
+    tracked_data = getTrackedData(edit_details)
     
-    if type(modify_data) == dict:
+    #if type(modify_data) == dict:
+    #renamed_limit = tracked_data[FILES_RENAMED][LIMIT]
+    #if type(insert_text) == list:
+    
+    insert_text_list_size = len(insert_text)
+    
+    if list_index > -1 and list_index < insert_text_list_size:
         
-        insert_text = modify_data.get(TEXT, '')
-        modify_options = getOptions(modify_data)
-        
-        #renamed_limit = tracked_data[FILES_RENAMED][LIMIT]
-        repeat_text_list = REPEAT_TEXT_LIST in modify_options 
-        
-        if type(insert_text) == list:
-            
-            insert_text_length = len(insert_text)
-            
-            if list_index > -1 and list_index < insert_text_length:
-                
-                if type(insert_text[list_index]) == tuple: # Dynamic Text
-                    
-                    if COUNT in modify_options or COUNT_TO in modify_options:
-                        
-                        dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
-                        
-                        list_index = checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_length, same_match_index, repeat_text_list)
-                        
-                        if list_index > -1:
-                            dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
-                            
-                            if COUNT in modify_options:
-                                insert_text = getDynamicText(insert_text[list_index], dynamic_count, modify_options)
-                            
-                            elif COUNT_TO in modify_options:
-                                insert_text = insert_text[list_index][STARTING_TEXT]
-                        
-                        else:
-                            insert_text = False
-                            #print('A max count limit hit.')
-                    
-                    elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
-                        
-                        random_characters = getRandomCharacters(edit_details, list_index)
-                        
-                        insert_text = getDynamicText(insert_text[list_index], random_characters, modify_options)
-                        
-                        edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
-                        
-                        #print(insert_text[list_index])
-                        #input('...')
-                    
-                    elif REGEX in modify_options: ## TODO
-                        print('TODO REGEX')
-                
-                else: # Plain Text
-                    insert_text = insert_text[list_index]
-            
-            else: ## TODO Index Out Of Bounds, Warn User?
-                insert_text = False
-        
-        elif type(insert_text) == tuple: # Dynamic Text
+        if type(insert_text[list_index]) == tuple: # Dynamic Text
             
             if COUNT in modify_options or COUNT_TO in modify_options:
                 
-                dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [0])
-                dynamic_count_limit = getTrackedData(edit_details, FILE_NAME_COUNT_LIMIT, [0])
+                dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
                 
-                has_count_limit_hit = checkAllAvalibleCountLimits(tracked_data, 0, 1)
+                list_index = checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size, same_match_index, repeat_text_list)
                 
-                if COUNT in modify_options:
-                    insert_text = getDynamicText(insert_text, dynamic_count, modify_options) if has_count_limit_hit > -1 else False
+                if list_index > -1:
+                    dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
+                    
+                    if COUNT in modify_options:
+                        insert_text = getDynamicText(insert_text[list_index], dynamic_count, modify_options)
+                    
+                    elif COUNT_TO in modify_options:
+                        insert_text = insert_text[list_index][STARTING_TEXT]
                 
-                elif COUNT_TO in modify_options:
-                    insert_text = insert_text[STARTING_TEXT] if has_count_limit_hit > -1 else False
+                else:
+                    insert_text = False
+                    #print('A max count limit hit.')
             
             elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
                 
-                random_characters = getRandomCharacters(edit_details)
+                random_characters = getRandomCharacters(edit_details, list_index)
                 
-                insert_text = getDynamicText(insert_text, random_characters, modify_options)
+                insert_text = getDynamicText(insert_text[list_index], random_characters, modify_options)
                 
                 edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
             
@@ -1304,10 +1344,46 @@ def getInsertText(edit_details, list_index = -1):
             else:
                 print('/nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
                 insert_text = False
+        
+        else: # Plain Text
+            insert_text = insert_text[list_index]
+    
+    else: ## TODO Index Out Of Bounds, Warn User?
+        insert_text = False
+    '''
+    elif type(insert_text) == tuple: # Dynamic Text
+        
+        if COUNT in modify_options or COUNT_TO in modify_options:
+            
+            dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [0])
+            dynamic_count_limit = getTrackedData(edit_details, FILE_NAME_COUNT_LIMIT, [0])
+            
+            has_count_limit_hit = checkAllAvalibleCountLimits(tracked_data, 0, 1)
+            
+            if COUNT in modify_options:
+                insert_text = getDynamicText(insert_text, dynamic_count, modify_options) if has_count_limit_hit > -1 else False
+            
+            elif COUNT_TO in modify_options:
+                insert_text = insert_text[STARTING_TEXT] if has_count_limit_hit > -1 else False
+        
+        elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
+            
+            random_characters = getRandomCharacters(edit_details)
+            
+            insert_text = getDynamicText(insert_text, random_characters, modify_options)
+            
+            edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
+        
+        elif REGEX in modify_options: ## TODO
+            print('TODO REGEX')
+        
+        else:
+            print('/nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
+            insert_text = False
     
     else: # Plain Text
         insert_text = modify_data
-    
+    '''
     if EXTENSION in modify_options and edit_type != RENAME and type(insert_text) != bool:
         if insert_text != '' and insert_text.find('.') != 0:
             insert_text = '.'+insert_text # Add a '.' if missing
@@ -1370,10 +1446,6 @@ def getRandomCharacters(edit_details, list_index = -1):
         while length < random_length:
             random_characters += random.choice(random_list)
             length += 1
-    
-    #print(random_list)
-    #print(random_characters)
-    #print(used_random_chars)
     
     # Check if string of random characters has been used already in current group of file renames.
     used_random_chars = getTrackedData(edit_details, USED_RANDOM_CHARS)
@@ -1577,21 +1649,25 @@ def addToFileName(file_path, add_text, placement):
 def checkIfFileExist(file_path, org_file_path = None):
     does_file_exist = TRY_AGAIN
     
-    if file_path == org_file_path:
+    if str(file_path) == str(org_file_path):
         does_file_exist = SAME_NAME
     
     while does_file_exist == TRY_AGAIN:
         if Path.exists(file_path):
             
-            if sys.platform == 'win32':
-                print('--File Name Already Exists: %s' % (file_path))
-                file_already_exist_text = ('File Already Exists: "%s" \n\nSkip this file and continue?' % (file_path))
-                file_already_exist_user_input = windll.user32.MessageBoxW(0, file_already_exist_text, "File Renaming Failed!", 0x00001016)
-            else:
-                print('--File Name Already Exists: %s' % (file_path))
-                file_already_exist_user_input = input('Skip this file and continue? [ (C)ancel / (T)ryAgain / (S)kip ]')
+            if file_path == org_file_path: # If here the file rename must have had a letter case change.
+                does_file_exist = NO
             
-            does_file_exist = strToIntConstant(file_already_exist_user_input, 'file_saving')
+            else:
+                if sys.platform == 'win32':
+                    print('--File Name Already Exists: %s' % (file_path))
+                    file_already_exist_text = ('File Already Exists: "%s" \n\nSkip this file and continue?' % (file_path))
+                    file_already_exist_user_input = windll.user32.MessageBoxW(0, file_already_exist_text, "File Renaming Failed!", 0x00001016)
+                else:
+                    print('--File Name Already Exists: %s' % (file_path))
+                    file_already_exist_user_input = input('Skip this file and continue? [ (C)ancel / (T)ryAgain / (S)kip ]')
+                
+                does_file_exist = strToIntConstant(file_already_exist_user_input, 'file_saving')
         else:
             does_file_exist = NO
     
