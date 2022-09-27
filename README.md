@@ -63,10 +63,13 @@ This script will rename one or more files either by adding new text or replacing
 >> `COUNT` is a way to dynamically add an iterating number to a file name. **TEXT : ( "Starting Text", ( Starting Number, Ending Number ), "Ending Text" )**. Note: The ending number is optional and count resets after each directory change.<br>
 >> `COUNT_TO` is the max amount of renames to make before stopping and moving onto the next **TEXT** in a List or the next directory. Is similar to COUNT's ending number without adding an iterating number to a file name. **TEXT : ( ‘Text’, Number )**<br>
 >> `MINIMUM_DIGITS` is the minimum number or digits used for any dynamic text. For example, **OPTIONS : ( MINIMUM_DIGITS, 3 )** will turn ‘7’ into ‘007’.<br>
->> `RANDOM` will generate random numbers or text that is added to file names. This feature is not yet added.<br>
+>> `RANDOM_NUMBERS` will generate random numbers that are added to file names. Note: All random generators can be used together.<br>
+>> `RANDOM_LETTERS` will generate random letters that are added to file names.<br>
+>> `RANDOM_SPECIALS` will generate random special characters that are added to file names.<br>
+>> `RANDOM_OTHER` will generate random other (uncommon, unique, or foreign) characters that are added to file names.<br>
+>> `RANDOM_SEED` is the starting seed number to use in random generators. Default: (RANDOM_SEED, None)<br>
 >> `REPEAT_TEXT_LIST` will repeat a text list once the end of a text list is reached. The length of a text list is treated as a soft rename limit unless this option is used. **TEXT** must be dynamic if used, [**COUNT**, **RANDOM**, etc.].<br>
->> `EXTENSION` if used in modify options and **EDIT_TYPE : ADD or REPLACE** only the extension will be replaced or added on to the **END**. If used with **EDIT_TYPE : RENAME** the entire file name may be rewritten including the extension, but only if a "." is in **TEXT**. Note: You don't need to use **EXTENSION** in all cases where you wish to match or modify the extension.
-
+>> `EXTENSION` if used in modify options and **EDIT_TYPE : ADD or REPLACE** only the extension will be replaced or added on to the **END**. If used with **EDIT_TYPE : RENAME** the entire file name may be rewritten including the extension, but only if a "." is in **TEXT**. Note: You don't need to use **EXTENSION** in all cases where you wish to match or modify the extension.<br>
 
 > `PLACEMENT` when using **EDIT_TYPE : ADD** this signifies where to place text. For example, **( START, OF_FILE_NAME )**. All current placement options are listed below:<br>
 >> `START` to place at the start of...<br>
@@ -155,3 +158,22 @@ This preset searches for image files with the extension ".jpg" or ".png" ignorin
 **Example File Renames:**
 - "image_file.jpg" will change to "image_file-0001.jpg"<br>
 - "image_file.png" will change to "image_file-1001.png"<br>
+
+<br>
+
+```
+preset23 = {
+  EDIT_TYPE         : RENAME,
+  IGNORE_TEXT       : { TEXT        : [ 'skip' ],
+                        OPTIONS     : [ NO_MATCH_CASE ] },
+  INSERT_TEXT       : { TEXT        : [ ('RandomS-(', 4, ')'), ('RandomL-[', (7), ']') ],
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), REPEAT_TEXT_LIST ] }
+}
+```
+
+This preset searches for all files except those that have the string "skip" in their file name. Then rename those files alternating between RandomS-(####) and RandomL-[#######] because of the REPEAT_TEXT_LIST option. The #’s could be any number or letter. The random seed chosen means the random #’s will always start and continue with the same pattern every time a new rename task is ran including directory and file group changes.
+
+**Example File Renames:**
+- "a_file.pdf" will change to "RandomS-(1py7).pdf"<br>
+- "skip_file.doc" will not be renamed.<br>
+- "some_file.txt" will change to "RandomL-[ jjc124z].txt"<br>
