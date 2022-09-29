@@ -32,8 +32,9 @@ TODO:
     [DONE] Use more than one search/modify option at a time.
     [DONE] Option to revert name changes back to original names.
     [DONE] Ignore text option that will skip files that match the ignore text.
-    [] Match file contents or file meta data.
-    [] Import separate settings and/or preset file.
+    [] Match file contents.
+    [] Match file meta data.
+    [] Import separate settings and/or preset files.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -66,25 +67,18 @@ import time as delay
 MIN_VERSION = (3,8,0)
 MIN_VERSION_STR = '.'.join([str(n) for n in MIN_VERSION])
 
-# File Meta Data
-META_FILE_PATH = 0
-META_FILE_NAME = 1
-META_FILE_SIZE = 2
-META_FILE_ACCESS = 3
-META_FILE_MODIFY = 4
-META_FILE_CREATE = 5
-META_FILE_METADATA = 5
-
 ### EDIT_DETAILS Keys
 EDIT_TYPE = 0           # The type of edit to make on a file name: ADD text, REPLACE text or RENAME entire file name. [Required]
 MATCH_TEXT = 1          # The text to search for and match before renaming a file name.
 IGNORE_TEXT = 2         # The text to search for and if found in a file name skip that file renaming, effectively renaming every other file not matched.
-INSERT_TEXT = 3         # The text used in renaming files. This can be static text or dynamic text that changes depending on the OPTIONS used. [Required]
-SOFT_RENAME_LIMIT = 4   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
-HARD_RENAME_LIMIT = 5   # A hard limit stops renaming files once hit and ends all further renaming tasks.
-LINKED_FILES = 7        # Full file path to text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
-INCLUDE_SUB_DIRS = 8    # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
-PRESORT_FILES = 9       # Before renaming any group of files, sort them using the file's meta data.
+MATCH_FILE_CONTENTS = 3 ## TODO: 
+MATCH_FILE_META_DATA = 4## TODO: 
+INSERT_TEXT = 5         # The text used in renaming files. This can be static text or dynamic text that changes depending on the OPTIONS used. [Required]
+SOFT_RENAME_LIMIT = 6   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
+HARD_RENAME_LIMIT = 7   # A hard limit stops renaming files once hit and ends all further renaming tasks.
+LINKED_FILES = 8        # Full file path to text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
+INCLUDE_SUB_DIRS = 9    # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
+PRESORT_FILES = 10      # Before renaming any group of files, sort them using the file's meta data.
 TRACKED_DATA = 99       # Internal use only, do not use.
 
 ### EDIT_TYPE Options
@@ -92,8 +86,9 @@ ADD = 0
 REPLACE = 1
 RENAME = 2
 
-### INSERT_TEXT Keys
+### Search and Modify Keys
 TEXT = 0
+META = 0
 OPTIONS = 1
 PLACEMENT = 2
 
@@ -107,10 +102,12 @@ FILE_NAME_COUNT = 5
 FILE_NAME_COUNT_LIMIT = 6
 CURRENT_LIST_INDEX = 7
 CURRENT_FILE_NAME = 8
-USED_RANDOM_CHARS = 9
-SKIPPED_FILES = 10
-SKIP_WARNINGS = 11
-LOG_DATA = 12
+CURRENT_FILE_META_DATA = 8
+CURRENT_FILE_RENAME = 9
+USED_RANDOM_CHARS = 10
+SKIPPED_FILES = 11
+SKIP_WARNINGS = 12
+LOG_DATA = 13
 ORG_FILE_PATHS = 20
 NEW_FILE_PATHS = 21
 LINKED_FILES_UPDATED = 22
@@ -139,6 +136,9 @@ CONTINUE = 3
 SAME_NAME = 4
 SAME = 4
 NO_CHANGE = 4
+LOWER = 101
+UPPER = 110
+LOWER_AND_UPPER = 111
 
 # Dynamic Text
 STARTING_TEXT = 0
@@ -147,6 +147,72 @@ ENDING_TEXT = 2
 
 STARTING_COUNT = 0
 ENDING_COUNT = 1
+
+### File Meta Data
+FILE_META_DATA_PATH = 0
+FILE_META_DATA_SIZE = 1
+FILE_META_DATA_ACCESS = 2
+FILE_META_DATA_MODIFY = 3
+FILE_META_DATA_CREATE = 4
+FILE_META_DATA_METADATA = 4
+
+FILE_META_DATA_FILE_TYPE = 10
+
+FILE_META_DATA_FORMAT = 20
+FILE_META_DATA_HEIGHT = 21
+FILE_META_DATA_WIDTH = 22
+FILE_META_DATA_LENGTH = 23
+
+#FILE_META_DATA_H_RES = 
+#FILE_META_DATA_V_RES = 
+#FILE_META_DATA_BIT_DEPTH = 
+
+#FILE_META_DATA_RATE = 
+#FILE_META_DATA_VIDEO_BITRATE = 
+#FILE_META_DATA_VIDEO_FRAME_RATE = 
+#FILE_META_DATA_AUDIO_BITRATE = 
+#FILE_META_DATA_AUDIO_SAMPLE_RATE = 
+#FILE_META_DATA_AUDIO_CHANNELS = 
+
+#FILE_META_DATA_AUDIO_TITLE = 
+#FILE_META_DATA_AUDIO_ALBUM = 
+#FILE_META_DATA_AUDIO_ARTIST = 
+#FILE_META_DATA_AUDIO_YEAR = 
+#FILE_META_DATA_AUDIO_GENRE = 
+#FILE_META_DATA_AUDIO_PUBLISHER = 
+
+### META_MATCH
+EXACT_MATCH = 0         # 
+LESS_THAN = 1
+MORE_THAN = 2
+WITHIN_THE_PAST = 1
+OLDER_THAN = 2
+
+### File Types
+TEXT_BASED = 0
+AUDIO = 1
+VIDEO = 2
+DATA = 3
+ARCHIVE = 4
+OTHER = 5
+
+### Date and Time
+YEAR = 200
+MONTH = 201
+DAY = 202
+HOUR = 203
+MINUTE = 204
+SECOND = 205
+MILLISECOND = 206
+MICROSECOND = 206
+TIMESTAMP = 207
+
+### File Sizes
+BYTES = 200
+KB = 201
+MB = 202
+GB = 203
+IN_BYTES_ONLY = 204
 
 ### Search Options
 MATCH_CASE = 0          # Case sensitive search. [Default]
@@ -174,20 +240,21 @@ RANDOM_SPECIALS = 26    # Generate random special characters.   ('text', Random 
 RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) characters.
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
 REPEAT_TEXT_LIST = 29   # Once the end of a text list is reached, repeat it.  Text should be dynamic, i.e. COUNT, RANDOM_NUMBERS, etc.
-## TODO make REPEAT_TEXT_LIST default and NO_REPEAT_TEXT_LIST the option?
+## TODO make REPEAT_TEXT_LIST default and NO_REPEAT_TEXT_LIST the option? Which is more common to use?
+INSERT_META_DATA = 30   ## TODO: ('Text', TIME/HEIGHT/WIDTH/LENGTH/FILE_SIZE?, 'Text')
 
 ### Placement Options
-START = 30              # Place at the start of...
-LEFT = 30               # Place at the left of...
-END = 31                # Place at the end of... [Default]
-RIGHT = 31              # Place at the right of...
-BOTH = 32               # Place at both sides of...
-BOTH_ENDS = 32          # Place at both ends of...
+START = 40              # Place at the start of...
+LEFT = 40               # Place at the left of...
+END = 41                # Place at the end of... [Default]
+RIGHT = 41              # Place at the right of...
+BOTH = 42               # Place at both sides of...
+BOTH_ENDS = 42          # Place at both ends of...
 
-OF_FILE_NAME = 40       # Placed at file name minus extension [Default]
-OF_MATCH = 41           # Placed at one or more matches found
+OF_FILE_NAME = 50       # Placed at file name minus extension [Default]
+OF_MATCH = 51           # Placed at one or more matches found
 
-### Sort Options        ## TODO: add more sorting options, image sizes, format/extension, etc
+### Sort Options        ## TODO: add more sorting options, image sizes, format/extension, video length, etc.
 ASCENDING = 60          # 0-9, A-Z [Default]
 DESCENDING = 61         # 9-0, Z-A
 ALPHABETICALLY = 62     # File name [Default]
@@ -203,11 +270,14 @@ DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
 ### Note: Some characters can't be used in file names and are not included here.
 list_numbers = list('1234567890')
 list_leters = list('abcdefghijklmnopqrstuvwxyz')
+list_capital_leters = list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
 list_special = list("~`!@#$%^&()-_=+[{]};',.") # ASCII
 list_other = list("¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿ") # UTF-8 Unicode
 #list_other = list("") # Add special foreign language or other characters not included above. Or use this as a custom list of random characters.
-even_weighted_random_char_list = True
-no_repeat_random_chars = False # Ex. True = 1212, False = 1324
+even_weighted_random_char_list = True   # If more than one random generator list used.
+no_repeat_random_chars = False          # Ex. True = 13254, False = 13223
+reset_random_seed = True                # Reset random seed after each directory change.
+letter_cases = LOWER_AND_UPPER          # Use list_leters "and/or" list_capital_leters
 
 ### Create a log file for each rename task ran, and include edit details or preset used.
 ### Directory name can be relative to this script or an absolute path.
@@ -389,10 +459,25 @@ preset22 = {
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), REPEAT_TEXT_LIST ],
                         PLACEMENT   : ( END, OF_FILE_NAME ) }
 }
+preset23 = {
+  EDIT_TYPE             : RENAME,
+  MATCH_TEXT            : { TEXT        : ['tXt'],
+                            OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
+  INSERT_TEXT           : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
+                            OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), REPEAT_TEXT_LIST ],
+                            PLACEMENT   : ( END, OF_FILE_NAME ) }
+}
+preset24 = {
+  EDIT_TYPE         : RENAME,
+  IGNORE_TEXT       : { TEXT        : [ 'skip' ],
+                        OPTIONS     : [ NO_MATCH_CASE ] },
+  INSERT_TEXT       : { TEXT        : [ ('RandomS-(', 4, ')'), ('RandomL-[', (7), ']') ],
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), REPEAT_TEXT_LIST ] }
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22]
+                  preset21,preset22,preset23]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -546,12 +631,16 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
     skip_warnings = getTrackedData(edit_details_copy, SKIP_WARNINGS)
     log_data = getTrackedData(edit_details_copy, LOG_DATA)
     
+    # Set the seed for random character generators
+    random_seed = getOptions(edit_details_copy[INSERT_TEXT], RANDOM_SEED, None)
+    random.seed(random_seed)
+    
     for meta in files_meta_data:
         
         # Directories
         if type(meta) == tuple:
             
-            dir_path = meta[META_FILE_PATH]
+            dir_path = meta[FILE_META_DATA_PATH]
             
             hard_limit_hit = False
             
@@ -573,7 +662,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                 #if debug: displayPreset(edit_details_copy)
                 
                 for file in files_meta:
-                    #print('--File: [ %s ]' % (file[META_FILE_NAME]))
+                    #print('--File: [ %s ]' % (file[FILE_META_DATA_NAME]))
                     
                     hard_rename_limit = getTrackedData(edit_details_copy, FILES_REVIEWED, [LIMIT])
                     soft_rename_limit = getTrackedData(edit_details_copy, DIRECTORY_FILES_RENAMED, [LIMIT])
@@ -588,7 +677,9 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     if allCountLimitsHitCheck(getTrackedData(edit_details_copy)):
                         break # File count limit hit, stop and move on to next directory.
                     
-                    file_path = Path(file[META_FILE_PATH])
+                    file_path = Path(file[FILE_META_DATA_PATH])
+                    edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META_DATA : file, CURRENT_FILE_RENAME : file[FILE_META_DATA_PATH].name })
+                    
                     edit_details_copy = createNewFileName(file_path, edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
                     if debug: displayPreset(edit_details_copy)
@@ -614,7 +705,8 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
             
             for file in meta:
             
-                file_path = file[META_FILE_PATH]
+                file_path = file[FILE_META_DATA_PATH]
+                edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META_DATA : file, CURRENT_FILE_RENAME : file[FILE_META_DATA_PATH].name })
                 
                 individual_files_renamed = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [AMOUNT])
                 all_files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [AMOUNT])
@@ -652,13 +744,13 @@ def getRenameRevertFilesAndEditDetails(log_file):
     
     try:
         text_encoding = 'ascii'
-        read_log_file = log_file[META_FILE_PATH].read_text(encoding=text_encoding)
+        read_log_file = log_file[FILE_META_DATA_PATH].read_text(encoding=text_encoding)
     except:
         try:
             text_encoding = 'utf-8'
-            read_log_file = log_file[META_FILE_PATH].read_text(encoding=text_encoding)
+            read_log_file = log_file[FILE_META_DATA_PATH].read_text(encoding=text_encoding)
         except:
-            print('Failed to open log file: [ %s ]' % log_file[META_FILE_PATH])
+            print('Failed to open log file: [ %s ]' % log_file[FILE_META_DATA_PATH])
             print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
             return False
     
@@ -783,9 +875,10 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                     fnc.append( value_reset )
                     fncl.append( NO_LIMIT )
     
-    # Set the seed for random character generators
-    random_seed = getSpecificOption(modify_options, RANDOM_SEED, None)
-    random.seed(random_seed)
+    # Reset the seed for random character generators
+    if reset_random_seed:
+        random_seed = getSpecificOption(modify_options, RANDOM_SEED, None)
+        random.seed(random_seed)
     
     # Defaults
     if not fnc:
@@ -804,9 +897,10 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                                                  FILE_NAME_COUNT : fnc,
                                                  FILE_NAME_COUNT_LIMIT : fncl,
                                                  CURRENT_LIST_INDEX : NONE,
-                                                 CURRENT_FILE_NAME : '',
+                                                 CURRENT_FILE_META_DATA : [],
+                                                 CURRENT_FILE_RENAME : '',
                                                  USED_RANDOM_CHARS : [],
-                                                 SKIPPED_FILES : [],
+                                                 SKIPPED_FILES : [], ## TODO should this be updated each copy? what if a directory file and an individual file are the same?
                                                  SKIP_WARNINGS : skip_warnings,
                                                  LOG_DATA : log_data
                                                } } )
@@ -841,7 +935,8 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
         elif specific_data == INDIVIDUAL_FILE_GROUP:
             td = tracked_data.get(specific_data, False)
         
-        elif specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES or specific_data == SKIP_WARNINGS or specific_data == USED_RANDOM_CHARS:
+        elif (specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES 
+              or specific_data == SKIP_WARNINGS or specific_data == USED_RANDOM_CHARS or specific_data == CURRENT_FILE_META_DATA):
             td = tracked_data.get(specific_data, [])
             for i in key_index:
                 if i < len(td):
@@ -854,7 +949,7 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
         elif specific_data == CURRENT_LIST_INDEX:
             td = tracked_data.get(specific_data, NONE)
         
-        elif specific_data == CURRENT_FILE_NAME:
+        elif specific_data == CURRENT_FILE_RENAME:
             td = tracked_data.get(specific_data, '')
         
         elif specific_data == LOG_DATA:
@@ -920,8 +1015,11 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     if CURRENT_LIST_INDEX in update_data:
         edit_details[TRACKED_DATA][CURRENT_LIST_INDEX] = update_data[CURRENT_LIST_INDEX]
     
-    if CURRENT_FILE_NAME in update_data:
-        edit_details[TRACKED_DATA][CURRENT_FILE_NAME] = update_data[CURRENT_FILE_NAME]
+    if CURRENT_FILE_META_DATA in update_data:
+        edit_details[TRACKED_DATA][CURRENT_FILE_META_DATA] = update_data[CURRENT_FILE_META_DATA]
+    
+    if CURRENT_FILE_RENAME in update_data:
+        edit_details[TRACKED_DATA][CURRENT_FILE_RENAME] = update_data[CURRENT_FILE_RENAME]
     
     if USED_RANDOM_CHARS in update_data:
         if append_values:
@@ -975,10 +1073,12 @@ def getFileMetaData(files, sort_option = None, root = ''):
         if Path.exists(file_path):
             file_meta = os.stat(file_path)
             
+            ## TODO: get more meta data to use later
+            
             if Path.is_file(file_path):
-                individual_file_list.append( (file_path, file_path.name, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
+                individual_file_list.append( (file_path, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
             elif Path.is_dir(file_path):
-                directory_list.append( (file_path, file_path.name, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
+                directory_list.append( (file_path, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
             else:
                 print("\nSkipping This: [ %s ]" % file_path)
                 print("\nThis is not a normal file or directory.")
@@ -1012,11 +1112,11 @@ def getFileMetaData(files, sort_option = None, root = ''):
 
 
 ### Sort file functions.
-###     (file) A Tuple with the [0]full file path, [1]file name,      [2]file size, 
-###                             [3]access date,    [4]modify date, or [5]creation date (UNIX: meta data modified date).
+###     (file) A Tuple with the [0]full file path,  [1]file size,       [2]access date,
+###                             [3]modify date      [4]creation date (UNIX: meta data modified date).
 ###     --> Returns a [String] or [Integer]
 def sortFilesAlphabetically(file):
-    return file[1]
+    return file[0].name
 def sortFilesByFileSize(file):
     return file[2]
 def sortFilesByAccessDate(file):
@@ -1032,20 +1132,22 @@ def sortFilesByCreationDate(file):
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [Dictionary] 
 def createNewFileName(some_file, edit_details):
+    
+    ## TODO: get file_path from edit_details moving forward
     file_path = Path(some_file)
     assert Path.is_file(file_path) # Error if not a file or doen't exist
-    file_name_new = False
+    file_name_changed = False
     
     skip_file = checkForSkippedFiles(file_path, getTrackedData(edit_details, SKIPPED_FILES))
     
     # Create The New File Name
     if not skip_file:
         edit_details = insertTextIntoFileName(file_path, edit_details)
-        new_file_name = getTrackedData(edit_details, CURRENT_FILE_NAME)
-        file_name_new = False if new_file_name == file_path.name else True
+        new_file_name = getTrackedData(edit_details, CURRENT_FILE_RENAME)
+        file_name_changed = False if new_file_name == file_path.name else True
     
     # Now Rename The File
-    if file_name_new:
+    if file_name_changed:
         new_file_path = Path(file_path.parent, new_file_name)
         edit_details = renameFile(file_path, new_file_path, edit_details)
         
@@ -1425,8 +1527,16 @@ def getRandomCharacters(edit_details, list_index = -1):
         random.shuffle(list_numbers)
         random_list.extend( list_numbers[:smallest_char_list] )
     if RANDOM_LETTERS in modify_options:
-        random.shuffle(list_leters)
-        random_list.extend( list_leters[:smallest_char_list] )
+        if letter_cases == LOWER:
+            random.shuffle(list_leters)
+            random_list.extend( list_leters[:smallest_char_list] )
+        elif letter_cases == UPPER:
+            random.shuffle(list_capital_leters)
+            random_list.extend( list_capital_leters[:smallest_char_list] )
+        elif letter_cases == LOWER_AND_UPPER:
+            list_leters.extend(list_capital_leters)
+            random.shuffle(list_leters)
+            random_list.extend( list_leters[:smallest_char_list] )
     if RANDOM_SPECIALS in modify_options:
         random.shuffle(list_special)
         random_list.extend( list_special[:smallest_char_list] )
@@ -1616,7 +1726,7 @@ def insertTextIntoFileName(file_path, edit_details):
             
             break # If here then a match was found so break loop
     
-    edit_details = updateTrackedData(edit_details, { CURRENT_LIST_INDEX : match_index, CURRENT_FILE_NAME : new_file_name, SKIP_WARNINGS : [0, skip_warning_smi] })
+    edit_details = updateTrackedData(edit_details, { CURRENT_LIST_INDEX : match_index, CURRENT_FILE_RENAME : new_file_name, SKIP_WARNINGS : [0, skip_warning_smi] })
     
     #if debug: print(new_file_name)
     
@@ -1796,7 +1906,7 @@ def updateLogFile(edit_details, log_revert = False):
         return False
     
     files_reviewed = getTrackedData(edit_details, FILES_REVIEWED, [AMOUNT])
-    files_renamed = getTrackedData(edit_details, FILES_RENAMED, [AMOUNT])
+    files_renamed = getTrackedData(edit_details, FILES_RENAMED, [FULL_AMOUNT])
     
     if files_renamed > 0:
         file_updated = True
@@ -1914,8 +2024,8 @@ def updateLogFile(edit_details, log_revert = False):
                 if log_file_limit == 0: delay.sleep(1) # Allow 1 second to finish file writing and opening before deleting it.
                 
                 for log in delete_logs:
-                    log[META_FILE_PATH].unlink(missing_ok=True)
-                    if debug: print('Old Log File Deleted: [ %s ]' % log[META_FILE_PATH])
+                    log[FILE_META_DATA_PATH].unlink(missing_ok=True)
+                    if debug: print('Old Log File Deleted: [ %s ]' % log[FILE_META_DATA_PATH])
     
     return file_updated
 
@@ -2110,7 +2220,7 @@ def intToStrText(key, value, parent_key = None):
                 text = '\n                              File Count Number Max : ' + str(value)
             if key == CURRENT_LIST_INDEX:
                 text = '\n                              Current List Index : ' + str(value)
-            if key == CURRENT_FILE_NAME:
+            if key == CURRENT_FILE_RENAME:
                 text = '\n                              Current File Name : ' + str(value)
             if key == USED_RANDOM_CHARS:
                 text = '\n                              Used Random Characters : ' + str(value)
@@ -2242,7 +2352,7 @@ def drop(files):
                         delay.sleep(1) # Log files are named using time so wait a second to make sure next log file name is +1 second.
                 
                 else:
-                    print('\nThe files in this log file no longer exist: [ %s ]' % log_file[META_FILE_NAME])
+                    print('\nThe files in this log file no longer exist: [ %s ]' % log_file[FILE_META_DATA_PATH].name)
                     print('You may have already reverted, renamed or deleted these files. ')
         
         else:
@@ -2303,6 +2413,7 @@ if __name__ == '__main__':
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces')
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\file - file - file.txt')
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub1')
+    #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub1\\sub2')
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub2')
     #sys.argv.append(os.path.join(ROOT_DIR,'Logs of File Renames'))
     
