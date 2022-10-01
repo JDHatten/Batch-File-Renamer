@@ -33,7 +33,7 @@ TODO:
     [DONE] Option to revert name changes back to original names.
     [DONE] Ignore text option that will skip files that match the ignore text.
     [] Match file contents.
-    [] Match file meta data.
+    [DONE] Match file meta data.
     [] Import separate settings and/or preset files.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
@@ -71,8 +71,8 @@ MIN_VERSION_STR = '.'.join([str(n) for n in MIN_VERSION])
 EDIT_TYPE = 0           # The type of edit to make on a file name: ADD text, REPLACE text or RENAME entire file name. [Required]
 MATCH_TEXT = 1          # The text to search for and match before renaming a file name.
 IGNORE_TEXT = 2         # The text to search for and if found in a file name skip that file renaming, effectively renaming every other file not matched.
-MATCH_FILE_CONTENTS = 3 ## TODO: 
-MATCH_FILE_META_DATA = 4## TODO: 
+MATCH_FILE_CONTENTS = 3 ## TODO: Match text in the contents of a file before renaming it.
+MATCH_FILE_META = 4     # Match specific meta data from a file before renaming it.
 INSERT_TEXT = 5         # The text used in renaming files. This can be static text or dynamic text that changes depending on the OPTIONS used. [Required]
 SOFT_RENAME_LIMIT = 6   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
 HARD_RENAME_LIMIT = 7   # A hard limit stops renaming files once hit and ends all further renaming tasks.
@@ -88,9 +88,9 @@ RENAME = 2
 
 ### Search and Modify Keys
 TEXT = 0
-META = 0
-OPTIONS = 1
-PLACEMENT = 2
+META = 1
+OPTIONS = 2
+PLACEMENT = 3
 
 # TRACKED_DATA
 FILES_REVIEWED = 0
@@ -102,7 +102,7 @@ FILE_NAME_COUNT = 5
 FILE_NAME_COUNT_LIMIT = 6
 CURRENT_LIST_INDEX = 7
 CURRENT_FILE_NAME = 8
-CURRENT_FILE_META_DATA = 8
+CURRENT_FILE_META = 8
 CURRENT_FILE_RENAME = 9
 USED_RANDOM_CHARS = 10
 SKIPPED_FILES = 11
@@ -149,37 +149,37 @@ STARTING_COUNT = 0
 ENDING_COUNT = 1
 
 ### File Meta Data
-FILE_META_DATA_PATH = 0
-FILE_META_DATA_SIZE = 1
-FILE_META_DATA_ACCESS = 2
-FILE_META_DATA_MODIFY = 3
-FILE_META_DATA_CREATE = 4
-FILE_META_DATA_METADATA = 4
+FILE_META_PATH = 0
+FILE_META_SIZE = 1
+FILE_META_ACCESS = 2
+FILE_META_MODIFY = 3
+FILE_META_CREATE = 4
+FILE_META_METADATA = 4
 
-FILE_META_DATA_FILE_TYPE = 10
+FILE_META_FILE_TYPE = 10
 
-FILE_META_DATA_FORMAT = 20
-FILE_META_DATA_HEIGHT = 21
-FILE_META_DATA_WIDTH = 22
-FILE_META_DATA_LENGTH = 23
+FILE_META_FORMAT = 20
+FILE_META_HEIGHT = 21
+FILE_META_WIDTH = 22
+FILE_META_LENGTH = 23
 
-#FILE_META_DATA_H_RES = 
-#FILE_META_DATA_V_RES = 
-#FILE_META_DATA_BIT_DEPTH = 
+#FILE_META_H_RES = 
+#FILE_META_V_RES = 
+#FILE_META_BIT_DEPTH = 
 
-#FILE_META_DATA_RATE = 
-#FILE_META_DATA_VIDEO_BITRATE = 
-#FILE_META_DATA_VIDEO_FRAME_RATE = 
-#FILE_META_DATA_AUDIO_BITRATE = 
-#FILE_META_DATA_AUDIO_SAMPLE_RATE = 
-#FILE_META_DATA_AUDIO_CHANNELS = 
+#FILE_META_RATE = 
+#FILE_META_VIDEO_BITRATE = 
+#FILE_META_VIDEO_FRAME_RATE = 
+#FILE_META_AUDIO_BITRATE = 
+#FILE_META_AUDIO_SAMPLE_RATE = 
+#FILE_META_AUDIO_CHANNELS = 
 
-#FILE_META_DATA_AUDIO_TITLE = 
-#FILE_META_DATA_AUDIO_ALBUM = 
-#FILE_META_DATA_AUDIO_ARTIST = 
-#FILE_META_DATA_AUDIO_YEAR = 
-#FILE_META_DATA_AUDIO_GENRE = 
-#FILE_META_DATA_AUDIO_PUBLISHER = 
+#FILE_META_AUDIO_TITLE = 
+#FILE_META_AUDIO_ALBUM = 
+#FILE_META_AUDIO_ARTIST = 
+#FILE_META_AUDIO_YEAR = 
+#FILE_META_AUDIO_GENRE = 
+#FILE_META_AUDIO_PUBLISHER = 
 
 ### META_MATCH
 EXACT_MATCH = 0         # 
@@ -208,11 +208,14 @@ MICROSECOND = 206
 TIMESTAMP = 207
 
 ### File Sizes
-BYTES = 200
-KB = 201
-MB = 202
-GB = 203
-IN_BYTES_ONLY = 204
+BYTES = 300
+KB = 301
+MB = 302
+GB = 303
+IN_BYTES_ONLY = 304
+KILOBYTE = 1024
+MEGABYTE = 1024 * 1024
+GIGABYTE = 1024 * 1024 * 1024
 
 ### Search Options
 MATCH_CASE = 0          # Case sensitive search. [Default]
@@ -221,6 +224,7 @@ SEARCH_FROM_RIGHT = 2   # Start searching from right to left.
 MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name. Default: (MATCH_LIMIT, NO_LIMIT)
 SAME_MATCH_INDEX = 4    # When a match is made from the "MATCH_TEXT List" use the same index when choosing text from the "INSERT_TEXT List".
                         # Useful when making a long lists of specific files to find and rename.
+                        # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
 
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
@@ -239,8 +243,8 @@ RANDOM_LETTERS = 25     # Generate random letters.              (Edit which char
 RANDOM_SPECIALS = 26    # Generate random special characters.   ('text', Random String Length, 'text')
 RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) characters.
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
-REPEAT_TEXT_LIST = 29   # Once the end of a text list is reached, repeat it.  Text should be dynamic, i.e. COUNT, RANDOM_NUMBERS, etc.
-## TODO make REPEAT_TEXT_LIST default and NO_REPEAT_TEXT_LIST the option? Which is more common to use?
+#REPEAT_TEXT_LIST = 29   # Once the end of a text list is reached, repeat it.  Text should be dynamic, i.e. COUNT, RANDOM_NUMBERS, etc.
+NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
 INSERT_META_DATA = 30   ## TODO: ('Text', TIME/HEIGHT/WIDTH/LENGTH/FILE_SIZE?, 'Text')
 
 ### Placement Options
@@ -281,9 +285,9 @@ letter_cases = LOWER_AND_UPPER          # Use list_leters "and/or" list_capital_
 
 ### Create a log file for each rename task ran, and include edit details or preset used.
 ### Directory name can be relative to this script or an absolute path.
-### And amount of log files created can be limited from 0 to NO_LIMIT.
+### The amount of log files created can be limited from 0 to NO_LIMIT.
 ### NOTE: You can revert file name changes by dropping log files back into the script.
-###       Those log file names must match these variables though.
+###       Those log file names must match these name variables though.
 create_log_file = True
 log_edit_details = True
 log_dir_name = 'Logs of File Renames'
@@ -296,12 +300,13 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 22
+selected_preset = 23
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
   MATCH_TEXT        : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
   IGNORE_TEXT       : None,     # 'Text' to Find and Skip -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
+  MATCH_FILE_META   : None,     # { 'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ... } -OR- Dict{ META : [ {}, {}, ... ], OPTIONS : Search Options }
   INSERT_TEXT       : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
   SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
@@ -401,7 +406,7 @@ preset15 = {
   MATCH_TEXT        : { TEXT        : [ 'text', 'name' ],
                         OPTIONS     : [ NO_MATCH_CASE, (MATCH_LIMIT, 3), SEARCH_FROM_RIGHT ] },
   INSERT_TEXT       : { TEXT        : [ ('-(', (1,2), ')-'), ('--[', (1,2), ']--') ],
-                        OPTIONS     : [ COUNT, REPEAT_TEXT_LIST ],
+                        OPTIONS     : [ COUNT, NO_REPEAT_TEXT_LIST ],
                         PLACEMENT   : ( END, OF_MATCH ) },
   SOFT_RENAME_LIMIT : NO_LIMIT,
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
@@ -411,7 +416,7 @@ preset16 = {
   MATCH_TEXT        : { TEXT        : [ '.rar', '.zip', '.7' ],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION, SAME_MATCH_INDEX ] },
   INSERT_TEXT       : { TEXT        : [ ('.r', (0), ''), ('.z', (0), ''), '.7z' ],
-                        OPTIONS     : [ COUNT, EXTENSION, REPEAT_TEXT_LIST, (MINIMUM_DIGITS, 2) ] },
+                        OPTIONS     : [ COUNT, EXTENSION, (MINIMUM_DIGITS, 2) ] },
   SOFT_RENAME_LIMIT : NO_LIMIT,
 }
 preset17 = {
@@ -456,28 +461,32 @@ preset22 = {
   MATCH_TEXT        : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
-                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), REPEAT_TEXT_LIST ],
-                        PLACEMENT   : ( END, OF_FILE_NAME ) }
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), NO_REPEAT_TEXT_LIST ] }
 }
 preset23 = {
-  EDIT_TYPE             : RENAME,
-  MATCH_TEXT            : { TEXT        : ['tXt'],
-                            OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  INSERT_TEXT           : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
-                            OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), REPEAT_TEXT_LIST ],
-                            PLACEMENT   : ( END, OF_FILE_NAME ) }
+  EDIT_TYPE         : RENAME,
+  MATCH_TEXT        : { TEXT        : ['tXt'],
+                        OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
+  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFY : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
+                                        { FILE_META_CREATE : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 31 },
+                                        { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
+                                        { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
+                        OPTIONS     : [ SAME_MATCH_INDEX ] },
+  #MATCH_FILE_META   : { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
+  INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] }
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
   IGNORE_TEXT       : { TEXT        : [ 'skip' ],
                         OPTIONS     : [ NO_MATCH_CASE ] },
   INSERT_TEXT       : { TEXT        : [ ('RandomS-(', 4, ')'), ('RandomL-[', (7), ']') ],
-                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), REPEAT_TEXT_LIST ] }
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), NO_REPEAT_TEXT_LIST ] }
 }
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23]
+                  preset21,preset22,preset23,preset24]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -640,7 +649,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
         # Directories
         if type(meta) == tuple:
             
-            dir_path = meta[FILE_META_DATA_PATH]
+            dir_path = meta[FILE_META_PATH]
             
             hard_limit_hit = False
             
@@ -662,7 +671,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                 #if debug: displayPreset(edit_details_copy)
                 
                 for file in files_meta:
-                    #print('--File: [ %s ]' % (file[FILE_META_DATA_NAME]))
+                    #print('--File: [ %s ]' % (file[FILE_META_PATH].name))
                     
                     hard_rename_limit = getTrackedData(edit_details_copy, FILES_REVIEWED, [LIMIT])
                     soft_rename_limit = getTrackedData(edit_details_copy, DIRECTORY_FILES_RENAMED, [LIMIT])
@@ -677,8 +686,8 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     if allCountLimitsHitCheck(getTrackedData(edit_details_copy)):
                         break # File count limit hit, stop and move on to next directory.
                     
-                    file_path = Path(file[FILE_META_DATA_PATH])
-                    edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META_DATA : file, CURRENT_FILE_RENAME : file[FILE_META_DATA_PATH].name })
+                    file_path = Path(file[FILE_META_PATH])
+                    edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META : file, CURRENT_FILE_RENAME : file[FILE_META_PATH].name })
                     
                     edit_details_copy = createNewFileName(file_path, edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
@@ -705,8 +714,8 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
             
             for file in meta:
             
-                file_path = file[FILE_META_DATA_PATH]
-                edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META_DATA : file, CURRENT_FILE_RENAME : file[FILE_META_DATA_PATH].name })
+                file_path = file[FILE_META_PATH]
+                edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META : file, CURRENT_FILE_RENAME : file[FILE_META_PATH].name })
                 
                 individual_files_renamed = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [AMOUNT])
                 all_files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [AMOUNT])
@@ -744,13 +753,13 @@ def getRenameRevertFilesAndEditDetails(log_file):
     
     try:
         text_encoding = 'ascii'
-        read_log_file = log_file[FILE_META_DATA_PATH].read_text(encoding=text_encoding)
+        read_log_file = log_file[FILE_META_PATH].read_text(encoding=text_encoding)
     except:
         try:
             text_encoding = 'utf-8'
-            read_log_file = log_file[FILE_META_DATA_PATH].read_text(encoding=text_encoding)
+            read_log_file = log_file[FILE_META_PATH].read_text(encoding=text_encoding)
         except:
-            print('Failed to open log file: [ %s ]' % log_file[FILE_META_DATA_PATH])
+            print('Failed to open log file: [ %s ]' % log_file[FILE_META_PATH])
             print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
             return False
     
@@ -835,6 +844,10 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
     soft_rename_limit = edit_details_copy.get(SOFT_RENAME_LIMIT, NO_LIMIT)
     hard_rename_limit = edit_details_copy.get(HARD_RENAME_LIMIT, NO_LIMIT)
     modify_options = getOptions(edit_details_copy[INSERT_TEXT])
+    search_options = getOptions(edit_details_copy.get(MATCH_TEXT, ''))
+    search_meta_options = getOptions(edit_details_copy.get(MATCH_FILE_META, None))
+    
+    same_match_index = SAME_MATCH_INDEX in search_options or SAME_MATCH_INDEX in search_meta_options
     
     fnc = []
     fncl = []
@@ -856,7 +869,8 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                     fncl.append( edit_details_copy[INSERT_TEXT][TEXT][DYNAMIC_TEXT] )
         
         elif type(edit_details_copy[INSERT_TEXT][TEXT]) == list:
-            soft_rename_limit = NO_LIMIT if REPEAT_TEXT_LIST in modify_options else len(edit_details_copy[INSERT_TEXT][TEXT])
+            #soft_rename_limit = NO_LIMIT if NO_REPEAT_TEXT_LIST not in modify_options or same_match_index else len(edit_details_copy[INSERT_TEXT][TEXT])
+            soft_rename_limit = len(edit_details_copy[INSERT_TEXT][TEXT]) if NO_REPEAT_TEXT_LIST in modify_options and not same_match_index else NO_LIMIT
             
             for text in edit_details_copy[INSERT_TEXT][TEXT]:
                 if type(text) == tuple:
@@ -897,7 +911,7 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                                                  FILE_NAME_COUNT : fnc,
                                                  FILE_NAME_COUNT_LIMIT : fncl,
                                                  CURRENT_LIST_INDEX : NONE,
-                                                 CURRENT_FILE_META_DATA : [],
+                                                 CURRENT_FILE_META : [],
                                                  CURRENT_FILE_RENAME : '',
                                                  USED_RANDOM_CHARS : [],
                                                  SKIPPED_FILES : [], ## TODO should this be updated each copy? what if a directory file and an individual file are the same?
@@ -936,7 +950,7 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
             td = tracked_data.get(specific_data, False)
         
         elif (specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES 
-              or specific_data == SKIP_WARNINGS or specific_data == USED_RANDOM_CHARS or specific_data == CURRENT_FILE_META_DATA):
+              or specific_data == SKIP_WARNINGS or specific_data == USED_RANDOM_CHARS or specific_data == CURRENT_FILE_META):
             td = tracked_data.get(specific_data, [])
             for i in key_index:
                 if i < len(td):
@@ -974,7 +988,7 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
 ###     (edit_details) The edit details with the TRACKED_DATA key added.
 ###     (update_data) A Dictionary of all keys to be updated in tracker.
 ###     (append_values) Update (add to) values or change them.
-###     --> Returns a [Dictionary] 
+###     --> Returns a [Dictionary]
 def updateTrackedData(edit_details, update_data, append_values = True):
     
     if edit_details.get(TRACKED_DATA, None) == None:
@@ -1015,8 +1029,8 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     if CURRENT_LIST_INDEX in update_data:
         edit_details[TRACKED_DATA][CURRENT_LIST_INDEX] = update_data[CURRENT_LIST_INDEX]
     
-    if CURRENT_FILE_META_DATA in update_data:
-        edit_details[TRACKED_DATA][CURRENT_FILE_META_DATA] = update_data[CURRENT_FILE_META_DATA]
+    if CURRENT_FILE_META in update_data:
+        edit_details[TRACKED_DATA][CURRENT_FILE_META] = update_data[CURRENT_FILE_META]
     
     if CURRENT_FILE_RENAME in update_data:
         edit_details[TRACKED_DATA][CURRENT_FILE_RENAME] = update_data[CURRENT_FILE_RENAME]
@@ -1057,7 +1071,7 @@ def updateTrackedData(edit_details, update_data, append_values = True):
 ###     (files) A List of file names or paths.
 ###     (sort_option) A Dictionary with a file sorting option.
 ###     (root) Root path if files List has only names.
-###     --> Returns a [List] 
+###     --> Returns a [List]
 def getFileMetaData(files, sort_option = None, root = ''):
     files_meta = []
     directory_list = []
@@ -1130,7 +1144,7 @@ def sortFilesByCreationDate(file):
 ### Using the edit details create a new file name and try renaming file and updating any linked files.
 ###     (some_file) The full path to a file.
 ###     (edit_details) All the details on how to proceed with the file name edits.
-###     --> Returns a [Dictionary] 
+###     --> Returns a [Dictionary]
 def createNewFileName(some_file, edit_details):
     
     ## TODO: get file_path from edit_details moving forward
@@ -1177,7 +1191,7 @@ def createNewFileName(some_file, edit_details):
 ### (3,9) will always be (3,9) and not (5,9) due to files with that same name/count already existing.
 ###     (file_path) The full path to a file to check.
 ###     (skipped_files) A list of files flagged to skip.
-###     --> Returns a [Boolean] 
+###     --> Returns a [Boolean]
 def checkForSkippedFiles(file_path, skipped_files):
     skip_file = False
     for file in skipped_files:
@@ -1191,7 +1205,7 @@ def checkForSkippedFiles(file_path, skipped_files):
 ###     (dynamic_text_data) The dynamic text Tuple.
 ###     (the_dynamic_text) The dynamic text/number to insert into the regular text.
 ###     (modify_options) 
-###     --> Returns a [String] 
+###     --> Returns a [String]
 def getDynamicText(dynamic_text_data, the_dynamic_text, modify_options = None):
     
     if type(dynamic_text_data) != tuple:
@@ -1266,13 +1280,179 @@ def getSearchData(search_data, ignore_data, file_path):
     return match_text_list, searchable_match_file_name[0], ignore_text_list, searchable_ignore_file_name[0]
 
 
-### Return the TEXT value from a Dictionary.
-###     (data) A Dictionary that has a TEXT key.
+### Search current file meta data for any specific meta data in edit_details. Return -1 or 0+ (meta_list_index).
+###     (file_meta_data) The current file meta data.
+###     (match_file_meta_list) The meta search and match data.
+###     (match_file_meta_options) The meta search and match options.
+###     --> Returns a [Integer]
+def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_options):
+    #match_file_meta_data = edit_details.get(MATCH_FILE_META, None)
+    #match_file_meta_list = getMeta(match_file_meta_data)
+    #match_file_meta_options = getOptions(match_file_meta_data)
+    #file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
+    same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
+    
+    meta_list_index, i = -1, -1
+    for meta_data in match_file_meta_list:
+        i += 1
+        #print('Current Meta: %s' % meta_data)
+        
+        select_meta_data = next(iter(meta_data))
+        meta_to_match = meta_data[select_meta_data]
+        
+        if select_meta_data == FILE_META_SIZE:
+            #print('Size Meta')
+            file_meta_size = file_meta_data[select_meta_data]
+            
+            # Serarate file size out into GB / MB / KB / Bytes
+            file_gb, file_mb, file_kb, file_bytes = file_meta_size,file_meta_size,file_meta_size,file_meta_size
+            if file_meta_size > GIGABYTE:
+                file_gb = math.floor(file_meta_size / GIGABYTE)
+            if file_meta_size > MEGABYTE:
+                file_mb = math.floor(file_gb / MEGABYTE)
+            if file_meta_size > KILOBYTE:
+                file_kb = math.floor(file_mb / KILOBYTE)
+                #file_bytes = math.floor(math.remainder(file_mb, KILOBYTE))
+                file_bytes = int(math.remainder(file_mb, KILOBYTE))
+            
+            # Get file sizes to match
+            bytes = meta_data.get(BYTES, None)
+            kb = meta_data.get(KB, None)
+            mb = meta_data.get(MB, None)
+            gb = meta_data.get(GB, None)
+            file_size_match = 0
+            if gb: file_size_match += gb * GIGABYTE
+            if mb: file_size_match += mb * MEGABYTE
+            if kb: file_size_match += kb * KILOBYTE
+            if bytes: file_size_match += bytes
+            
+            if debug: print('file_meta_size: %s' % file_meta_size)
+            if debug: print('file_size_match: %s' % file_size_match)
+            
+            # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
+            if meta_to_match == EXACT_MATCH:
+                if gb and gb != file_gb:
+                    if same_meta_match_index: continue
+                    else: break
+                if mb and mb != file_mb:
+                    if same_meta_match_index: continue
+                    else: break
+                if kb and kb != file_kb:
+                    if same_meta_match_index: continue
+                    else: break
+                if bytes and bytes != file_bytes:
+                    if same_meta_match_index: continue
+                    else: break
+            
+            elif meta_to_match == LESS_THAN:
+                if file_size_match < file_meta_size:
+                    if same_meta_match_index: continue
+                    else: break
+            
+            elif meta_to_match == MORE_THAN:
+                if file_size_match > file_meta_size:
+                    if same_meta_match_index: continue
+                    else: break
+            
+            # A Match Made
+            meta_list_index = i
+            if same_meta_match_index: break
+            else: continue # To Match All
+        
+        if select_meta_data == FILE_META_ACCESS or select_meta_data == FILE_META_MODIFY or select_meta_data == FILE_META_CREATE: # or select_meta_data == FILE_META_METADATA:
+            #print('Time Meta')
+            
+            file_meta_timestamp = file_meta_data[select_meta_data]
+            file_meta_date_time = datetime.fromtimestamp(file_meta_timestamp)
+            #timestamp_now = getTrackedData(edit_details, LOG_DATA, [START_TIME])
+            timestamp_now = datetime.now().timestamp()
+            
+            year = meta_data.get(YEAR, None)
+            month = meta_data.get(MONTH, None)
+            day = meta_data.get(DAY, None)
+            hour = meta_data.get(HOUR, None)
+            minute = meta_data.get(MINUTE, None)
+            second = meta_data.get(SECOND, None)
+            millisecond = meta_data.get(MILLISECOND, None)
+            microsecond = meta_data.get(MICROSECOND, None)
+            
+            # Get length of time for comparision to today's date.
+            time_delta_match = 0
+            if year:
+                time_delta_match += year * 31536000
+            if month:
+                time_delta_match += month * 30 * 86400
+            if day:
+                time_delta_match += day * 86400
+            if hour:
+                time_delta_match += hour * 3600
+            if minute:
+                time_delta_match += minute * 60
+            if second:
+                time_delta_match += second
+            if millisecond:
+                time_delta_match += millisecond / 1000
+            elif microsecond:
+                time_delta_match += microsecond / 1000 / 1000
+            if debug: print('time_delta_match: %s' % time_delta_match)
+            
+            # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
+            if meta_to_match == EXACT_MATCH:
+                if year and year != file_meta_date_time.year:
+                    if same_meta_match_index: continue
+                    else: break
+                if month and month != file_meta_date_time.month:
+                    if same_meta_match_index: continue
+                    else: break
+                if day and day != file_meta_date_time.day:
+                    if same_meta_match_index: continue
+                    else: break
+                if hour and hour != file_meta_date_time.hour:
+                    if same_meta_match_index: continue
+                    else: break
+                if minute and minute != file_meta_date_time.minute:
+                    if same_meta_match_index: continue
+                    else: break
+                if second and second != file_meta_date_time.second:
+                    if same_meta_match_index: continue
+                    else: break
+                if millisecond and millisecond != file_meta_date_time.microsecond:
+                    if same_meta_match_index: continue
+                    else: break
+                if microsecond and microsecond != file_meta_date_time.microsecond:
+                    if same_meta_match_index: continue
+                    else: break
+            
+            elif meta_to_match == WITHIN_THE_PAST: # or LESS_THAN
+                if timestamp_now - file_meta_timestamp > time_delta_match:
+                    if same_meta_match_index: continue
+                    else: break
+            
+            elif meta_to_match == OLDER_THAN: # or MORE_THAN
+                if timestamp_now - file_meta_timestamp < time_delta_match:
+                    if same_meta_match_index: continue
+                    else: break
+            
+            # A Match Made
+            meta_list_index = i
+            if same_meta_match_index: break
+            else: continue # To Match All
+    
+    if debug: print('same_meta_match_index: %s' % same_meta_match_index)
+    
+    return meta_list_index
+
+
+### Return the TEXT or META value from a Dictionary.
+###     (data) A Dictionary that has a TEXT or META key.
 ###     (default) If text not found return default
 ###     --> Returns a [List]
-def getText(data, default = ['']):
+def getText(data, default = [''], key = TEXT):
     if type(data) == dict:
-        text = data.get(TEXT, default)
+        text = data.get(key, default)
+        # If no key but there's still data, just return the data assuming it's a single item with no options or placement.
+        if text == default and data:
+            text = data
         if type(text) != list:
             text = [text]
     elif data == None or data == '':
@@ -1280,6 +1460,9 @@ def getText(data, default = ['']):
     else:
         text = data if type(data) == list else [data]
     return text
+
+def getMeta(data, default = []):
+    return getText(data, default, META)
 
 
 ### Return all or a specific option's value from a Dictionary.
@@ -1327,9 +1510,9 @@ def getPlacement(data):
 ###     (list_index) 
 ###     (insert_text_list_size) 
 ###     (same_match_index) 
-###     (repeat_text_list) 
+###     (no_repeat_text_list) 
 ###     --> Returns a [Integer] 
-def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size = -1, same_match_index = False, repeat_text_list = False, recursive_count = 0):
+def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size = -1, same_match_index = False, no_repeat_text_list = False, recursive_count = 0):
     dynamic_count = tracked_data[FILE_NAME_COUNT][list_index]
     dynamic_count_limit = tracked_data[FILE_NAME_COUNT_LIMIT][list_index]
     
@@ -1342,7 +1525,7 @@ def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size 
             next_list_index = 0 if next_list_index >= insert_text_list_size else next_list_index
             recursive_count += 1
             if recursive_count <= insert_text_list_size:
-                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_list_size, same_match_index, repeat_text_list, recursive_count)
+                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_list_size, same_match_index, no_repeat_text_list, recursive_count)
                 if list_index > -2: # Only checking if all limits hit, if not go with first called index check, which we alreayd know is -1
                     list_index = -1
             else:
@@ -1351,14 +1534,14 @@ def checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size 
         elif next_list_index >= insert_text_list_size:
             recursive_count += 1
             if recursive_count <= insert_text_list_size:
-                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_list_size, same_match_index, repeat_text_list, recursive_count)
+                list_index = checkAllAvalibleCountLimits(tracked_data, next_list_index, insert_text_list_size, same_match_index, no_repeat_text_list, recursive_count)
             else:
                 list_index = -2
         
-        elif repeat_text_list:
+        elif not no_repeat_text_list:
             recursive_count += 1
             if recursive_count <= insert_text_list_size:
-                list_index = checkAllAvalibleCountLimits(tracked_data, 0, insert_text_list_size, same_match_index, repeat_text_list, recursive_count)
+                list_index = checkAllAvalibleCountLimits(tracked_data, 0, insert_text_list_size, same_match_index, no_repeat_text_list, recursive_count)
             else:
                 list_index = -2
         
@@ -1400,12 +1583,8 @@ def getInsertText(edit_details, list_index = -1):
     same_match_index = SAME_MATCH_INDEX in search_options
     insert_text = getText(modify_data) # Always a List
     modify_options = getOptions(modify_data)
-    repeat_text_list = REPEAT_TEXT_LIST in modify_options
+    no_repeat_text_list = NO_REPEAT_TEXT_LIST in modify_options
     tracked_data = getTrackedData(edit_details)
-    
-    #if type(modify_data) == dict:
-    #renamed_limit = tracked_data[FILES_RENAMED][LIMIT]
-    #if type(insert_text) == list:
     
     insert_text_list_size = len(insert_text)
     
@@ -1417,7 +1596,7 @@ def getInsertText(edit_details, list_index = -1):
                 
                 dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
                 
-                list_index = checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size, same_match_index, repeat_text_list)
+                list_index = checkAllAvalibleCountLimits(tracked_data, list_index, insert_text_list_size, same_match_index, no_repeat_text_list)
                 
                 if list_index > -1:
                     dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
@@ -1452,40 +1631,7 @@ def getInsertText(edit_details, list_index = -1):
     
     else: ## TODO Index Out Of Bounds, Warn User?
         insert_text = False
-    '''
-    elif type(insert_text) == tuple: # Dynamic Text
-        
-        if COUNT in modify_options or COUNT_TO in modify_options:
-            
-            dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [0])
-            dynamic_count_limit = getTrackedData(edit_details, FILE_NAME_COUNT_LIMIT, [0])
-            
-            has_count_limit_hit = checkAllAvalibleCountLimits(tracked_data, 0, 1)
-            
-            if COUNT in modify_options:
-                insert_text = getDynamicText(insert_text, dynamic_count, modify_options) if has_count_limit_hit > -1 else False
-            
-            elif COUNT_TO in modify_options:
-                insert_text = insert_text[STARTING_TEXT] if has_count_limit_hit > -1 else False
-        
-        elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
-            
-            random_characters = getRandomCharacters(edit_details)
-            
-            insert_text = getDynamicText(insert_text, random_characters, modify_options)
-            
-            edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
-        
-        elif REGEX in modify_options: ## TODO
-            print('TODO REGEX')
-        
-        else:
-            print('/nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
-            insert_text = False
     
-    else: # Plain Text
-        insert_text = modify_data
-    '''
     if EXTENSION in modify_options and edit_type != RENAME and type(insert_text) != bool:
         if insert_text != '' and insert_text.find('.') != 0:
             insert_text = '.'+insert_text # Add a '.' if missing
@@ -1574,57 +1720,87 @@ def insertTextIntoFileName(file_path, edit_details):
     
     match_text = edit_details.get(MATCH_TEXT, '')
     ignore_text = edit_details.get(IGNORE_TEXT, None)
-    #rename_edit = True if edit_details[EDIT_TYPE] == RENAME else False
-    match_text_list, searchable_match_file_name, ignore_text_list, searchable_ignore_file_name = getSearchData(match_text, ignore_text, file_path)
+    file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
+    match_file_meta_data = edit_details.get(MATCH_FILE_META, None)
+    match_file_meta_list = getMeta(match_file_meta_data)
+    match_file_meta_options = getOptions(match_file_meta_data)
     
-    if type(edit_details[INSERT_TEXT]) == dict:
-        is_text_list = True if type(edit_details[INSERT_TEXT].get(TEXT)) == list else False
+    match_text_list, searchable_match_file_name, ignore_text_list, searchable_ignore_file_name = getSearchData(match_text, ignore_text, file_path)
+    if match_file_meta_data:
+        meta_list_index = getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_options)
+    else:
+        meta_list_index = 0
+    
+    insert_text_data = edit_details[INSERT_TEXT]
+    text_list_size = 1
+    if type(insert_text_data) == dict:
+        is_text_list = True if type(insert_text_data.get(TEXT)) == list else False
         if is_text_list:
-            text_list_size = len(edit_details[INSERT_TEXT].get(TEXT))
+            text_list_size = len(insert_text_data.get(TEXT))
+    if type(insert_text_data) == list:
+        is_text_list = True
+        text_list_size = len(insert_text_data.get(TEXT))
     else:
         is_text_list = False
     
     search_options = getOptions(match_text)
     ignore_options = getOptions(ignore_text)
-    modify_options = getOptions(edit_details[INSERT_TEXT])
-    repeat_text_list = REPEAT_TEXT_LIST in modify_options
+    modify_options = getOptions(insert_text_data)
+    no_repeat_text_list = NO_REPEAT_TEXT_LIST in modify_options
     
     match_limit = getOptions(match_text, MATCH_LIMIT, ALL)
     match_limit = ALL if match_limit <= NO_LIMIT else match_limit
-    same_match_index = SAME_MATCH_INDEX in search_options
+    same_match_text_index = SAME_MATCH_INDEX in search_options
+    same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
+    
     tracked_data = edit_details[TRACKED_DATA]
     
     renamed_number = getTrackedData(edit_details, FILES_RENAMED, [AMOUNT])
     renamed_limit = getTrackedData(edit_details, FILES_RENAMED, [LIMIT])
     skip_warning_smi = getTrackedData(edit_details, SKIP_WARNINGS, [0])
     
+    new_file_name = file_path.name # Start with orginal current file name
+    
     i = -1
     for match_text in match_text_list: # Loop breaks on first match found
         i += 1
         
-        if same_match_index:
-            if len(match_text_list) != renamed_limit and not repeat_text_list and not skip_warning_smi:
+        if same_match_text_index or same_meta_match_index:
+            ## TODO: Which is best order of importance? Or warn user if multple SAME_MATCH_INDEX in use.
+            if same_meta_match_index:
+                match_index = meta_list_index
+                match_list_size = len(match_file_meta_list)
+            if same_match_text_index:
+                match_index = i
+                match_list_size = len(match_text_list)
+            
+            # Fix out of bound indexes
+            if match_list_size > text_list_size:
+                match_index = resetIfMaxed(match_index, text_list_size)
+            
+            #if match_list_size != text_list_size and not repeat_text_list and not skip_warning_smi:
+            if match_list_size != text_list_size and not skip_warning_smi:
                 ## TODO: use a windows message box?
-                print('\nYour using the SAME_MATCH_INDEX (MATCH_TEXT) option, but your MATCH_TEXT list is larger or smaller than your INSERT_TEXT list.')
-                print('Try using the REPEAT_TEXT_LIST (INSERT_TEXT) option next time if your using dynamic text like COUNT, RANDOM, etc.')
-                input('Else press "Enter" if you wish to continue anyways...')
+                print('\nYour using the SAME_MATCH_INDEX option, but your MATCH_ list is larger or smaller than your INSERT_TEXT list.')
+                print('This may lead to undesirable results if you\'re trying to line up your matches and text lists.')
+                #print('Try using the REPEAT_TEXT_LIST (INSERT_TEXT) option next time if your using dynamic text like COUNT, RANDOM, etc.')
+                input('If you wish to continue anyways press [ Enter ]...')
                 skip_warning_smi = True
-            match_index = i
-        elif is_text_list: # and renamed_limit > 1:
-            if repeat_text_list:
+        
+        elif is_text_list:
+            if not no_repeat_text_list:
                 renamed_number = resetIfMaxed(renamed_number, text_list_size)
-            match_index = renamed_number
+            match_index = renamed_number # Move index forward +1 after a rename.
+        
         else:
             match_index = 0
+        
         #if debug: print('match_index: %s' % match_index)
         insert_text, edit_details = getInsertText(edit_details, match_index)
         
-        if type(insert_text) == bool or searchable_match_file_name.find(match_text) == -1:
-            new_file_name = file_path.name
-        else:
-            match_size = len(match_text)
-            new_file_name = file_path.name
+        if type(insert_text) != bool and searchable_match_file_name.find(match_text) > -1 and meta_list_index > -1 :
             
+            match_size = len(match_text)
             index_matches = []
             index_match = 0
             start = 0
@@ -1646,7 +1822,7 @@ def insertTextIntoFileName(file_path, edit_details):
                 ingnore -= 1
             #if debug: print(index_matches)
             
-            placement = getPlacement(edit_details[INSERT_TEXT])
+            placement = getPlacement(insert_text_data)
             
             # Look for ignore text in file name.
             ignore_match = False
@@ -2024,8 +2200,8 @@ def updateLogFile(edit_details, log_revert = False):
                 if log_file_limit == 0: delay.sleep(1) # Allow 1 second to finish file writing and opening before deleting it.
                 
                 for log in delete_logs:
-                    log[FILE_META_DATA_PATH].unlink(missing_ok=True)
-                    if debug: print('Old Log File Deleted: [ %s ]' % log[FILE_META_DATA_PATH])
+                    log[FILE_META_PATH].unlink(missing_ok=True)
+                    if debug: print('Old Log File Deleted: [ %s ]' % log[FILE_META_PATH])
     
     return file_updated
 
@@ -2111,6 +2287,10 @@ def intToStrText(key, value, parent_key = None):
                 text = 'Text To Match          '
             elif key == IGNORE_TEXT:
                 text = 'Text To Ignore         '
+            elif key == MATCH_FILE_CONTENTS:
+                text = 'Match Contents of File '
+            elif key == MATCH_FILE_META:
+                text = 'Match File Meta Data   '
             elif key == INSERT_TEXT:
                 text = 'Text To Insert         '
             elif key == SOFT_RENAME_LIMIT:
@@ -2126,9 +2306,71 @@ def intToStrText(key, value, parent_key = None):
             elif key == TRACKED_DATA:
                 text = 'Data That Is Tracked   '
         
-        elif parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == INSERT_TEXT:
+        elif parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == MATCH_FILE_CONTENTS or parent_key == MATCH_FILE_META or parent_key == INSERT_TEXT:
             if key == TEXT:
                 text = 'TEXT : ' + str(value)
+            if key == META:
+                text = 'META : '# + str(value)
+                if type(value) != list:
+                    value = [value]
+                for object in value:
+                    if type(object) == dict:
+                        for name, val in object.items():
+                            
+                            if name == FILE_META_SIZE or name == FILE_META_ACCESS or name == FILE_META_MODIFY or name == FILE_META_CREATE:
+                                if name == FILE_META_SIZE:
+                                    text += '{ Get Size Of Files '
+                                elif name == FILE_META_ACCESS:
+                                    text += '{ Get Dates Of Files Last Accessed '
+                                elif name == FILE_META_MODIFY:
+                                    text += '{ Get Dates Of Files Last Modified '
+                                elif name == FILE_META_CREATE:
+                                    text += '{ Get Dates Of Files Created '
+                                
+                                if name == FILE_META_SIZE:
+                                    if val == EXACT_MATCH:
+                                        text += 'Exactly '
+                                    if val == LESS_THAN:
+                                        text += 'Less Than '
+                                    elif val == MORE_THAN:
+                                        text += 'More Than '
+                                else:
+                                    if val == EXACT_MATCH:
+                                        text += 'Exactly On '
+                                    if val == OLDER_THAN:
+                                        text += 'Older Than '
+                                    elif val == WITHIN_THE_PAST:
+                                        text += 'Within The Past '
+                            
+                            if name == GB:
+                                text += str(val) + ' Gigabytes, '
+                            elif name == MB:
+                                text += str(val) + ' Megabytes, '
+                            elif name == KB:
+                                text += str(val) + ' Kilobytes, '
+                            elif name == BYTES:
+                                text += str(val) + ' Bytes '
+                            
+                            if name == YEAR:
+                                text += 'Year: ' + str(val) + ', '
+                            if name == MONTH:
+                                text += 'Month: ' + str(val) + ', '
+                            if name == DAY:
+                                text += 'Day: ' + str(val) + ', '
+                            if name == HOUR:
+                                text += 'Hour: ' + str(val) + ', '
+                            if name == MINUTE:
+                                text += 'Minute: ' + str(val) + ', '
+                            if name == SECOND:
+                                text += 'Second: ' + str(val) + ', '
+                            if name == MILLISECOND:
+                                text += 'Millasecond: ' + str(val) + ' '
+                            if name == MICROSECOND:
+                                text += 'Microsecond: ' + str(val) + ' '
+                        
+                        text = text.rstrip(', ')
+                        text += ' }'
+            
             if key == OPTIONS:
                 text = '\n                              OPTIONS : '
                 if MATCH_CASE in value:
@@ -2158,9 +2400,10 @@ def intToStrText(key, value, parent_key = None):
                 if REGEX in value:
                     text += 'Regular Expressions, '
                 if SAME_MATCH_INDEX in value:
-                    text += 'Use Match Index While Selecting From Insert Text List, '
-                if REPEAT_TEXT_LIST in value:
-                    text += 'Once End of Text List Reached Repeat List, '
+                    text += 'Use Match Index While Selecting From Insert Lists, '
+                if NO_REPEAT_TEXT_LIST in value:
+                    #text += 'Once End of Text List Reached Repeat List, '
+                    text += 'Do Not Repeat Text List Once End Reached, '
                 for item in value:
                     if type(item) == tuple:
                         if MATCH_LIMIT in item:
@@ -2169,7 +2412,6 @@ def intToStrText(key, value, parent_key = None):
                             text += 'Minimum ' + str(item[1]) + ' Digits, '
                         if RANDOM_SEED in item:
                             text += 'Random Seed used ' + str(item[1]) + ', '
-                        
                 text = text.rstrip(', ')
             
             if key == PLACEMENT:
@@ -2222,6 +2464,8 @@ def intToStrText(key, value, parent_key = None):
                 text = '\n                              Current List Index : ' + str(value)
             if key == CURRENT_FILE_RENAME:
                 text = '\n                              Current File Name : ' + str(value)
+            if key == CURRENT_FILE_META:
+                text = '\n                              Current File Meta Data : ' + str(value)
             if key == USED_RANDOM_CHARS:
                 text = '\n                              Used Random Characters : ' + str(value)
             if key == SKIPPED_FILES:
@@ -2261,12 +2505,14 @@ def intToStrText(key, value, parent_key = None):
     return text
 
 
-### Reset a number back to 0 if it hits the max.
+### Reset a number back to 0 if it hits the max. If over max, minus the max until under max.
 ###     (number) The number.
 ###     (max) Max limit to the number.
 ###     --> Returns a [Integer] 
 def resetIfMaxed(number, max):
-    if number >= max:
+    if max == 1:
+        number = 0
+    elif number >= max:
         number = number - max
         number = resetIfMaxed(number, max)
     return number
@@ -2352,7 +2598,7 @@ def drop(files):
                         delay.sleep(1) # Log files are named using time so wait a second to make sure next log file name is +1 second.
                 
                 else:
-                    print('\nThe files in this log file no longer exist: [ %s ]' % log_file[FILE_META_DATA_PATH].name)
+                    print('\nThe files in this log file no longer exist: [ %s ]' % log_file[FILE_META_PATH].name)
                     print('You may have already reverted, renamed or deleted these files. ')
         
         else:
