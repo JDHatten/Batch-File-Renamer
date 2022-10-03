@@ -23,8 +23,9 @@ This script will rename one or more files either by adding new text or replacing
 
 > `ADD` simply adds new text to a file name.<br>
 > `REPLACE` finds and replace text in a file name.<br>
-> `RENAME` renames the entire file name.<br>
+> `RENAME` renames the entire file name.
 
+<br>
 
 `MATCH_TEXT : "Text"`<br>
 *-or-*<br>
@@ -37,9 +38,10 @@ This script will rename one or more files either by adding new text or replacing
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
 >> `SEARCH_FROM_RIGHT` simply starts searching from right to left opposed from the default left to right.<br>
 >> `MATCH_LIMIT` is used to find and replace a limited number of text matches per file name. The default is ( **MATCH_LIMIT**, **NO_LIMIT** ).<br>
->> `SAME_MATCH_INDEX` is used in combination with Lists of both **MATCH_TEXT** and **INSERT_TEXT**, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_TEXT** List, the same index from the **INSERT_TEXT** List will be chosen. Useful when making a long lists of specific files to find and rename.<br>
+>> `SAME_MATCH_INDEX` is used in combination with the **INSERT_TEXT** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_TEXT** List, the same index from the **INSERT_TEXT** List will be chosen. Useful when making a long lists of specific files to find and rename.<br>
 >> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
 
+<br>
 
 `IGNORE_TEXT : "Text"`<br>
 *-or-*<br>
@@ -52,6 +54,21 @@ This script will rename one or more files either by adding new text or replacing
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
 >> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
 
+<br>
+
+`MATCH_FILE_META : { 'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ... }`<br>
+*-or-*<br>
+`MATCH_FILE_META : { META : [ {}, {}, ... ], OPTIONS : ["Search Option 1",2,3,...] }`<br>
+
+> `META` is the file meta data to search for and match before editing a file name. If a match is not made then that file name will not be changed.<br>
+>> `FILE_META_SIZE`, `FILE_META_ACCESS`, `FILE_META_MODIFY`, `FILE_META_CREATE`, `FILE_META_METADATA`<br>
+>> `EXACT_MATCH`, `LESS_THAN`, `MORE_THAN`, `WITHIN_THE_PAST`, `OLDER_THAN`<br>
+>> `YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE` `SECOND`, `MILLISECOND`, `MICROSECOND`, `TIMESTAMP`, `BYTES`, `KB`, `MB`, `GB`, `IN_BYTES_ONLY`<br>
+
+> `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
+>> `SAME_MATCH_INDEX` is used in combination with the **INSERT_TEXT** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_META** List, the same index from the **INSERT_TEXT** List will be chosen.
+
+<br>
 
 `INSERT_TEXT : "Text"` [*Required*]<br>
 *-or-*<br>
@@ -79,28 +96,33 @@ This script will rename one or more files either by adding new text or replacing
 >> `BOTH` to place at both sides of...<br>
 >> `BOTH_ENDS` to place at both ends of...<br>
 >> `OF_FILE_NAME` to be placed at file name minus extension. [*Default*]<br>
->> `OF_MATCH` to be placed at one or more matches found.<br>
+>> `OF_MATCH` to be placed at one or more matches found.
 
+<br>
 
 `SOFT_RENAME_LIMIT : 0 to NO_LIMIT`<br>
 
-> Max number of file renames to make per directory or group of individual files dropped. Default: NO_LIMIT<br>
+> Max number of file renames to make per directory or group of individual files dropped. Default: NO_LIMIT
 
+<br>
 
 `HARD_RENAME_LIMIT : 0 to NO_LIMIT`<br>
 
-> Hard limit on how many files to rename each time script is ran, no mater how many directories or group of individual files dropped. Default: NO_LIMIT<br>
+> Hard limit on how many files to rename each time script is ran, no mater how many directories or group of individual files dropped. Default: NO_LIMIT
 
+<br>
 
 `LINKED_FILES : ["://File//Path",...]`<br>
 
-> Files that need to be updated of any file name changes to prevent broken links in apps. *Make sure to use double slashes "//".*<br>
+> Files that need to be updated of any file name changes to prevent broken links in apps. *Make sure to use double slashes "//".*
 
+<br>
 
 `INCLUDE_SUB_DIRS : True or False`<br>
 
-> If a directory is used or dropped choose whether or not to search through sub-directories. Default: False<br>
+> If a directory is used or dropped choose whether or not to search through sub-directories. Default: False
 
+<br>
 
 `PRESORT_FILES : { "Sort Option" : ASCENDING or DESCENDING }`<br>
 
@@ -113,8 +135,9 @@ This script will rename one or more files either by adding new text or replacing
 >> `DATE_ACCESSED` sort by date file last opened.<br>
 >> `DATE_MODIFIED` sort by date file last changed.<br>
 >> `DATE_CREATED` sort by date file created. (*Windows Only*)<br>
->> `DATE_META_MODIFIED` sort by file meta data last updated. (*UNIX*)<br>
+>> `DATE_META_MODIFIED` sort by file meta data last updated. (*UNIX*)
 
+<br>
 
 **Dynamic Text Format**<br>
 > `Tuple`("Starting Text", Integer/Tuple, "Ending Text")<br>
