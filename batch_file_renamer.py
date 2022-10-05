@@ -48,7 +48,18 @@ TODO:
 
 
 from datetime import datetime
+try:
+    import ffmpeg
+    ffmpeg_installed = True
+except ModuleNotFoundError:
+    ffmpeg_installed = False
+try:
+    import filetype
+    filetype_installed = True
+except ModuleNotFoundError:
+    filetype_installed = False
 import math
+import mimetypes
 from pathlib import Path, PurePath
 import os
 import random
@@ -149,52 +160,60 @@ STARTING_COUNT = 0
 ENDING_COUNT = 1
 
 ### File Meta Data
-FILE_META_PATH = 0
-FILE_META_SIZE = 1
-FILE_META_ACCESS = 2
-FILE_META_MODIFY = 3
-FILE_META_CREATE = 4
-FILE_META_METADATA = 4
-
-FILE_META_FILE_TYPE = 10
-
-FILE_META_FORMAT = 20
-FILE_META_HEIGHT = 21
-FILE_META_WIDTH = 22
-FILE_META_LENGTH = 23
-
-#FILE_META_H_RES = 
-#FILE_META_V_RES = 
-#FILE_META_BIT_DEPTH = 
-
-#FILE_META_RATE = 
-#FILE_META_VIDEO_BITRATE = 
-#FILE_META_VIDEO_FRAME_RATE = 
-#FILE_META_AUDIO_BITRATE = 
-#FILE_META_AUDIO_SAMPLE_RATE = 
-#FILE_META_AUDIO_CHANNELS = 
-
-#FILE_META_AUDIO_TITLE = 
-#FILE_META_AUDIO_ALBUM = 
-#FILE_META_AUDIO_ARTIST = 
-#FILE_META_AUDIO_YEAR = 
-#FILE_META_AUDIO_GENRE = 
-#FILE_META_AUDIO_PUBLISHER = 
+FILE_META_PATH = 0                  # DATA: 'Text'
+FILE_META_SIZE = 1                  # GB/MB/KB/BYTES : Number
+FILE_META_ACCESS = 2                # YEAR/MONTH/... : Number
+FILE_META_MODIFY = 3                # YEAR/MONTH/... : Number
+FILE_META_CREATE = 4                # YEAR/MONTH/... : Number
+FILE_META_METADATA = 4              # YEAR/MONTH/... : Number
+FILE_META_TYPE = 5                  # DATA : File Types (MIME)
+FILE_META_MIME = 6                  # DATA : 'Text'
+FILE_META_FORMAT = 7                # DATA : 'Text'
+FILE_META_FORMAT_LONG = 8           # DATA : 'Text'
+FILE_META_HEIGHT = 9                # DATA : Number
+FILE_META_WIDTH = 10                # DATA : Number
+FILE_META_LENGTH = 11               # HOUR/MINUTE/... : Number
+FILE_META_BIT_DEPTH = 12            # DATA : Number
+FILE_META_RATE = 13                 # DATA : Number
+FILE_META_VIDEO_BITRATE = 14        # DATA : Number
+FILE_META_VIDEO_FRAME_RATE = 15     # DATA : Number
+FILE_META_AUDIO_BITRATE = 16        # DATA : Number
+FILE_META_AUDIO_SAMPLE_RATE = 17    # DATA : Number
+FILE_META_AUDIO_CHANNELS = 18       # DATA : Number
+FILE_META_AUDIO_CHANNEL_LAYOUT = 19 # DATA : 'Text'
+FILE_META_AUDIO_TITLE = 20          # DATA : 'Text'
+FILE_META_AUDIO_ALBUM = 21          # DATA : 'Text'
+FILE_META_AUDIO_ARTIST = 22         # DATA : 'Text'
+FILE_META_AUDIO_YEAR = 23           # YEAR : Number
+FILE_META_AUDIO_GENRE = 24          # DATA : 'Text'
+FILE_META_AUDIO_PUBLISHER = 25      # DATA : 'Text'
+FILE_META_AUDIO_TRACK = 26          # DATA : Number
 
 ### META_MATCH
-EXACT_MATCH = 0         # 
-LESS_THAN = 1
-MORE_THAN = 2
-WITHIN_THE_PAST = 1
-OLDER_THAN = 2
+EXACT_MATCH = 0         # An exact perfect match of a entire piece of text or number.
+LOOSE_MATCH = 1         ## TODO: A close but not exact match. If text, match any part of a larger piece of text; if a number, match any number wihtin a 5% range.
+SKIP_EXACT_MATCH = 2    ## TODO: 
+SKIP_LOOSE_MATCH = 2    ## TODO: 
+                        # Note: If using a list and SAME_MATCH_INDEX take note of the order of skipped data. For example if you always want to skip matched data, then make sure its added first.
+LESS_THAN = 3           # A number
+MORE_THAN = 4           # A number
+WITHIN_THE_PAST = 3     # Date and/or time
+OLDER_THAN = 4          # Date and/or time
 
-### File Types
-TEXT_BASED = 0
-AUDIO = 1
-VIDEO = 2
-DATA = 3
-ARCHIVE = 4
-OTHER = 5
+### File Types (MIME)
+TYPE_APPLICATION = 0    # This is basically everything not categorized below.
+TYPE_AUDIO = 2          # Some examples files: .aac .mp3 .ogg
+TYPE_FONT = 4           # Some examples files: .otf .ttf .woff
+TYPE_IMAGE = 5          # Some examples files: .bmp .jpg .png
+TYPE_MESSAGE = 6        # Some examples files: .cl .u8hdr .wsc  (Uncommon)
+TYPE_MODEL = 7          # Some examples files: .obj .usd .x3dv  (Uncommon)
+TYPE_MULTIPART = 8      # Some examples files: .vpm .bmed       (Uncommon)
+TYPE_TEXT = 9           # Some examples files: .cvs .html .txt
+TYPE_VIDEO = 10         # Some examples files: .flv .mp4 .mpeg
+
+### Categorized Application Types (MIME) (not a complete list)
+TYPE_ARCHIVE = 1        # Some examples files: .7z .rar .zip
+TYPE_DOCUMENT = 3       # Some examples files: .doc .potx .xlsx
 
 ### Date and Time
 YEAR = 200
@@ -213,9 +232,15 @@ KB = 301
 MB = 302
 GB = 303
 IN_BYTES_ONLY = 304
+
+# Actual File Sizes
 KILOBYTE = 1024
 MEGABYTE = 1024 * 1024
 GIGABYTE = 1024 * 1024 * 1024
+
+### Other
+DATA = 400
+
 
 ### Search Options
 MATCH_CASE = 0          # Case sensitive search. [Default]
@@ -300,7 +325,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 23
+selected_preset = 24
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -478,10 +503,13 @@ preset23 = {
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
-  IGNORE_TEXT       : { TEXT        : [ 'skip' ],
-                        OPTIONS     : [ NO_MATCH_CASE ] },
-  INSERT_TEXT       : { TEXT        : [ ('RandomS-(', 4, ')'), ('RandomL-[', (7), ']') ],
-                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), NO_REPEAT_TEXT_LIST ] }
+  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO },
+                                        { FILE_META_FORMAT : LOOSE_MATCH, DATA : 'h264' },
+                                        { FILE_META_HEIGHT : EXACT_MATCH,  DATA : 720 },
+                                        { FILE_META_VIDEO_BITRATE : LOOSE_MATCH, DATA : 1000 } ],
+                        OPTIONS     : [ NO_MATCH_CASE ] }, ## TODO Case Matches
+  INSERT_TEXT       : { TEXT        : [ ('Video-(', 4, ')'), ('Video-[', (7), ']') ],
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, NO_REPEAT_TEXT_LIST ] }
 }
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
@@ -1087,15 +1115,233 @@ def getFileMetaData(files, sort_option = None, root = ''):
         if Path.exists(file_path):
             file_meta = os.stat(file_path)
             
-            ## TODO: get more meta data to use later
+            if ffmpeg_installed and filetype_installed:
+                #print(file_path)
+                try:
+                    file_type = filetype.guess(file_path)
+                    is_audio = filetype.is_audio(file_path)
+                    is_font = filetype.is_font(file_path)
+                    is_image = filetype.is_image(file_path)
+                    is_video = filetype.is_video(file_path)
+                    is_app = None
+                    is_message = None
+                    is_model = None
+                    is_multipart = None
+                    is_text = None
+                    is_archive = filetype.is_archive(file_path)
+                    is_doc = None
+                    is_presentation = None
+                    is_spead_sheet = None
+                except:
+                    file_type = None
+                    is_audio = None
+                    is_font = None
+                    is_image = None
+                    is_video = None
+                    is_app = None
+                    is_message = None
+                    is_model = None
+                    is_multipart = None
+                    is_text = None
+                    is_archive = None
+                    is_doc = None
+                    is_presentation = None
+                    is_spead_sheet = None
+                
+                mime_type = mimetypes.guess_type(file_path)
+                
+                if debug:
+                    print('file_type: %s' % file_type)
+                    print('mime_type: (%s, %s)' % (mime_type[0], mime_type[1]))
+                
+                archive_mimes = ['application/x-7z-compressed','application/x-unix-archive','application/x-bzip2','application/vnd.ms-cab-compressed',
+                                 'application/x-google-chrome-extension','application/dicom','application/vnd.debian.binary-package','application/x-executable',
+                                 'application/octet-stream','application/epub+zip','application/vnd.microsoft.portable-executable','application/gzip',
+                                 'application/x-iso9660-image','application/x-lzip','application/x-nintendo-nes-rom','application/pdf','application/postscript',
+                                 'application/vnd.rar','application/x-rpm','application/rtf','application/vnd.sqlite3','application/x-shockwave-flash',
+                                 'application/x-tar','application/x-xz','application/x-compress','application/zip','application/zstd','application/x-zip-compressed']
+                document_mimes = ['application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint',
+                                  'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-excel',
+                                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+                
+                file_meta_type = None
+                file_meta_mime = None
+                if file_type:
+                    #print('File extension: %s' % file_type.extension)
+                    #print('File MIME type: %s' % file_type.mime)
+                    file_meta_mime = file_type.mime
+                
+                #print('is_archive: %s' % is_archive)
+                
+                # Last chance to find mime
+                if mime_type[0] and not file_meta_mime:
+                    file_meta_mime = mime_type[0]
+                
+                if file_meta_mime:
+                    
+                    file_type_basic = file_meta_mime.split('/')[0]
+                    #print(file_type_basic)
+                    
+                    # Basic Types
+                    if file_type_basic == 'application':
+                        file_meta_type = TYPE_APPLICATION
+                    elif is_audio or file_type_basic == 'audio':
+                        file_meta_type = TYPE_AUDIO
+                    elif is_font or file_type_basic == 'font':
+                        file_meta_type = TYPE_FONT
+                    elif is_image or file_type_basic == 'image':
+                        file_meta_type = TYPE_IMAGE
+                    elif file_type_basic == 'message':
+                        file_meta_type = TYPE_MESSAGE
+                    elif file_type_basic == 'model':
+                        file_meta_type = TYPE_MODEL
+                    elif file_type_basic == 'multipart':
+                        file_meta_type = TYPE_MULTIPART
+                    elif file_type_basic == 'text':
+                        file_meta_type = TYPE_TEXT
+                    elif is_video or file_type_basic == 'video':
+                        file_meta_type = TYPE_VIDEO
+                    
+                    # Application Types (TYPE_APPLICATION will still match these)
+                    if is_archive or file_type_basic in archive_mimes:
+                        file_meta_type = TYPE_ARCHIVE
+                    if file_type_basic in document_mimes:
+                        file_meta_type = TYPE_DOCUMENT
+                    
+                    # Basic Types
+                    is_app = file_type_basic == 'application'
+                    is_audio = file_type_basic == 'audio'
+                    is_font = file_type_basic == 'font'
+                    is_image = file_type_basic == 'image'
+                    is_message = file_type_basic == 'message'
+                    is_model = file_type_basic == 'model'
+                    is_multipart = file_type_basic == 'multipart'
+                    is_text = file_type_basic == 'text'
+                    is_video = file_type_basic == 'video'
+                    
+                    # Application Types
+                    if not is_archive:
+                        is_archive = file_meta_mime in archive_mimes
+                    is_doc = file_meta_mime in document_mimes
+                    
+                    #is_doc = mime_type[0] == 'application/msword' or mime_type[0] == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    #is_presentation = mime_type[0] == 'application/vnd.ms-powerpoint' or mime_type[0] == 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+                    #is_spead_sheet = mime_type[0] == 'application/vnd.ms-excel' or mime_type[0] == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                
+                if debug:
+                    print('file_meta_type: %s' % file_meta_type)
+                    print('file_meta_mime: %s' % file_meta_mime)
+                    print('is_app: %s' % is_app)
+                    print('is_archive: %s' % is_archive)
+                    print('is_audio: %s' % is_audio)
+                    print('is_font: %s' % is_font)
+                    print('is_image: %s' % is_image)
+                    print('is_text: %s' % is_text)
+                    print('is_doc: %s' % is_doc)
+                    print('is_spead_sheet: %s' % is_spead_sheet)
+                    print('is_presentation: %s' % is_presentation)
+                    print('is_video: %s' % is_video)
+                
+                probe = None
+                try:
+                    probe = ffmpeg.probe(file_path)
+                    #probe.append(ffmpeg.probe(file_path, select_streams = "v"))
+                    #probe.append(ffmpeg.probe(file_path, select_streams = "a"))
+                    #video_streams = [stream for stream in probe["streams"] if stream["codec_type"] == "video"]
+                    #print(probe)
+                    if debug:
+                        print('-Probe Good')
+                except ffmpeg.Error as e:
+                    #print(e.stderr)
+                    if debug:
+                        print('-Probe Failed')
+                
+                format_short, format_long, height, width, duration, bit_depth = None,None,None,None,None,None
+                video_bit_rate, frame_rate, audio_bit_rate, sample_rate, channels, channel_layout = None,None,None,None,None,None
+                title, album, artist, date, genre, publisher, track_number = None,None,None,None,None,None,None
+                
+                if probe:
+                    stream = probe.get('streams')
+                    format = probe.get('format')
+                    
+                    format_short = stream[0].get('codec_name')
+                    format_long = stream[0].get('codec_long_name')
+                    
+                    height = stream[0].get('height') # alt: 'coded_height'
+                    width = stream[0].get('width') # alt: 'coded_width'
+                    duration = stream[0].get('duration')
+                    
+                    bit_depth = stream[0].get('bits_per_raw_sample')
+                    if bit_depth: bit_depth = int(bit_depth)
+                    
+                    if is_video:
+                        video_bit_rate = stream[0].get('bit_rate')
+                        audio_bit_rate = stream[1].get('bit_rate')
+                    else:
+                        video_bit_rate = None
+                        audio_bit_rate = stream[0].get('bit_rate')
+                    if video_bit_rate: video_bit_rate = float(video_bit_rate) / 1000
+                    if audio_bit_rate: audio_bit_rate = float(audio_bit_rate) / 1000
+                    
+                    sample_rate = stream[1].get('sample_rate') if is_video else stream[0].get('sample_rate')
+                    if sample_rate: sample_rate = float(sample_rate) / 1000
+                    
+                    frame_rate = stream[0].get('r_frame_rate') #alt: 'avg_frame_rate'
+                    if frame_rate and is_video:
+                        frame_rate_split = frame_rate.split('/')
+                        frame_rate = int(frame_rate_split[0]) / int(frame_rate_split[1])
+                    
+                    channels = stream[1].get('channels') if is_video else stream[0].get('channels')
+                    if channels: channels = int(channels)
+                    channel_layout = stream[1].get('channel_layout') if is_video else stream[0].get('channel_layout')
+                    
+                    if is_audio:
+                        audio_tags = format.get('tags')
+                        title = audio_tags.get('title')
+                        album = audio_tags.get('album')
+                        artist = audio_tags.get('artist') # alt: album_artist
+                        date = audio_tags.get('date')
+                        if date: date = int(date)
+                        genre = audio_tags.get('genre')
+                        publisher = audio_tags.get('publisher')
+                        track_number = audio_tags.get('track')
+                        if track_number: track_number = int(track_number)
+                
+                if debug:
+                    print('format_short: %s' % format_short)
+                    print('format_long: %s' % format_long)
+                    print('height: %s' % height)
+                    print('width: %s' % width)
+                    print('duration: %s' % duration)
+                    print('bit_depth: %s' % bit_depth)
+                    print('video_bit_rate: %s' % video_bit_rate)
+                    print('frame_rate: %s' % frame_rate)
+                    print('audio_bit_rate: %s' % audio_bit_rate)
+                    print('sample_rate: %s' % sample_rate)
+                    print('channels: %s' % channels)
+                    print('channel_layout: %s' % channel_layout)
+                    print('title: %s' % title)
+                    print('album: %s' % album)
+                    print('artist: %s' % artist)
+                    print('date: %s' % date)
+                    print('genre: %s' % genre)
+                    print('publisher: %s' % publisher)
+                    print('track_number: %s' % track_number)
+            
+            #if debug: input('...')
             
             if Path.is_file(file_path):
-                individual_file_list.append( (file_path, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
+                individual_file_list.append( (file_path, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime,
+                                              file_meta_type, file_meta_mime, format_short, format_long, height, width, duration, bit_depth,
+                                              video_bit_rate, frame_rate, audio_bit_rate, sample_rate, channels, channel_layout, title,
+                                              album, artist, date, genre, publisher, track_number) )
             elif Path.is_dir(file_path):
                 directory_list.append( (file_path, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
             else:
                 print("\nSkipping This: [ %s ]" % file_path)
                 print("\nThis is not a normal file or directory.")
+    
+    ## TODO Sort using new meta added
     
     if type(sort_option) == dict:
         descending = False if list(sort_option.values())[0] == ASCENDING else True
@@ -1298,7 +1544,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
         #print('Current Meta: %s' % meta_data)
         
         select_meta_data = next(iter(meta_data))
-        meta_to_match = meta_data[select_meta_data]
+        how_to_match = meta_data[select_meta_data]
         
         if select_meta_data == FILE_META_SIZE:
             #print('Size Meta')
@@ -1330,36 +1576,54 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             if debug: print('file_size_match: %s' % file_size_match)
             
             # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
-            if meta_to_match == EXACT_MATCH:
+            if how_to_match == EXACT_MATCH:
                 if gb and gb != file_gb:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if mb and mb != file_mb:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if kb and kb != file_kb:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if bytes and bytes != file_bytes:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
             
-            elif meta_to_match == LESS_THAN:
+            elif how_to_match == LESS_THAN:
                 if file_size_match < file_meta_size:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
             
-            elif meta_to_match == MORE_THAN:
+            elif how_to_match == MORE_THAN:
                 if file_size_match > file_meta_size:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
+            
+            ##TODO elif how_to_match == LOOSE_MATCH: elif how_to_match == SKIP_EXACT_MATCH: elif how_to_match == SKIP_LOOSE_MATCH:
             
             # A Match Made
             meta_list_index = i
             if same_meta_match_index: break
             else: continue # To Match All
         
-        if select_meta_data == FILE_META_ACCESS or select_meta_data == FILE_META_MODIFY or select_meta_data == FILE_META_CREATE: # or select_meta_data == FILE_META_METADATA:
+        if (select_meta_data == FILE_META_ACCESS
+         or select_meta_data == FILE_META_MODIFY
+         or select_meta_data == FILE_META_CREATE
+         or select_meta_data == FILE_META_LENGTH
+         or select_meta_data == FILE_META_AUDIO_YEAR): # or FILE_META_METADATA
             #print('Time Meta')
             
             file_meta_timestamp = file_meta_data[select_meta_data]
@@ -1368,7 +1632,9 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             timestamp_now = datetime.now().timestamp()
             
             year = meta_data.get(YEAR, None)
+            if not year: year = meta_data.get(DATA, None)
             month = meta_data.get(MONTH, None)
+            #if month: month = int(month) ## TODO: force int on number if user entered them as strings?
             day = meta_data.get(DAY, None)
             hour = meta_data.get(HOUR, None)
             minute = meta_data.get(MINUTE, None)
@@ -1397,48 +1663,203 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             if debug: print('time_delta_match: %s' % time_delta_match)
             
             # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
-            if meta_to_match == EXACT_MATCH:
+            if how_to_match == EXACT_MATCH:
                 if year and year != file_meta_date_time.year:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if month and month != file_meta_date_time.month:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if day and day != file_meta_date_time.day:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if hour and hour != file_meta_date_time.hour:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if minute and minute != file_meta_date_time.minute:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if second and second != file_meta_date_time.second:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if millisecond and millisecond != file_meta_date_time.microsecond:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
                 if microsecond and microsecond != file_meta_date_time.microsecond:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
             
-            elif meta_to_match == WITHIN_THE_PAST: # or LESS_THAN
+            ##TODO elif how_to_match == LOOSE_MATCH: elif how_to_match == SKIP_EXACT_MATCH: elif how_to_match == SKIP_LOOSE_MATCH:
+            
+            elif how_to_match == WITHIN_THE_PAST: # or LESS_THAN
                 if timestamp_now - file_meta_timestamp > time_delta_match:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
             
-            elif meta_to_match == OLDER_THAN: # or MORE_THAN
+            elif how_to_match == OLDER_THAN: # or MORE_THAN
                 if timestamp_now - file_meta_timestamp < time_delta_match:
                     if same_meta_match_index: continue
-                    else: break
+                    else:
+                        meta_list_index = -1
+                        break
+            
+            # A Match Made
+            meta_list_index = i
+            if same_meta_match_index: break
+            else: continue # To Match All
+        
+        if select_meta_data == FILE_META_TYPE:
+            print('Integer Constant DATA')
+            
+            file_meta_constant = file_meta_data[select_meta_data]
+            file_meta_constant = None if file_meta_constant == '' else file_meta_constant
+            match_meta_constant = meta_data.get(DATA, None)
+            match_meta_constant = None if match_meta_constant == '' else match_meta_constant
+            
+            # If searching for TYPE_APPLICATION, force match all custom sub catigories too.
+            if match_meta_constant == TYPE_APPLICATION:
+                if file_meta_constant == TYPE_ARCHIVE:
+                    match_meta_constant = TYPE_ARCHIVE
+                elif file_meta_constant == TYPE_DOCUMENT:
+                    match_meta_constant = TYPE_DOCUMENT
+            
+            if how_to_match == EXACT_MATCH or how_to_match == LOOSE_MATCH: # Only EXACT_MATCH works here
+                if file_meta_constant != match_meta_constant:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            elif how_to_match == SKIP_EXACT_MATCH or how_to_match == SKIP_LOOSE_MATCH: # Only SKIP_EXACT_MATCH works here
+                if file_meta_constant == match_meta_constant:
+                    meta_list_index = -1
+                    break
+            
+            # A Match Made
+            meta_list_index = i
+            if same_meta_match_index: break
+            else: continue # To Match All
+        
+        if (select_meta_data == FILE_META_HEIGHT
+         or select_meta_data == FILE_META_WIDTH
+         or select_meta_data == FILE_META_BIT_DEPTH
+         or select_meta_data == FILE_META_VIDEO_BITRATE
+         or select_meta_data == FILE_META_VIDEO_FRAME_RATE
+         or select_meta_data == FILE_META_AUDIO_BITRATE
+         or select_meta_data == FILE_META_AUDIO_SAMPLE_RATE
+         or select_meta_data == FILE_META_AUDIO_CHANNELS
+         or select_meta_data == FILE_META_AUDIO_TRACK):
+            print('Number DATA')
+            
+            file_meta_number = file_meta_data[select_meta_data]
+            file_meta_number = None if file_meta_number == '' else file_meta_number
+            match_meta_number = meta_data.get(DATA, None)
+            match_meta_number = None if match_meta_number == '' else match_meta_number
+            
+            if how_to_match == EXACT_MATCH:
+                if file_meta_number != match_meta_number:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            elif how_to_match == LOOSE_MATCH:
+                file_meta_number_high = file_meta_number + (file_meta_number * 0.05)
+                file_meta_number_low = file_meta_number - (file_meta_number * 0.05)
+                if file_meta_number > file_meta_number_high or file_meta_number < file_meta_number_low:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            elif how_to_match == SKIP_EXACT_MATCH:
+                if file_meta_number == match_meta_number:
+                    meta_list_index = -1
+                    break
+            elif how_to_match == SKIP_LOOSE_MATCH:
+                file_meta_number_high = file_meta_number + (file_meta_number * 0.05)
+                file_meta_number_low = file_meta_number - (file_meta_number * 0.05)
+                if file_meta_number < file_meta_number_high and file_meta_number > file_meta_number_low:
+                    meta_list_index = -1
+                    break
+            if how_to_match == LESS_THAN:
+                if file_meta_number < match_meta_number:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            if how_to_match == MORE_THAN:
+                if file_meta_number > match_meta_number:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            
+            # A Match Made
+            meta_list_index = i
+            if same_meta_match_index: break
+            else: continue # To Match All
+        
+        if (select_meta_data == FILE_META_MIME
+         or select_meta_data == FILE_META_FORMAT
+         or select_meta_data == FILE_META_FORMAT_LONG
+         or select_meta_data == FILE_META_AUDIO_CHANNEL_LAYOUT
+         or select_meta_data == FILE_META_AUDIO_TITLE
+         or select_meta_data == FILE_META_AUDIO_ALBUM
+         or select_meta_data == FILE_META_AUDIO_ARTIST
+         or select_meta_data == FILE_META_AUDIO_GENRE
+         or select_meta_data == FILE_META_AUDIO_PUBLISHER):
+            print('Text DATA')
+            
+            file_meta_text = file_meta_data[select_meta_data]
+            file_meta_text = None if file_meta_text == '' else file_meta_text
+            match_meta_text = meta_data.get(DATA, None)
+            match_meta_text = None if match_meta_text == '' else match_meta_text
+            
+            if how_to_match == EXACT_MATCH:
+                if file_meta_text != match_meta_text:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            elif how_to_match == LOOSE_MATCH:
+                if file_meta_text.find(match_meta_text) == -1:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
+            elif how_to_match == SKIP_EXACT_MATCH:
+                if file_meta_text == match_meta_text:
+                    meta_list_index = -1
+                    break
+            elif how_to_match == SKIP_LOOSE_MATCH:
+                if file_meta_text.find(match_meta_text) > -1:
+                    if same_meta_match_index: continue
+                    else:
+                        meta_list_index = -1
+                        break
             
             # A Match Made
             meta_list_index = i
             if same_meta_match_index: break
             else: continue # To Match All
     
-    if debug: print('same_meta_match_index: %s' % same_meta_match_index)
+    if debug: print('meta_list_index: %s' % meta_list_index)
     
     return meta_list_index
 
