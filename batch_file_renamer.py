@@ -133,7 +133,7 @@ UPDATE_LIMIT = 1
 UPDATE_SKIP = 1
 FULL_AMOUNT = 2
 
-# Constants
+# Basic Constants
 ALL = 999
 NONE = -1
 NO = -1
@@ -166,7 +166,7 @@ FILE_META_ACCESS = 2                # YEAR/MONTH/... : Number
 FILE_META_MODIFY = 3                # YEAR/MONTH/... : Number
 FILE_META_CREATE = 4                # YEAR/MONTH/... : Number
 FILE_META_METADATA = 4              # YEAR/MONTH/... : Number
-FILE_META_TYPE = 5                  # DATA : File Types (MIME)
+FILE_META_TYPE = 5                  # DATA : TYPE_IMAGE/TYPE_TEXT/...
 FILE_META_MIME = 6                  # DATA : 'Text'
 FILE_META_FORMAT = 7                # DATA : 'Text'
 FILE_META_FORMAT_LONG = 8           # DATA : 'Text'
@@ -174,31 +174,31 @@ FILE_META_HEIGHT = 9                # DATA : Number
 FILE_META_WIDTH = 10                # DATA : Number
 FILE_META_LENGTH = 11               # HOUR/MINUTE/... : Number
 FILE_META_BIT_DEPTH = 12            # DATA : Number
-FILE_META_RATE = 13                 # DATA : Number
-FILE_META_VIDEO_BITRATE = 14        # DATA : Number
-FILE_META_VIDEO_FRAME_RATE = 15     # DATA : Number
-FILE_META_AUDIO_BITRATE = 16        # DATA : Number
-FILE_META_AUDIO_SAMPLE_RATE = 17    # DATA : Number
-FILE_META_AUDIO_CHANNELS = 18       # DATA : Number
-FILE_META_AUDIO_CHANNEL_LAYOUT = 19 # DATA : 'Text'
-FILE_META_AUDIO_TITLE = 20          # DATA : 'Text'
-FILE_META_AUDIO_ALBUM = 21          # DATA : 'Text'
-FILE_META_AUDIO_ARTIST = 22         # DATA : 'Text'
-FILE_META_AUDIO_YEAR = 23           # YEAR : Number
-FILE_META_AUDIO_GENRE = 24          # DATA : 'Text'
-FILE_META_AUDIO_PUBLISHER = 25      # DATA : 'Text'
-FILE_META_AUDIO_TRACK = 26          # DATA : Number
+#FILE_META_RATE = 13                 # DATA : Number
+FILE_META_VIDEO_BITRATE = 13        # DATA : Number
+FILE_META_VIDEO_FRAME_RATE = 14     # DATA : Number
+FILE_META_AUDIO_BITRATE = 15        # DATA : Number
+FILE_META_AUDIO_SAMPLE_RATE = 16    # DATA : Number
+FILE_META_AUDIO_CHANNELS = 17       # DATA : Number
+FILE_META_AUDIO_CHANNEL_LAYOUT = 18 # DATA : 'Text'
+FILE_META_AUDIO_TITLE = 19          # DATA : 'Text'
+FILE_META_AUDIO_ALBUM = 20          # DATA : 'Text'
+FILE_META_AUDIO_ARTIST = 21         # DATA : 'Text'
+FILE_META_AUDIO_YEAR = 22           # YEAR : Number
+FILE_META_AUDIO_GENRE = 23          # DATA : 'Text'
+FILE_META_AUDIO_PUBLISHER = 24      # DATA : 'Text'
+FILE_META_AUDIO_TRACK = 25          # DATA : Number
 
 ### META_MATCH
-EXACT_MATCH = 0         # An exact perfect match of a entire piece of text or number.
-LOOSE_MATCH = 1         ## TODO: A close but not exact match. If text, match any part of a larger piece of text; if a number, match any number wihtin a 5% range.
-SKIP_EXACT_MATCH = 2    ## TODO: 
-SKIP_LOOSE_MATCH = 2    ## TODO: 
+EXACT_MATCH = 100       # An exact perfect match of a entire piece of text or number.
+LOOSE_MATCH = 101       # A close but not exact match. This will match any part of a larger piece of text or if a number, match within a 5% range.
+SKIP_EXACT_MATCH = 102  # Skip renaming files that exactly match the meta data.
+SKIP_LOOSE_MATCH = 103  # Skip renaming files that loosely match the meta data.
                         # Note: If using a list and SAME_MATCH_INDEX take note of the order of skipped data. For example if you always want to skip matched data, then make sure its added first.
-LESS_THAN = 3           # A number
-MORE_THAN = 4           # A number
-WITHIN_THE_PAST = 3     # Date and/or time
-OLDER_THAN = 4          # Date and/or time
+LESS_THAN = 104         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
+MORE_THAN = 105         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
+WITHIN_THE_PAST = 104   # A Date/Time
+OLDER_THAN = 105        # A Date/Time
 
 ### File Types (MIME)
 TYPE_APPLICATION = 0    # This is basically everything not categorized below.
@@ -331,7 +331,7 @@ preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
   MATCH_TEXT        : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
   IGNORE_TEXT       : None,     # 'Text' to Find and Skip -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
-  MATCH_FILE_META   : None,     # { 'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ... } -OR- Dict{ META : [ {}, {}, ... ], OPTIONS : Search Options }
+  MATCH_FILE_META   : None,     # A FILE_META_TYPE or FILE_META_MIME -OR- Dict{ META : [ {'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ...}, {}, ... ], OPTIONS : Search Options }
   INSERT_TEXT       : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
   SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
@@ -486,28 +486,29 @@ preset22 = {
   MATCH_TEXT        : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
-                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None), NO_REPEAT_TEXT_LIST ] }
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 1101), NO_REPEAT_TEXT_LIST ] }
 }
 preset23 = {
   EDIT_TYPE         : RENAME,
   MATCH_TEXT        : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFY : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
-                                        { FILE_META_CREATE : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 31 },
-                                        { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
-                                        { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
-                        OPTIONS     : [ SAME_MATCH_INDEX ] },
+  #MATCH_FILE_META   : { META        : [ { FILE_META_MODIFY : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
+  #                                      { FILE_META_CREATE : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 31 },
+  #                                      { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
+  #                                      { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
+  #                      OPTIONS     : [ SAME_MATCH_INDEX ] },
   #MATCH_FILE_META   : { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
+  MATCH_FILE_META   : 'text/plain',# or TYPE_TEXT,
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] }
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
   MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO },
-                                        { FILE_META_FORMAT : LOOSE_MATCH, DATA : 'h264' },
+                                        { FILE_META_FORMAT : LOOSE_MATCH, DATA : 'H264' },
                                         { FILE_META_HEIGHT : EXACT_MATCH,  DATA : 720 },
                                         { FILE_META_VIDEO_BITRATE : LOOSE_MATCH, DATA : 1000 } ],
-                        OPTIONS     : [ NO_MATCH_CASE ] }, ## TODO Case Matches
+                        OPTIONS     : [ NO_MATCH_CASE ] },
   INSERT_TEXT       : { TEXT        : [ ('Video-(', 4, ')'), ('Video-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, NO_REPEAT_TEXT_LIST ] }
 }
@@ -615,7 +616,7 @@ def displayPreset(presets, number = -1, log_preset = False):
                 mod_str = ''
                 if type(mod) == dict:
                     for key, value in mod.items():
-                        mod_str += intToStrText(key, value, option) + '  '
+                        mod_str += intToStrText(key, value, option)
                 else:
                     mod_str = intToStrText(None, mod, option)
                 if not log_preset: print('    %s : %s' % (opt_str, mod_str))
@@ -634,7 +635,7 @@ def displayPreset(presets, number = -1, log_preset = False):
             mod_str = ''
             if type(mod) == dict:
                 for key, value in mod.items():
-                    mod_str += intToStrText(key, value, option) + '  '
+                    mod_str += intToStrText(key, value, option)
             else:
                 mod_str = intToStrText(None, mod, option)
             if log_preset:
@@ -1208,6 +1209,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     if file_type_basic in document_mimes:
                         file_meta_type = TYPE_DOCUMENT
                     
+                if debug:
                     # Basic Types
                     is_app = file_type_basic == 'application'
                     is_audio = file_type_basic == 'audio'
@@ -1223,12 +1225,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     if not is_archive:
                         is_archive = file_meta_mime in archive_mimes
                     is_doc = file_meta_mime in document_mimes
-                    
-                    #is_doc = mime_type[0] == 'application/msword' or mime_type[0] == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                    #is_presentation = mime_type[0] == 'application/vnd.ms-powerpoint' or mime_type[0] == 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-                    #is_spead_sheet = mime_type[0] == 'application/vnd.ms-excel' or mime_type[0] == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
                 
-                if debug:
                     print('file_meta_type: %s' % file_meta_type)
                     print('file_meta_mime: %s' % file_meta_mime)
                     print('is_app: %s' % is_app)
@@ -1245,15 +1242,11 @@ def getFileMetaData(files, sort_option = None, root = ''):
                 probe = None
                 try:
                     probe = ffmpeg.probe(file_path)
-                    #probe.append(ffmpeg.probe(file_path, select_streams = "v"))
-                    #probe.append(ffmpeg.probe(file_path, select_streams = "a"))
-                    #video_streams = [stream for stream in probe["streams"] if stream["codec_type"] == "video"]
-                    #print(probe)
                     if debug:
                         print('-Probe Good')
                 except ffmpeg.Error as e:
-                    #print(e.stderr)
                     if debug:
+                        #print(e.stderr)
                         print('-Probe Failed')
                 
                 format_short, format_long, height, width, duration, bit_depth = None,None,None,None,None,None
@@ -1267,8 +1260,10 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     format_short = stream[0].get('codec_name')
                     format_long = stream[0].get('codec_long_name')
                     
-                    height = stream[0].get('height') # alt: 'coded_height'
-                    width = stream[0].get('width') # alt: 'coded_width'
+                    height = stream[0].get('height')
+                    if not height: height = stream[0].get('coded_height')
+                    width = stream[0].get('width')
+                    if not width: width = stream[0].get('coded_width')
                     duration = stream[0].get('duration')
                     
                     bit_depth = stream[0].get('bits_per_raw_sample')
@@ -1286,7 +1281,8 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     sample_rate = stream[1].get('sample_rate') if is_video else stream[0].get('sample_rate')
                     if sample_rate: sample_rate = float(sample_rate) / 1000
                     
-                    frame_rate = stream[0].get('r_frame_rate') #alt: 'avg_frame_rate'
+                    frame_rate = stream[0].get('r_frame_rate')
+                    if not frame_rate: frame_rate = frame_rate[0].get('avg_frame_rate')
                     if frame_rate and is_video:
                         frame_rate_split = frame_rate.split('/')
                         frame_rate = int(frame_rate_split[0]) / int(frame_rate_split[1])
@@ -1299,7 +1295,8 @@ def getFileMetaData(files, sort_option = None, root = ''):
                         audio_tags = format.get('tags')
                         title = audio_tags.get('title')
                         album = audio_tags.get('album')
-                        artist = audio_tags.get('artist') # alt: album_artist
+                        artist = audio_tags.get('artist')
+                        if not artist: artist = audio_tags.get('album_artist')
                         date = audio_tags.get('date')
                         if date: date = int(date)
                         genre = audio_tags.get('genre')
@@ -1371,20 +1368,20 @@ def getFileMetaData(files, sort_option = None, root = ''):
     return files_meta
 
 
-### Sort file functions.
-###     (file) A Tuple with the [0]full file path,  [1]file size,       [2]access date,
+### Sort files functions.
+###     (files) A Tuple with the [0]full file path,  [1]file size,       [2]access date,
 ###                             [3]modify date      [4]creation date (UNIX: meta data modified date).
 ###     --> Returns a [String] or [Integer]
-def sortFilesAlphabetically(file):
-    return file[0].name
-def sortFilesByFileSize(file):
-    return file[2]
-def sortFilesByAccessDate(file):
-    return file[3]
-def sortFilesByModifyDate(file):
-    return file[4]
-def sortFilesByCreationDate(file):
-    return file[5]
+def sortFilesAlphabetically(files):
+    return files[0].name
+def sortFilesByFileSize(files):
+    return files[2]
+def sortFilesByAccessDate(files):
+    return files[3]
+def sortFilesByModifyDate(files):
+    return files[4]
+def sortFilesByCreationDate(files):
+    return files[5]
 
 
 ### Using the edit details create a new file name and try renaming file and updating any linked files.
@@ -1537,14 +1534,27 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
     #match_file_meta_options = getOptions(match_file_meta_data)
     #file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
     same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
+    no_match_case = NO_MATCH_CASE in match_file_meta_options
     
     meta_list_index, i = -1, -1
     for meta_data in match_file_meta_list:
         i += 1
+        match_failed = False
+        match_skipped = False
         #print('Current Meta: %s' % meta_data)
         
-        select_meta_data = next(iter(meta_data))
-        how_to_match = meta_data[select_meta_data]
+        # Check if single entry (FILE_META_TYPE or FILE_META_MIME search)
+        if type(meta_data) == int:
+            select_meta_data = FILE_META_TYPE
+            how_to_match = EXACT_MATCH
+            meta_data = { DATA : meta_data }
+        elif type(meta_data) == str:
+            select_meta_data = FILE_META_MIME
+            how_to_match = LOOSE_MATCH
+            meta_data = { DATA : meta_data }
+        else:
+            select_meta_data = next(iter(meta_data))
+            how_to_match = meta_data[select_meta_data]
         
         if select_meta_data == FILE_META_SIZE:
             #print('Size Meta')
@@ -1578,43 +1588,55 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
             if how_to_match == EXACT_MATCH:
                 if gb and gb != file_gb:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
-                if mb and mb != file_mb:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
-                if kb and kb != file_kb:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
-                if bytes and bytes != file_bytes:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
+                elif mb and mb != file_mb:
+                    match_failed = True
+                elif kb and kb != file_kb:
+                    match_failed = True
+                elif bytes and bytes != file_bytes:
+                    match_failed = True
+            
+            elif how_to_match == SKIP_EXACT_MATCH:
+                if gb and gb == file_gb:
+                    match_skipped = True
+                elif mb and mb == file_mb:
+                    match_skipped = True
+                elif kb and kb == file_kb:
+                    match_skipped = True
+                elif bytes and bytes == file_bytes:
+                    match_skipped = True
+            
+            elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
+                match_meta_number_high = file_size_match + (file_size_match * 0.05)
+                match_meta_number_low = file_size_match - (file_size_match * 0.05)
+                
+                if how_to_match == LOOSE_MATCH:
+                    if file_meta_size > match_meta_number_high or file_meta_size < match_meta_number_low:
+                        match_failed = True
+                
+                elif how_to_match == SKIP_LOOSE_MATCH:
+                    if file_meta_size < match_meta_number_high or file_meta_size > match_meta_number_low:
+                        match_skipped = True
             
             elif how_to_match == LESS_THAN:
                 if file_size_match < file_meta_size:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
             
             elif how_to_match == MORE_THAN:
                 if file_size_match > file_meta_size:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
             
-            ##TODO elif how_to_match == LOOSE_MATCH: elif how_to_match == SKIP_EXACT_MATCH: elif how_to_match == SKIP_LOOSE_MATCH:
+            # IF...
+            if match_failed:
+                if same_meta_match_index: continue
+                else:
+                    meta_list_index = -1
+                    break
+            if match_skipped:
+                meta_list_index = -1
+                break
             
-            # A Match Made
+            # ELSE... A Match Was Made
             meta_list_index = i
             if same_meta_match_index: break
             else: continue # To Match All
@@ -1642,92 +1664,101 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             millisecond = meta_data.get(MILLISECOND, None)
             microsecond = meta_data.get(MICROSECOND, None)
             
-            # Get length of time for comparision to today's date.
-            time_delta_match = 0
+            # Get length of time for comparison to today's date.
+            match_time_delta = 0
             if year:
-                time_delta_match += year * 31536000
+                match_time_delta += year * 31536000
             if month:
-                time_delta_match += month * 30 * 86400
+                match_time_delta += month * 30 * 86400
             if day:
-                time_delta_match += day * 86400
+                match_time_delta += day * 86400
             if hour:
-                time_delta_match += hour * 3600
+                match_time_delta += hour * 3600
             if minute:
-                time_delta_match += minute * 60
+                match_time_delta += minute * 60
             if second:
-                time_delta_match += second
+                match_time_delta += second
             if millisecond:
-                time_delta_match += millisecond / 1000
+                match_time_delta += millisecond / 1000
             elif microsecond:
-                time_delta_match += microsecond / 1000 / 1000
-            if debug: print('time_delta_match: %s' % time_delta_match)
+                match_time_delta += microsecond / 1000 / 1000
+            if debug: print('match_time_delta: %s' % match_time_delta)
             
             # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
             if how_to_match == EXACT_MATCH:
                 if year and year != file_meta_date_time.year:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if month and month != file_meta_date_time.month:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if day and day != file_meta_date_time.day:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if hour and hour != file_meta_date_time.hour:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if minute and minute != file_meta_date_time.minute:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if second and second != file_meta_date_time.second:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if millisecond and millisecond != file_meta_date_time.microsecond:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
                 if microsecond and microsecond != file_meta_date_time.microsecond:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
             
-            ##TODO elif how_to_match == LOOSE_MATCH: elif how_to_match == SKIP_EXACT_MATCH: elif how_to_match == SKIP_LOOSE_MATCH:
+            if how_to_match == SKIP_EXACT_MATCH:
+                if year and year == file_meta_date_time.year:
+                    match_skipped = True
+                if month and month == file_meta_date_time.month:
+                    match_skipped = True
+                if day and day == file_meta_date_time.day:
+                    match_skipped = True
+                if hour and hour == file_meta_date_time.hour:
+                    match_skipped = True
+                if minute and minute == file_meta_date_time.minute:
+                    match_skipped = True
+                if second and second == file_meta_date_time.second:
+                    match_skipped = True
+                if millisecond and millisecond == file_meta_date_time.microsecond:
+                    match_skipped = True
+                if microsecond and microsecond == file_meta_date_time.microsecond:
+                    match_skipped = True
+            
+            elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
+                time_length = timestamp_now - file_meta_timestamp
+                match_time_delta_high = time_length + (time_length * 0.05)
+                match_time_delta_low = time_length - (time_length * 0.05)
+                
+                if how_to_match == LOOSE_MATCH:
+                    if time_length > match_time_delta_high and time_length < match_time_delta_low:
+                        match_failed = True
+                
+                elif how_to_match == SKIP_LOOSE_MATCH:
+                    if time_length < match_time_delta_high and time_length > match_time_delta_low:
+                        match_skipped = True
             
             elif how_to_match == WITHIN_THE_PAST: # or LESS_THAN
-                if timestamp_now - file_meta_timestamp > time_delta_match:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                if timestamp_now - file_meta_timestamp > match_time_delta:
+                    match_failed = True
             
             elif how_to_match == OLDER_THAN: # or MORE_THAN
-                if timestamp_now - file_meta_timestamp < time_delta_match:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                if timestamp_now - file_meta_timestamp < match_time_delta:
+                    match_failed = True
             
-            # A Match Made
+            # IF...
+            if match_failed:
+                if same_meta_match_index: continue
+                else:
+                    meta_list_index = -1
+                    break
+            if match_skipped:
+                meta_list_index = -1
+                break
+            
+            # ELSE... A Match Was Made
             meta_list_index = i
             if same_meta_match_index: break
             else: continue # To Match All
         
         if select_meta_data == FILE_META_TYPE:
-            print('Integer Constant DATA')
+            #print('Integer Constant Meta')
             
             file_meta_constant = file_meta_data[select_meta_data]
             file_meta_constant = None if file_meta_constant == '' else file_meta_constant
@@ -1757,16 +1788,12 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             if same_meta_match_index: break
             else: continue # To Match All
         
-        if (select_meta_data == FILE_META_HEIGHT
-         or select_meta_data == FILE_META_WIDTH
-         or select_meta_data == FILE_META_BIT_DEPTH
-         or select_meta_data == FILE_META_VIDEO_BITRATE
-         or select_meta_data == FILE_META_VIDEO_FRAME_RATE
-         or select_meta_data == FILE_META_AUDIO_BITRATE
-         or select_meta_data == FILE_META_AUDIO_SAMPLE_RATE
-         or select_meta_data == FILE_META_AUDIO_CHANNELS
+        if (select_meta_data == FILE_META_HEIGHT            or select_meta_data == FILE_META_WIDTH
+         or select_meta_data == FILE_META_BIT_DEPTH         or select_meta_data == FILE_META_VIDEO_BITRATE
+         or select_meta_data == FILE_META_VIDEO_FRAME_RATE  or select_meta_data == FILE_META_AUDIO_BITRATE
+         or select_meta_data == FILE_META_AUDIO_SAMPLE_RATE or select_meta_data == FILE_META_AUDIO_CHANNELS
          or select_meta_data == FILE_META_AUDIO_TRACK):
-            print('Number DATA')
+            #print('Simple Number Meta')
             
             file_meta_number = file_meta_data[select_meta_data]
             file_meta_number = None if file_meta_number == '' else file_meta_number
@@ -1775,86 +1802,89 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             if how_to_match == EXACT_MATCH:
                 if file_meta_number != match_meta_number:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
-            elif how_to_match == LOOSE_MATCH:
-                file_meta_number_high = file_meta_number + (file_meta_number * 0.05)
-                file_meta_number_low = file_meta_number - (file_meta_number * 0.05)
-                if file_meta_number > file_meta_number_high or file_meta_number < file_meta_number_low:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
-            elif how_to_match == SKIP_EXACT_MATCH:
-                if file_meta_number == match_meta_number:
-                    meta_list_index = -1
-                    break
-            elif how_to_match == SKIP_LOOSE_MATCH:
-                file_meta_number_high = file_meta_number + (file_meta_number * 0.05)
-                file_meta_number_low = file_meta_number - (file_meta_number * 0.05)
-                if file_meta_number < file_meta_number_high and file_meta_number > file_meta_number_low:
-                    meta_list_index = -1
-                    break
-            if how_to_match == LESS_THAN:
-                if file_meta_number < match_meta_number:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
-            if how_to_match == MORE_THAN:
-                if file_meta_number > match_meta_number:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
             
-            # A Match Made
+            elif how_to_match == SKIP_EXACT_MATCH:
+                    if file_meta_number == match_meta_number:
+                        match_skipped = True
+            
+            elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
+                match_meta_number_high = match_meta_number + (match_meta_number * 0.05)
+                match_meta_number_low = match_meta_number - (match_meta_number * 0.05)
+                #print('LOOSE_MATCH: %s <> %s <> %s' % (match_meta_number_high, file_meta_number, match_meta_number_low))
+                
+                if how_to_match == LOOSE_MATCH:
+                    if file_meta_number > match_meta_number_high or file_meta_number < match_meta_number_low:
+                        match_failed = True
+                
+                elif how_to_match == SKIP_LOOSE_MATCH:
+                    if file_meta_number < match_meta_number_high and file_meta_number > match_meta_number_low:
+                        match_skipped = True
+            
+            elif how_to_match == LESS_THAN:
+                if file_meta_number < match_meta_number:
+                    match_failed = True
+            
+            elif how_to_match == MORE_THAN:
+                if file_meta_number > match_meta_number:
+                    match_failed = True
+            
+            # IF...
+            if match_failed:
+                if same_meta_match_index: continue
+                else:
+                    meta_list_index = -1
+                    break
+            if match_skipped:
+                meta_list_index = -1
+                break
+            
+            # ELSE... A Match Was Made
             meta_list_index = i
             if same_meta_match_index: break
             else: continue # To Match All
         
-        if (select_meta_data == FILE_META_MIME
-         or select_meta_data == FILE_META_FORMAT
-         or select_meta_data == FILE_META_FORMAT_LONG
-         or select_meta_data == FILE_META_AUDIO_CHANNEL_LAYOUT
-         or select_meta_data == FILE_META_AUDIO_TITLE
-         or select_meta_data == FILE_META_AUDIO_ALBUM
-         or select_meta_data == FILE_META_AUDIO_ARTIST
-         or select_meta_data == FILE_META_AUDIO_GENRE
+        if (select_meta_data == FILE_META_MIME              or select_meta_data == FILE_META_FORMAT
+         or select_meta_data == FILE_META_FORMAT_LONG       or select_meta_data == FILE_META_AUDIO_CHANNEL_LAYOUT
+         or select_meta_data == FILE_META_AUDIO_TITLE       or select_meta_data == FILE_META_AUDIO_ALBUM
+         or select_meta_data == FILE_META_AUDIO_ARTIST      or select_meta_data == FILE_META_AUDIO_GENRE
          or select_meta_data == FILE_META_AUDIO_PUBLISHER):
-            print('Text DATA')
+            #print('Text Meta')
             
             file_meta_text = file_meta_data[select_meta_data]
             file_meta_text = None if file_meta_text == '' else file_meta_text
             match_meta_text = meta_data.get(DATA, None)
             match_meta_text = None if match_meta_text == '' else match_meta_text
             
+            if no_match_case and file_meta_text:
+                file_meta_text = file_meta_text.casefold()
+            if no_match_case and match_meta_text:
+                match_meta_text = match_meta_text.casefold()
+            
             if how_to_match == EXACT_MATCH:
                 if file_meta_text != match_meta_text:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
             elif how_to_match == LOOSE_MATCH:
-                if file_meta_text.find(match_meta_text) == -1:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                if file_meta_text and file_meta_text.find(match_meta_text) == -1:
+                    match_failed = True
             elif how_to_match == SKIP_EXACT_MATCH:
                 if file_meta_text == match_meta_text:
+                    match_skipped = True
+            elif how_to_match == SKIP_LOOSE_MATCH:
+                if file_meta_text and file_meta_text.find(match_meta_text) > -1:
+                    match_skipped = True
+            
+            # IF...
+            if match_failed:
+                if same_meta_match_index: continue
+                else:
                     meta_list_index = -1
                     break
-            elif how_to_match == SKIP_LOOSE_MATCH:
-                if file_meta_text.find(match_meta_text) > -1:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+            if match_skipped:
+                meta_list_index = -1
+                break
             
-            # A Match Made
+            # ELSE... A Match Was Made
             meta_list_index = i
             if same_meta_match_index: break
             else: continue # To Match All
@@ -2694,10 +2724,12 @@ def getUserPresetSelection(string_num):
 ###     (value) Option value
 ###     (parent_key) The Parent Option's key 
 ###     --> Returns a [String] 
-def intToStrText(key, value, parent_key = None):
+def intToStrText(key, value, parent_key = None): ## TODO: option to read back preset dictionary exactly as is.
     if type(value) != list and type(value) != tuple:
         value = [value]
     text = str(value)
+    new_line = ''
+    
     if type(key) == int:
         text = str(key)
         
@@ -2727,113 +2759,209 @@ def intToStrText(key, value, parent_key = None):
             elif key == TRACKED_DATA:
                 text = 'Data That Is Tracked   '
         
-        elif parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == MATCH_FILE_CONTENTS or parent_key == MATCH_FILE_META or parent_key == INSERT_TEXT:
+        if (parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == MATCH_FILE_CONTENTS
+         or parent_key == MATCH_FILE_META or key == MATCH_FILE_META or parent_key == INSERT_TEXT):
             if key == TEXT:
                 text = 'TEXT : ' + str(value)
             if key == META:
                 text = 'META : '# + str(value)
                 if type(value) != list:
                     value = [value]
-                for object in value:
-                    if type(object) == dict:
-                        for name, val in object.items():
-                            
-                            if name == FILE_META_SIZE or name == FILE_META_ACCESS or name == FILE_META_MODIFY or name == FILE_META_CREATE:
-                                if name == FILE_META_SIZE:
-                                    text += '{ Get Size Of Files '
-                                elif name == FILE_META_ACCESS:
-                                    text += '{ Get Dates Of Files Last Accessed '
-                                elif name == FILE_META_MODIFY:
-                                    text += '{ Get Dates Of Files Last Modified '
-                                elif name == FILE_META_CREATE:
-                                    text += '{ Get Dates Of Files Created '
-                                
-                                if name == FILE_META_SIZE:
-                                    if val == EXACT_MATCH:
-                                        text += 'Exactly '
-                                    if val == LESS_THAN:
-                                        text += 'Less Than '
-                                    elif val == MORE_THAN:
-                                        text += 'More Than '
-                                else:
-                                    if val == EXACT_MATCH:
-                                        text += 'Exactly On '
-                                    if val == OLDER_THAN:
-                                        text += 'Older Than '
-                                    elif val == WITHIN_THE_PAST:
-                                        text += 'Within The Past '
-                            
-                            if name == GB:
-                                text += str(val) + ' Gigabytes, '
-                            elif name == MB:
-                                text += str(val) + ' Megabytes, '
-                            elif name == KB:
-                                text += str(val) + ' Kilobytes, '
-                            elif name == BYTES:
-                                text += str(val) + ' Bytes '
-                            
-                            if name == YEAR:
-                                text += 'Year: ' + str(val) + ', '
-                            if name == MONTH:
-                                text += 'Month: ' + str(val) + ', '
-                            if name == DAY:
-                                text += 'Day: ' + str(val) + ', '
-                            if name == HOUR:
-                                text += 'Hour: ' + str(val) + ', '
-                            if name == MINUTE:
-                                text += 'Minute: ' + str(val) + ', '
-                            if name == SECOND:
-                                text += 'Second: ' + str(val) + ', '
-                            if name == MILLISECOND:
-                                text += 'Millasecond: ' + str(val) + ' '
-                            if name == MICROSECOND:
-                                text += 'Microsecond: ' + str(val) + ' '
-                        
-                        text = text.rstrip(', ')
-                        text += ' }'
+            new_line = ''
+            for object in value:
+                if type(object) == dict:
+                    for name, val in object.items():
+                        if name == FILE_META_SIZE:
+                            text += new_line + 'By File Size '
+                        elif name == FILE_META_ACCESS:
+                            text += new_line + 'By Date Files Last Accessed '
+                        elif name == FILE_META_MODIFY:
+                            text += new_line + 'By Date File Last Modified '
+                        elif name == FILE_META_CREATE:
+                            text += new_line + 'By Date File Created '
+                        elif name == FILE_META_TYPE:
+                            text += new_line + 'By Meta Data Type (Basic Mime) '
+                        elif name == FILE_META_MIME:
+                            text += new_line + 'By Meta Data Mime '
+                        elif name == FILE_META_FORMAT:
+                            text += new_line + 'By Meta Data Format '
+                        elif name == FILE_META_FORMAT_LONG:
+                            text += new_line + 'By Meta Data Format (Full Name) '
+                        elif name == FILE_META_HEIGHT:
+                            text += new_line + 'By Media\'s Height '
+                        elif name == FILE_META_WIDTH:
+                            text += new_line + 'By Media\'s Width '
+                        elif name == FILE_META_LENGTH:
+                            text += new_line + 'By Media\'s Duration (Time) '
+                        elif name == FILE_META_BIT_DEPTH:
+                            text += new_line + 'By Media\'s Bit Depth '
+                        elif name == FILE_META_VIDEO_BITRATE:
+                            text += new_line + 'By Video Bitrate '
+                        elif name == FILE_META_VIDEO_FRAME_RATE:
+                            text += new_line + 'By Video Frame Rate '
+                        elif name == FILE_META_AUDIO_BITRATE:
+                            text += new_line + 'By Audio Bitrate '
+                        elif name == FILE_META_AUDIO_SAMPLE_RATE:
+                            text += new_line + 'By Audio Sample Rate '
+                        elif name == FILE_META_AUDIO_CHANNELS:
+                            text += new_line + 'By Amount Of Audio Channels '
+                        elif name == FILE_META_AUDIO_CHANNEL_LAYOUT:
+                            text += new_line + 'By Audio Channel Layout '
+                        elif name == FILE_META_AUDIO_TITLE:
+                            text += new_line + 'By Audio Title '
+                        elif name == FILE_META_AUDIO_ALBUM:
+                            text += new_line + 'By Audio Album '
+                        elif name == FILE_META_AUDIO_ARTIST:
+                            text += new_line + 'By Audio Artist '
+                        elif name == FILE_META_AUDIO_YEAR:
+                            text += new_line + 'By Audio Year Released '
+                        elif name == FILE_META_AUDIO_PUBLISHER:
+                            text += new_line + 'By Audio Published '
+                        elif name == FILE_META_AUDIO_TRACK:
+                            text += new_line + 'By Audio Track Number '
+                        if name == FILE_META_ACCESS or name == FILE_META_MODIFY or name == FILE_META_CREATE:
+                            if val == EXACT_MATCH:
+                                text += 'Exactly On : '
+                            elif val == LOOSE_MATCH:
+                                text += 'Around (Give or Take) : '
+                            elif val == SKIP_EXACT_MATCH:
+                                text += 'Skip If On : '
+                            elif val == SKIP_LOOSE_MATCH:
+                                text += 'Skip If Around (Give or Take) : '
+                            elif val == WITHIN_THE_PAST:
+                                text += 'Within The Past : '
+                            elif val == OLDER_THAN:
+                                text += 'Older Than : '
+                        elif name == FILE_META_TYPE:
+                            text += ': '
+                        elif (name == FILE_META_MIME or name == FILE_META_FORMAT or name == FILE_META_FORMAT_LONG or name == FILE_META_AUDIO_CHANNEL_LAYOUT
+                         or name == FILE_META_AUDIO_TITLE or name == FILE_META_AUDIO_ALBUM or name == FILE_META_AUDIO_ARTIST or name == FILE_META_AUDIO_YEAR
+                         or name == FILE_META_AUDIO_GENRE or name == FILE_META_AUDIO_PUBLISHER or name == FILE_META_AUDIO_TRACK):
+                            if val == EXACT_MATCH:
+                                text += 'Exactly Matching : '
+                            elif val == LOOSE_MATCH:
+                                text += 'With The Text : '
+                            elif val == SKIP_EXACT_MATCH:
+                                text += 'Skip If Exact Match Found : '
+                            elif val == SKIP_LOOSE_MATCH:
+                                text += 'Skip If This Text Found : '
+                            elif val == LESS_THAN:
+                                text += 'Less Than : '
+                            elif val == MORE_THAN:
+                                text += 'More Than : '
+                        else:
+                            if val == EXACT_MATCH:
+                                text += 'At Exactly : '
+                            elif val == LOOSE_MATCH:
+                                text += 'Around (Give or Take) : '
+                            elif val == SKIP_EXACT_MATCH:
+                                text += 'Skip At : '
+                            elif val == SKIP_LOOSE_MATCH:
+                                text += 'Skip If Around (Give or Take) : '
+                            elif val == LESS_THAN:
+                                text += 'Less Than : '
+                            elif val == MORE_THAN:
+                                text += 'More Than : '
+                        if name == DATA:
+                            if val == TYPE_APPLICATION:
+                                text += 'Application '
+                            elif val == TYPE_AUDIO:
+                                text += 'Audio '
+                            elif val == TYPE_FONT:
+                                text += 'Font '
+                            elif val == TYPE_IMAGE:
+                                text += 'Image '
+                            elif val == TYPE_MESSAGE:
+                                text += 'Message '
+                            elif val == TYPE_MODEL:
+                                text += 'Model '
+                            elif val == TYPE_MULTIPART:
+                                text += 'Multipart '
+                            elif val == TYPE_TEXT:
+                                text += 'Text '
+                            elif val == TYPE_VIDEO:
+                                text += 'Video '
+                            elif val == TYPE_ARCHIVE:
+                                text += 'Archive '
+                            elif val == TYPE_DOCUMENT:
+                                text += 'Document '
+                            else:
+                                text += str(val) + ' '
+                        if name == GB:
+                            text += str(val) + ' Gigabytes, '
+                        elif name == MB:
+                            text += str(val) + ' Megabytes, '
+                        elif name == KB:
+                            text += str(val) + ' Kilobytes, '
+                        elif name == BYTES:
+                            text += str(val) + ' Bytes'
+                        elif name == IN_BYTES_ONLY:
+                            text += str(val) + ' Bytes Only'
+                        if name == YEAR:
+                            text += 'Year: ' + str(val) + ', '
+                        if name == MONTH:
+                            text += 'Month: ' + str(val) + ', '
+                        if name == DAY:
+                            text += 'Day: ' + str(val) + ', '
+                        if name == HOUR:
+                            text += 'Hour: ' + str(val) + ', '
+                        if name == MINUTE:
+                            text += 'Minute: ' + str(val) + ', '
+                        if name == SECOND:
+                            text += 'Second: ' + str(val) + ', '
+                        if name == MILLISECOND:
+                            text += 'Millasecond: ' + str(val) + ' '
+                        if name == MICROSECOND:
+                            text += 'Microsecond: ' + str(val) + ' '
+                    new_line = '\n                                     '
+                    text = text.rstrip(', ')
+                    #text += ' }'
             
             if key == OPTIONS:
-                text = '\n                              OPTIONS : '
+                text = ''
+                new_line = '\n                                        '
                 if MATCH_CASE in value:
-                    text += 'Search Case Sensitive, '
+                    text += new_line + 'Search Case Sensitive, '
                 if NO_MATCH_CASE in value:
-                    text += 'Search Not Case Sensitive, '
+                    text += new_line + 'Search Not Case Sensitive, '
                 if SEARCH_FROM_RIGHT in value:
-                    text += 'Start Search From Right Side, '
+                    text += new_line + 'Start Search From Right Side, '
                 if COUNT in value:
-                    text += 'Add An Incrementing Number To Text, '
+                    text += new_line + 'Add An Incrementing Number To Text, '
                 if COUNT_TO in value:
-                    text += 'Limit Specific File Renames Made, '
+                    text += new_line + 'Limit Specific File Renames Made, '
                 if EXTENSION in value and parent_key == MATCH_TEXT:
-                    text += 'Only Search The Extension, '
+                    text += new_line + 'Only Search The Extension, '
                 if EXTENSION in value and parent_key == IGNORE_TEXT:
-                    text += 'Ignore This Extension, '
+                    text += new_line + 'Ignore This Extension, '
                 if EXTENSION in value and parent_key == INSERT_TEXT:
-                    text += 'Allow Extension To Be Modified, '
+                    text += new_line + 'Allow Extension To Be Modified, '
                 if RANDOM_NUMBERS in value:
-                    text += 'Add Random Numbers, '
+                    text += new_line + 'Add Random Numbers, '
                 if RANDOM_LETTERS in value:
-                    text += 'Add Random Letters, '
+                    text += new_line + 'Add Random Letters, '
                 if RANDOM_SPECIALS in value:
-                    text += 'Add Random Special Characters, '
+                    text += new_line + 'Add Random Special Characters, '
                 if RANDOM_OTHER in value:
-                    text += 'Add Random Other Characters, '
+                    text += new_line + 'Add Random Other Characters, '
                 if REGEX in value:
-                    text += 'Regular Expressions, '
+                    text += new_line + 'Regular Expressions, '
                 if SAME_MATCH_INDEX in value:
-                    text += 'Use Match Index While Selecting From Insert Lists, '
+                    text += new_line + 'Use Match Index While Selecting From Insert Lists, '
                 if NO_REPEAT_TEXT_LIST in value:
                     #text += 'Once End of Text List Reached Repeat List, '
-                    text += 'Do Not Repeat Text List Once End Reached, '
+                    text += new_line + 'Do Not Repeat Text List Once End Reached, '
                 for item in value:
                     if type(item) == tuple:
                         if MATCH_LIMIT in item:
-                            text += 'Limit Matches to ' + str(item[1]) + ', '
+                            text += new_line + 'Limit Matches To : ' + str(item[1]) + ', '
                         if MINIMUM_DIGITS in item:
-                            text += 'Minimum ' + str(item[1]) + ' Digits, '
+                            text += new_line + 'Minimum : ' + str(item[1]) + ' Digits, '
                         if RANDOM_SEED in item:
-                            text += 'Random Seed used ' + str(item[1]) + ', '
-                text = text.rstrip(', ')
+                            text += new_line + 'Random Seed Used : ' + str(item[1]) + ', '
+                #text = text.rstrip(', ')
+                text = text.strip('\n, ')
+                text = '\n                              OPTIONS : ' + text
             
             if key == PLACEMENT:
                 text = '\n                              PLACEMENT : '
@@ -2920,6 +3048,32 @@ def intToStrText(key, value, parent_key = None):
                 text = 'Replace'
             elif RENAME in value:
                 text = 'Rename'
+        elif parent_key == MATCH_FILE_META:
+            text = 'Meta Data Type (Mime) : '
+            if TYPE_APPLICATION in value:
+                text += 'Application'
+            elif value == TYPE_AUDIO:
+                text += 'Audio'
+            elif value == TYPE_FONT:
+                text += 'Font'
+            elif value == TYPE_IMAGE:
+                text += 'Image'
+            elif value == TYPE_MESSAGE:
+                text += 'Message'
+            elif value == TYPE_MODEL:
+                text += 'Model'
+            elif value == TYPE_MULTIPART:
+                text += 'Multipart'
+            elif TYPE_TEXT in value:
+                text += 'Text'
+            elif value == TYPE_VIDEO:
+                text += 'Video'
+            elif value == TYPE_ARCHIVE:
+                text += 'Archive'
+            elif value == TYPE_DOCUMENT:
+                text += 'Document'
+            else:
+                text += str(value)
         else:
             text = str(value)
     
