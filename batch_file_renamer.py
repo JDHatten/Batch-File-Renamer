@@ -162,9 +162,9 @@ ENDING_COUNT = 1
 ### File Meta Data
 FILE_META_PATH = 0                  # DATA: 'Text'
 FILE_META_SIZE = 1                  # GB/MB/KB/BYTES : Number
-FILE_META_ACCESS = 2                # YEAR/MONTH/... : Number
-FILE_META_MODIFY = 3                # YEAR/MONTH/... : Number
-FILE_META_CREATE = 4                # YEAR/MONTH/... : Number
+FILE_META_ACCESSED = 2              # YEAR/MONTH/... : Number
+FILE_META_MODIFIED = 3              # YEAR/MONTH/... : Number
+FILE_META_CREATED = 4               # YEAR/MONTH/... : Number
 FILE_META_METADATA = 4              # YEAR/MONTH/... : Number
 FILE_META_TYPE = 5                  # DATA : TYPE_IMAGE/TYPE_TEXT/...
 FILE_META_MIME = 6                  # DATA : 'Text'
@@ -174,7 +174,6 @@ FILE_META_HEIGHT = 9                # DATA : Number
 FILE_META_WIDTH = 10                # DATA : Number
 FILE_META_LENGTH = 11               # HOUR/MINUTE/... : Number
 FILE_META_BIT_DEPTH = 12            # DATA : Number
-#FILE_META_RATE = 13                 # DATA : Number
 FILE_META_VIDEO_BITRATE = 13        # DATA : Number
 FILE_META_VIDEO_FRAME_RATE = 14     # DATA : Number
 FILE_META_AUDIO_BITRATE = 15        # DATA : Number
@@ -283,15 +282,16 @@ BOTH_ENDS = 42          # Place at both ends of...
 OF_FILE_NAME = 50       # Placed at file name minus extension [Default]
 OF_MATCH = 51           # Placed at one or more matches found
 
-### Sort Options        ## TODO: add more sorting options, image sizes, format/extension, video length, etc.
+### Sort Options (See "File Meta Data" For More Sorting Options)
 ASCENDING = 60          # 0-9, A-Z [Default]
 DESCENDING = 61         # 9-0, Z-A
-ALPHABETICALLY = 62     # File name [Default]
-FILE_SIZE = 63          # File size in bytes
-DATE_ACCESSED = 64      # Date file last opened.
-DATE_MODIFIED = 65      # Date file last changed.
-DATE_CREATED = 66       # Date file created. (Windows Only)
-DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
+ALPHABETICALLY = 0      # File name [Default]
+FILE_NAME = 0           # File name [Default]
+#FILE_SIZE = 63          # File size in bytes
+#DATE_ACCESSED = 64      # Date file last opened.
+#DATE_MODIFIED = 65      # Date file last changed.
+#DATE_CREATED = 66       # Date file created. (Windows Only)
+#DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
 
 
 ### Edit characters used in random generators. You may also choose to use an even amount/weight
@@ -325,7 +325,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 24
+selected_preset = 23
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -337,7 +337,7 @@ preset0 = {         # Defaults
   HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
   LINKED_FILES      : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
   INCLUDE_SUB_DIRS  : False,    # Search Sub-Directories (True or False)
-  PRESORT_FILES     : None      # Sort before renaming files.  Dict{ Sort Option : ASCENDING or DESCENDING }
+  PRESORT_FILES     : None      # Sort before renaming files.  Dict{ File Meta Data : ASCENDING or DESCENDING }
 }                               # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
 preset1 = {
   EDIT_TYPE         : REPLACE,
@@ -401,7 +401,7 @@ preset11 = {
   MATCH_TEXT        : { TEXT : '', OPTIONS : NO_MATCH_CASE },
   INSERT_TEXT       : { TEXT : ('Text-[', (1,7), ']'), OPTIONS : COUNT },
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
-  PRESORT_FILES     : { DATE_MODIFIED : DESCENDING }
+  PRESORT_FILES     : { FILE_META_MODIFIED : DESCENDING }
 }
 preset12 = {
   EDIT_TYPE         : ADD,
@@ -492,15 +492,15 @@ preset23 = {
   EDIT_TYPE         : RENAME,
   MATCH_TEXT        : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  #MATCH_FILE_META   : { META        : [ { FILE_META_MODIFY : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
-  #                                      { FILE_META_CREATE : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 31 },
-  #                                      { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
+  #MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
+  #                                      { FILE_META_CREATED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 31 },
+  #                                      { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
   #                                      { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
   #                      OPTIONS     : [ SAME_MATCH_INDEX ] },
-  #MATCH_FILE_META   : { FILE_META_CREATE : WITHIN_THE_PAST,  YEAR : 1 },
-  MATCH_FILE_META   : 'text/plain',# or TYPE_TEXT,
+  MATCH_FILE_META   : 'text/pl',# or TYPE_TEXT,
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
-                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] }
+                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] },
+  PRESORT_FILES     : { FILE_META_WIDTH : ASCENDING }
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
@@ -1117,7 +1117,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
             file_meta = os.stat(file_path)
             
             if ffmpeg_installed and filetype_installed:
-                #print(file_path)
+                if debug: print(file_path)
                 try:
                     file_type = filetype.guess(file_path)
                     is_audio = filetype.is_audio(file_path)
@@ -1167,6 +1167,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                 
                 file_meta_type = None
                 file_meta_mime = None
+                file_type_basic = None
                 if file_type:
                     #print('File extension: %s' % file_type.extension)
                     #print('File MIME type: %s' % file_type.mime)
@@ -1244,6 +1245,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     probe = ffmpeg.probe(file_path)
                     if debug:
                         print('-Probe Good')
+                        print(probe)
                 except ffmpeg.Error as e:
                     if debug:
                         #print(e.stderr)
@@ -1260,12 +1262,13 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     format_short = stream[0].get('codec_name')
                     format_long = stream[0].get('codec_long_name')
                     
-                    height = stream[0].get('height')
-                    if not height: height = stream[0].get('coded_height')
-                    width = stream[0].get('width')
-                    if not width: width = stream[0].get('coded_width')
-                    duration = stream[0].get('duration')
+                    if file_meta_type == TYPE_IMAGE or file_meta_type == TYPE_VIDEO:
+                        height = stream[0].get('height')
+                        if not height: height = stream[0].get('coded_height')
+                        width = stream[0].get('width')
+                        if not width: width = stream[0].get('coded_width')
                     
+                    duration = stream[0].get('duration')
                     bit_depth = stream[0].get('bits_per_raw_sample')
                     if bit_depth: bit_depth = int(bit_depth)
                     
@@ -1338,25 +1341,14 @@ def getFileMetaData(files, sort_option = None, root = ''):
                 print("\nSkipping This: [ %s ]" % file_path)
                 print("\nThis is not a normal file or directory.")
     
-    ## TODO Sort using new meta added
-    
     if type(sort_option) == dict:
-        descending = False if list(sort_option.values())[0] == ASCENDING else True
-        if ALPHABETICALLY in sort_option:
-            directory_list.sort(reverse=descending, key=sortFilesAlphabetically)
-            individual_file_list.sort(reverse=descending, key=sortFilesAlphabetically)
-        elif FILE_SIZE in sort_option:
-            directory_list.sort(reverse=descending, key=sortFilesByFileSize)
-            individual_file_list.sort(reverse=descending, key=sortFilesByFileSize)
-        elif DATE_ACCESSED in sort_option:
-            directory_list.sort(reverse=descending, key=sortFilesByAccessDate)
-            individual_file_list.sort(reverse=descending, key=sortFilesByAccessDate)
-        elif DATE_MODIFIED in sort_option:
-            directory_list.sort(reverse=descending, key=sortFilesByModifyDate)
-            individual_file_list.sort(reverse=descending, key=sortFilesByModifyDate)
-        elif DATE_CREATED in sort_option: # or DATE_META_MODIFIED in sort_option:
-            directory_list.sort(reverse=descending, key=sortFilesByCreationDate)
-            individual_file_list.sort(reverse=descending, key=sortFilesByCreationDate)
+        meta_data = next(iter(sort_option))
+        descending = False if sort_option[meta_data] == ASCENDING else True
+        sort_meta = (meta_data, descending)
+        
+        if meta_data and meta_data < len(directory_list):
+            directory_list.sort(reverse=descending, key=lambda file: sortFilesByMetaData(file, meta_data))
+        individual_file_list.sort(reverse=descending, key=lambda file: sortFilesByMetaData(file, meta_data))
     
     if directory_list:
         files_meta.extend(directory_list) # [dirs]
@@ -1368,20 +1360,15 @@ def getFileMetaData(files, sort_option = None, root = ''):
     return files_meta
 
 
-### Sort files functions.
-###     (files) A Tuple with the [0]full file path,  [1]file size,       [2]access date,
-###                             [3]modify date      [4]creation date (UNIX: meta data modified date).
+### Custom Sort function using file meta data.
+###     (file) A Tuple with the full file path and various meta data.
+###     (index) The index of which meta data to sort by.
 ###     --> Returns a [String] or [Integer]
-def sortFilesAlphabetically(files):
-    return files[0].name
-def sortFilesByFileSize(files):
-    return files[2]
-def sortFilesByAccessDate(files):
-    return files[3]
-def sortFilesByModifyDate(files):
-    return files[4]
-def sortFilesByCreationDate(files):
-    return files[5]
+def sortFilesByMetaData(file, index):
+    meta_data = file[index] if file[index] else -9999999999999
+    if index == 0: # File Path, Sort By Name Only.
+        meta_data = meta_data.name
+    return meta_data
 
 
 ### Using the edit details create a new file name and try renaming file and updating any linked files.
@@ -1641,9 +1628,9 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             if same_meta_match_index: break
             else: continue # To Match All
         
-        if (select_meta_data == FILE_META_ACCESS
-         or select_meta_data == FILE_META_MODIFY
-         or select_meta_data == FILE_META_CREATE
+        if (select_meta_data == FILE_META_ACCESSED
+         or select_meta_data == FILE_META_MODIFIED
+         or select_meta_data == FILE_META_CREATED
          or select_meta_data == FILE_META_LENGTH
          or select_meta_data == FILE_META_AUDIO_YEAR): # or FILE_META_METADATA
             #print('Time Meta')
@@ -2188,7 +2175,7 @@ def insertTextIntoFileName(file_path, edit_details):
         is_text_list = True if type(insert_text_data.get(TEXT)) == list else False
         if is_text_list:
             text_list_size = len(insert_text_data.get(TEXT))
-    if type(insert_text_data) == list:
+    elif type(insert_text_data) == list:
         is_text_list = True
         text_list_size = len(insert_text_data.get(TEXT))
     else:
@@ -2247,6 +2234,7 @@ def insertTextIntoFileName(file_path, edit_details):
             match_index = 0
         
         #if debug: print('match_index: %s' % match_index)
+        
         insert_text, edit_details = getInsertText(edit_details, match_index)
         
         if type(insert_text) != bool and searchable_match_file_name.find(match_text) > -1 and meta_list_index > -1 :
@@ -2641,7 +2629,7 @@ def updateLogFile(edit_details, log_revert = False):
                         log_files.append(log_file)
                 break
             
-            log_files_meta_sorted = getFileMetaData(log_files, {DATE_MODIFIED : ASCENDING}, root)
+            log_files_meta_sorted = getFileMetaData(log_files, {FILE_META_MODIFIED : ASCENDING}, root)
             
             log_file_amount = len(log_files_meta_sorted)
             if log_file_amount >= log_file_limit:
@@ -2773,12 +2761,12 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                     for name, val in object.items():
                         if name == FILE_META_SIZE:
                             text += new_line + 'By File Size '
-                        elif name == FILE_META_ACCESS:
+                        elif name == FILE_META_ACCESSED:
                             text += new_line + 'By Date Files Last Accessed '
-                        elif name == FILE_META_MODIFY:
+                        elif name == FILE_META_MODIFIED:
                             text += new_line + 'By Date File Last Modified '
-                        elif name == FILE_META_CREATE:
-                            text += new_line + 'By Date File Created '
+                        elif name == FILE_META_CREATED:
+                            text += new_line + 'By Date File (or Meta Data) Created '
                         elif name == FILE_META_TYPE:
                             text += new_line + 'By Meta Data Type (Basic Mime) '
                         elif name == FILE_META_MIME:
@@ -2819,7 +2807,7 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                             text += new_line + 'By Audio Published '
                         elif name == FILE_META_AUDIO_TRACK:
                             text += new_line + 'By Audio Track Number '
-                        if name == FILE_META_ACCESS or name == FILE_META_MODIFY or name == FILE_META_CREATE:
+                        if name == FILE_META_ACCESSED or name == FILE_META_MODIFIED or name == FILE_META_CREATED:
                             if val == EXACT_MATCH:
                                 text += 'Exactly On : '
                             elif val == LOOSE_MATCH:
@@ -2959,7 +2947,6 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                             text += new_line + 'Minimum : ' + str(item[1]) + ' Digits, '
                         if RANDOM_SEED in item:
                             text += new_line + 'Random Seed Used : ' + str(item[1]) + ', '
-                #text = text.rstrip(', ')
                 text = text.strip('\n, ')
                 text = '\n                              OPTIONS : ' + text
             
@@ -2979,19 +2966,57 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
         elif parent_key == PRESORT_FILES:
             if key == ALPHABETICALLY:
                 text = 'Alphabetically '
-            elif key == FILE_SIZE:
+            elif key == FILE_META_SIZE:
                 text = 'By File Size '
-            elif key == DATE_ACCESSED:
-                text = 'By Date Last Accessed '
-            elif key == DATE_MODIFIED:
-                text = 'By Date Last Modified '
-            elif key == DATE_CREATED:
-                text = 'By Date Created '
-            elif key == DATE_META_MODIFIED:
-                text = 'By Date Meta Data Last Modified '
-            if value == ASCENDING:
+            elif key == FILE_META_ACCESSED:
+                text = 'By Date Files Last Accessed '
+            elif key == FILE_META_MODIFIED:
+                text = 'By Date File Last Modified '
+            elif key == FILE_META_CREATED:
+                text = 'By Date File (or Meta Data) Created '
+            elif key == FILE_META_TYPE:
+                text = 'By Meta Data Type (Basic Mime) '
+            elif key == FILE_META_MIME:
+                text = 'By Meta Data Mime '
+            elif key == FILE_META_FORMAT:
+                text = 'By Meta Data Format '
+            elif key == FILE_META_FORMAT_LONG:
+                text = 'By Meta Data Format (Full Name) '
+            elif key == FILE_META_HEIGHT:
+                text = 'By Media\'s Height '
+            elif key == FILE_META_WIDTH:
+                text = 'By Media\'s Width '
+            elif key == FILE_META_LENGTH:
+                text = 'By Media\'s Duration (Time) '
+            elif key == FILE_META_BIT_DEPTH:
+                text = 'By Media\'s Bit Depth '
+            elif key == FILE_META_VIDEO_BITRATE:
+                text = 'By Video Bitrate '
+            elif key == FILE_META_VIDEO_FRAME_RATE:
+                text = 'By Video Frame Rate '
+            elif key == FILE_META_AUDIO_BITRATE:
+                text = 'By Audio Bitrate '
+            elif key == FILE_META_AUDIO_SAMPLE_RATE:
+                text = 'By Audio Sample Rate '
+            elif key == FILE_META_AUDIO_CHANNELS:
+                text = 'By Amount Of Audio Channels '
+            elif key == FILE_META_AUDIO_CHANNEL_LAYOUT:
+                text = 'By Audio Channel Layout '
+            elif key == FILE_META_AUDIO_TITLE:
+                text = 'By Audio Title '
+            elif key == FILE_META_AUDIO_ALBUM:
+                text = 'By Audio Album '
+            elif key == FILE_META_AUDIO_ARTIST:
+                text = 'By Audio Artist '
+            elif key == FILE_META_AUDIO_YEAR:
+                text = 'By Audio Year Released '
+            elif key == FILE_META_AUDIO_PUBLISHER:
+                text = 'By Audio Published '
+            elif key == FILE_META_AUDIO_TRACK:
+                text = 'By Audio Track Number '
+            if ASCENDING in value:
                 text += 'In Ascending Order'
-            elif value == DESCENDING:
+            elif DESCENDING in value:
                 text += 'In Descending Order'
         
         elif parent_key == TRACKED_DATA:
@@ -3087,7 +3112,7 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
 def resetIfMaxed(number, max):
     if max == 1:
         number = 0
-    elif number >= max:
+    if number >= max:
         number = number - max
         number = resetIfMaxed(number, max)
     return number
@@ -3156,7 +3181,7 @@ def drop(files):
         if start_reverting_renames:
             
             # Make sure log files are sorted in order of when the renames were made.
-            files_meta = getFileMetaData(files, {DATE_MODIFIED : DESCENDING})
+            files_meta = getFileMetaData(files, {FILE_META_MODIFIED : DESCENDING})
             
             for log_file in files_meta[0]:
                 revert_files_meta, edit_details = getRenameRevertFilesAndEditDetails(log_file)
