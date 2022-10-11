@@ -56,16 +56,19 @@ This script will rename one or more files either by adding new text or replacing
 
 <br>
 
-`MATCH_FILE_META : { 'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ... }`<br>
+`MATCH_FILE_META : A FILE_META_TYPE or 'Text' to match a FILE_META_MIME`<br>
 *-or-*<br>
-`MATCH_FILE_META : { META : [ {}, {}, ... ], OPTIONS : ["Search Option 1",2,3,...] }`<br>
+`MATCH_FILE_META : { META : [ { 'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ... }, {}, ... ], OPTIONS : ["Search Option 1",2,3,...] }`<br>
 
 > `META` is the file meta data to search for and match before editing a file name. If a match is not made then that file name will not be changed.<br>
->> `FILE_META_SIZE`, `FILE_META_ACCESS`, `FILE_META_MODIFY`, `FILE_META_CREATE`, `FILE_META_METADATA`<br>
->> `EXACT_MATCH`, `LESS_THAN`, `MORE_THAN`, `WITHIN_THE_PAST`, `OLDER_THAN`<br>
+>> `TYPE_APPLICATION`, `TYPE_AUDIO`, `TYPE_FONT`, `TYPE_IMAGE`, `TYPE_MESSAGE`, `TYPE_MODEL`, `TYPE_MULTIPART`, `TYPE_TEXT`, `TYPE_VIDEO TYPE_ARCHIVE`, `TYPE_DOCUMENT`<br>
+>> `FILE_META_SIZE`, `FILE_META_ACCESSED`, `FILE_META_MODIFIED`, `FILE_META_CREATED`(*Windows Only*), `FILE_META_METADATA`(*UNIX*), `FILE_META_TYPE`, `FILE_META_MIME`, `FILE_META_FORMAT`, `FILE_META_FORMAT_LONG`, `FILE_META_HEIGHT`, `FILE_META_WIDTH`, `FILE_META_LENGTH`, `FILE_META_BIT_DEPTH`, `FILE_META_VIDEO_BITRATE`, `FILE_META_VIDEO_FRAME_RATE`, `FILE_META_AUDIO_BITRATE`, `FILE_META_AUDIO_SAMPLE_RATE`, `FILE_META_AUDIO_CHANNELS`, `FILE_META_AUDIO_CHANNEL_LAYOUT`, `FILE_META_AUDIO_TITLE`, `FILE_META_AUDIO_ALBUM`, `FILE_META_AUDIO_ARTIST`, `FILE_META_AUDIO_YEAR`, `FILE_META_AUDIO_GENRE`, `FILE_META_AUDIO_PUBLISHER`, `FILE_META_AUDIO_TRACK`<br>
+>> `EXACT_MATCH`, `LOOSE_MATCH`, `SKIP_EXACT_MATCH`, `SKIP_LOOSE_MATCH` `LESS_THAN`, `MORE_THAN`, `WITHIN_THE_PAST`, `OLDER_THAN`<br>
 >> `YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE` `SECOND`, `MILLISECOND`, `MICROSECOND`, `TIMESTAMP`, `BYTES`, `KB`, `MB`, `GB`, `IN_BYTES_ONLY`<br>
 
 > `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
+>> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
+>> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
 >> `SAME_MATCH_INDEX` is used in combination with the **INSERT_TEXT** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_META** List, the same index from the **INSERT_TEXT** List will be chosen.
 
 <br>
@@ -124,18 +127,14 @@ This script will rename one or more files either by adding new text or replacing
 
 <br>
 
-`PRESORT_FILES : { "Sort Option" : ASCENDING or DESCENDING }`<br>
+`PRESORT_FILES : { "File Meta Data" : ASCENDING or DESCENDING }`<br>
 
-> Sort before renaming files. Default: None<br>All current sort options are listed below:<br>
+> Sort before renaming files using the file's meta data. Default: None<br>All current sort options are listed below:<br>
 
 >> `ASCENDING` sort in order of 0-9, A-Z [*Default*]<br>
 >> `DESCENDING` sort in order of 9-0, Z-A<br>
->> `ALPHABETICALLY` sort file names in alphabetical order. [*Default*]<br>
->> `FILE_SIZE` sort by file size in bytes.<br>
->> `DATE_ACCESSED` sort by date file last opened.<br>
->> `DATE_MODIFIED` sort by date file last changed.<br>
->> `DATE_CREATED` sort by date file created. (*Windows Only*)<br>
->> `DATE_META_MODIFIED` sort by file meta data last updated. (*UNIX*)
+>> `ALPHABETICALLY` or `FILE_NAME` sort file names in alphabetical order. [*Default*]<br>
+>> `FILE_META_SIZE`, `FILE_META_ACCESSED`, `FILE_META_MODIFIED`, `FILE_META_CREATED`(*Windows Only*), `FILE_META_METADATA`(*UNIX*), `FILE_META_TYPE`, `FILE_META_MIME`, `FILE_META_FORMAT`, `FILE_META_FORMAT_LONG`, `FILE_META_HEIGHT`, `FILE_META_WIDTH`, `FILE_META_LENGTH`, `FILE_META_BIT_DEPTH`, `FILE_META_VIDEO_BITRATE`, `FILE_META_VIDEO_FRAME_RATE`, `FILE_META_AUDIO_BITRATE`, `FILE_META_AUDIO_SAMPLE_RATE`, `FILE_META_AUDIO_CHANNELS`, `FILE_META_AUDIO_CHANNEL_LAYOUT`, `FILE_META_AUDIO_TITLE`, `FILE_META_AUDIO_ALBUM`, `FILE_META_AUDIO_ARTIST`, `FILE_META_AUDIO_YEAR`, `FILE_META_AUDIO_GENRE`, `FILE_META_AUDIO_PUBLISHER`, `FILE_META_AUDIO_TRACK`
 
 <br>
 
