@@ -9,7 +9,7 @@ Batch File Renamer by JDHatten
     Replacing text will replace the first or all instances of matched text in a file name including the extension.
     Renaming will just rename the entire file, but an iterating number or some other modify option should be used.
     
-    Extra Features: 
+    Extra Features:
     - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps
       that use the those files.
     - Revert any file name changes by dropping the generated log file back into the script.
@@ -18,6 +18,14 @@ Batch File Renamer by JDHatten
 Usage:
     Simply drag and drop one or more files or directories onto the script. Create your own custom presets for more
     complex renaming tasks.
+
+To search and insert meta data from files ffmpeg-python and filetype packages are required:
+    - https://github.com/kkroening/ffmpeg-python
+    - https://github.com/h2non/filetype.py
+
+Install Via Pip:
+    pip install ffmpeg-python
+    pip install filetype
 
 TODO:
     [] Rename directories too
@@ -43,11 +51,13 @@ TODO:
         [X] Find specific file name extensions and only change (or add to) the extension
         [X] Generate random characters that can be added to file names.
         [X] A List of Strings to search for or add to file names.
+        [X] Add file meta data to file names.
         [] Make use of regular expressions.
 '''
 
 
 from datetime import datetime
+from datetime import timedelta
 try:
     import ffmpeg
     ffmpeg_installed = True
@@ -189,30 +199,32 @@ FILE_META_AUDIO_PUBLISHER = 24      # DATA : 'Text'
 FILE_META_AUDIO_TRACK = 25          # DATA : Number
 
 ### META_MATCH
-EXACT_MATCH = 100       # An exact perfect match of a entire piece of text or number.
-LOOSE_MATCH = 101       # A close but not exact match. This will match any part of a larger piece of text or if a number, match within a 5% range.
-SKIP_EXACT_MATCH = 102  # Skip renaming files that exactly match the meta data.
-SKIP_LOOSE_MATCH = 103  # Skip renaming files that loosely match the meta data.
-                        # Note: If using a list and SAME_MATCH_INDEX take note of the order of skipped data. For example if you always want to skip matched data, then make sure its added first.
-LESS_THAN = 104         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
-MORE_THAN = 105         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
-WITHIN_THE_PAST = 104   # A Date/Time
-OLDER_THAN = 105        # A Date/Time
+EXACT_MATCH = 50       # An exact perfect match of a entire piece of text or number.
+LOOSE_MATCH = 51       # A close but not exact match. This will match any part of a larger piece of text or if a number, match within a 5% range.
+SKIP_EXACT_MATCH = 52  # Skip renaming files that exactly match the meta data.
+SKIP_LOOSE_MATCH = 53  # Skip renaming files that loosely match the meta data.
+                       # Note: If using a list and SAME_MATCH_INDEX take note of the order of skipped data. For example if you always want to skip matched data, then make sure its added first.
+LESS_THAN = 54         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
+MORE_THAN = 55         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
+BEFORE = 54            # A Date (Same as LESS_THAN)
+AFTER = 55             # A Date (Same as MORE_THAN)
+WITHIN_THE_PAST = 56   # A Length of Time
+OLDER_THAN = 57        # A Length of Time
 
 ### File Types (MIME)
-TYPE_APPLICATION = 0    # This is basically everything not categorized below.
-TYPE_AUDIO = 2          # Some examples files: .aac .mp3 .ogg
-TYPE_FONT = 4           # Some examples files: .otf .ttf .woff
-TYPE_IMAGE = 5          # Some examples files: .bmp .jpg .png
-TYPE_MESSAGE = 6        # Some examples files: .cl .u8hdr .wsc  (Uncommon)
-TYPE_MODEL = 7          # Some examples files: .obj .usd .x3dv  (Uncommon)
-TYPE_MULTIPART = 8      # Some examples files: .vpm .bmed       (Uncommon)
-TYPE_TEXT = 9           # Some examples files: .cvs .html .txt
-TYPE_VIDEO = 10         # Some examples files: .flv .mp4 .mpeg
+TYPE_APPLICATION = 100   # This is basically everything not categorized below.
+TYPE_AUDIO = 102         # Some examples files: .aac .mp3 .ogg
+TYPE_FONT = 104          # Some examples files: .otf .ttf .woff
+TYPE_IMAGE = 105         # Some examples files: .bmp .jpg .png
+TYPE_MESSAGE = 106       # Some examples files: .cl .u8hdr .wsc  (Uncommon)
+TYPE_MODEL = 107         # Some examples files: .obj .usd .x3dv  (Uncommon)
+TYPE_MULTIPART = 108     # Some examples files: .vpm .bmed       (Uncommon)
+TYPE_TEXT = 109          # Some examples files: .cvs .html .txt
+TYPE_VIDEO = 110         # Some examples files: .flv .mp4 .mpeg
 
 ### Categorized Application Types (MIME) (not a complete list)
-TYPE_ARCHIVE = 1        # Some examples files: .7z .rar .zip
-TYPE_DOCUMENT = 3       # Some examples files: .doc .potx .xlsx
+TYPE_ARCHIVE = 101       # Some examples files: .7z .rar .zip
+TYPE_DOCUMENT = 103      # Some examples files: .doc .potx .xlsx
 
 ### Date and Time
 YEAR = 200
@@ -240,7 +252,6 @@ GIGABYTE = 1024 * 1024 * 1024
 ### Other
 DATA = 400
 
-
 ### Search Options
 MATCH_CASE = 0          # Case sensitive search. [Default]
 NO_MATCH_CASE = 1       # Not a case sensitive search.
@@ -258,18 +269,17 @@ EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLA
 REGEX = 11              ## TODO: Regular Expressions
 
 ### Modify Options
-COUNT = 20              # Iterate a number that is added to a file name. (Starting Number, Ending Number) Ending number is optional.
+COUNT = 20              # Iterate a number that is added to a file name.  {TEXT: ('Text', (Starting Number, Ending Number), 'Text')} "Ending number is optional."
                         # NOTE: Resets after each directory change.
 COUNT_TO = 21           # Max amount of renames to make before stopping. Similar to COUNT's ending number without adding an iterating number to a file name.
 MINIMUM_DIGITS = 23     # Minimum digits for any dynamic text used, i.e. 3 = 003
 RANDOM_NUMBERS = 24     # Generate random numbers.              (All random generators can be used together.)
 RANDOM_LETTERS = 25     # Generate random letters.              (Edit which characters randomly selected in below varaibles "list_leters")
-RANDOM_SPECIALS = 26    # Generate random special characters.   ('text', Random String Length, 'text')
+RANDOM_SPECIALS = 26    # Generate random special characters.   {TEXT: ('Text', Random String Length, 'Text')}
 RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) characters.
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
-#REPEAT_TEXT_LIST = 29   # Once the end of a text list is reached, repeat it.  Text should be dynamic, i.e. COUNT, RANDOM_NUMBERS, etc.
 NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
-INSERT_META_DATA = 30   ## TODO: ('Text', TIME/HEIGHT/WIDTH/LENGTH/FILE_SIZE?, 'Text')
+INSERT_META_DATA = 30   # Obtain specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
 
 ### Placement Options
 START = 40              # Place at the start of...
@@ -278,7 +288,7 @@ END = 41                # Place at the end of... [Default]
 RIGHT = 41              # Place at the right of...
 BOTH = 42               # Place at both sides of...
 BOTH_ENDS = 42          # Place at both ends of...
-
+                        # {..., PLACEMENT: (END, OF_FILE_NAME)}
 OF_FILE_NAME = 50       # Placed at file name minus extension [Default]
 OF_MATCH = 51           # Placed at one or more matches found
 
@@ -308,6 +318,11 @@ no_repeat_random_chars = False          # Ex. True = 13254, False = 13223
 reset_random_seed = True                # Reset random seed after each directory change.
 letter_cases = LOWER_AND_UPPER          # Use list_leters "and/or" list_capital_leters
 
+### The format of a date and time from a file's meta data that could be inserted into a file name.
+### https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
+date_time_fomat = '%Y-%m-%d %H.%M.%S'       # Ex. 2022-10-07 18.34.29
+time_length_format = '{:02}.{:02}.{:02}'    # Ex. 01.07.09
+
 ### Create a log file for each rename task ran, and include edit details or preset used.
 ### Directory name can be relative to this script or an absolute path.
 ### The amount of log files created can be limited from 0 to NO_LIMIT.
@@ -325,7 +340,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 23
+selected_preset = 25
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -492,12 +507,12 @@ preset23 = {
   EDIT_TYPE         : RENAME,
   MATCH_TEXT        : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  #MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
-  #                                      { FILE_META_CREATED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 31 },
-  #                                      { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
-  #                                      { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
-  #                      OPTIONS     : [ SAME_MATCH_INDEX ] },
-  MATCH_FILE_META   : 'text/pl',# or TYPE_TEXT,
+  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
+                                        { FILE_META_CREATED : BEFORE, YEAR : 2022, MONTH : 8, DAY : 31 },
+                                        { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
+                                        { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
+                        OPTIONS     : [ SAME_MATCH_INDEX ] },
+  #MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] },
   PRESORT_FILES     : { FILE_META_WIDTH : ASCENDING }
@@ -512,10 +527,19 @@ preset24 = {
   INSERT_TEXT       : { TEXT        : [ ('Video-(', 4, ')'), ('Video-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, NO_REPEAT_TEXT_LIST ] }
 }
+preset25 = {
+  EDIT_TYPE         : ADD,
+  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO } ],
+                        OPTIONS     : [ NO_MATCH_CASE ] },
+  INSERT_TEXT       : { TEXT        :  ( ' (', FILE_META_HEIGHT, 'p) (', FILE_META_LENGTH, ')' ),
+                        OPTIONS     : [ INSERT_META_DATA ],
+                        PLACEMENT   : ( END, OF_FILE_NAME ) },
+  PRESORT_FILES     : { FILE_META_HEIGHT : DESCENDING }
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23,preset24]
+                  preset21,preset22,preset23,preset24,preset25]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -608,6 +632,7 @@ def displayPreset(presets, number = -1, log_preset = False):
     log_lines = [] if log_preset else None
     
     if type(presets) == list and number == -1:
+        preset_size = len(presets)
         for ps in presets:
             number += 1
             if not log_preset: print('\nPreset %s' % str(number))
@@ -615,13 +640,14 @@ def displayPreset(presets, number = -1, log_preset = False):
                 opt_str = intToStrText(option, 'Preset Options')
                 mod_str = ''
                 if type(mod) == dict:
+                    is_insert_meta_data = INSERT_META_DATA in getOptions(mod)
                     for key, value in mod.items():
-                        mod_str += intToStrText(key, value, option)
+                        mod_str += intToStrText(key, value, option, is_insert_meta_data)
                 else:
                     mod_str = intToStrText(None, mod, option)
                 if not log_preset: print('    %s : %s' % (opt_str, mod_str))
             
-            if math.remainder(number, 5) == 0 and number != 0:
+            if math.remainder(number, 5) == 0 and number != 0 and number < preset_size - 2:
                 input('Show More...')
     
     else:
@@ -634,8 +660,9 @@ def displayPreset(presets, number = -1, log_preset = False):
             opt_str = intToStrText(option, 'Preset Options')
             mod_str = ''
             if type(mod) == dict:
+                is_insert_meta_data = INSERT_META_DATA in getOptions(mod)
                 for key, value in mod.items():
-                    mod_str += intToStrText(key, value, option)
+                    mod_str += intToStrText(key, value, option, is_insert_meta_data)
             else:
                 mod_str = intToStrText(None, mod, option)
             if log_preset:
@@ -872,9 +899,9 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
     
     soft_rename_limit = edit_details_copy.get(SOFT_RENAME_LIMIT, NO_LIMIT)
     hard_rename_limit = edit_details_copy.get(HARD_RENAME_LIMIT, NO_LIMIT)
-    modify_options = getOptions(edit_details_copy[INSERT_TEXT])
     search_options = getOptions(edit_details_copy.get(MATCH_TEXT, ''))
     search_meta_options = getOptions(edit_details_copy.get(MATCH_FILE_META, None))
+    modify_options = getOptions(edit_details_copy[INSERT_TEXT])
     
     same_match_index = SAME_MATCH_INDEX in search_options or SAME_MATCH_INDEX in search_meta_options
     
@@ -1116,6 +1143,10 @@ def getFileMetaData(files, sort_option = None, root = ''):
         if Path.exists(file_path):
             file_meta = os.stat(file_path)
             
+            format_short, format_long, height, width, duration, bit_depth = None,None,None,None,None,None
+            video_bit_rate, frame_rate, audio_bit_rate, sample_rate, channels, channel_layout = None,None,None,None,None,None
+            title, album, artist, date, genre, publisher, track_number = None,None,None,None,None,None,None
+            
             if ffmpeg_installed and filetype_installed:
                 if debug: print(file_path)
                 try:
@@ -1134,20 +1165,9 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     is_presentation = None
                     is_spead_sheet = None
                 except:
-                    file_type = None
-                    is_audio = None
-                    is_font = None
-                    is_image = None
-                    is_video = None
-                    is_app = None
-                    is_message = None
-                    is_model = None
-                    is_multipart = None
-                    is_text = None
-                    is_archive = None
-                    is_doc = None
-                    is_presentation = None
-                    is_spead_sheet = None
+                    if debug: print('-FileType Failed')
+                    file_type, is_audio, is_font, is_image, is_video, is_app, is_message = None,None,None,None,None,None,None
+                    is_model, is_multipart, is_text, is_archive, is_doc, is_presentation, is_spead_sheet = None,None,None,None,None,None,None
                 
                 mime_type = mimetypes.guess_type(file_path)
                 
@@ -1182,7 +1202,6 @@ def getFileMetaData(files, sort_option = None, root = ''):
                 if file_meta_mime:
                     
                     file_type_basic = file_meta_mime.split('/')[0]
-                    #print(file_type_basic)
                     
                     # Basic Types
                     if file_type_basic == 'application':
@@ -1209,7 +1228,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                         file_meta_type = TYPE_ARCHIVE
                     if file_type_basic in document_mimes:
                         file_meta_type = TYPE_DOCUMENT
-                    
+                
                 if debug:
                     # Basic Types
                     is_app = file_type_basic == 'application'
@@ -1226,7 +1245,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     if not is_archive:
                         is_archive = file_meta_mime in archive_mimes
                     is_doc = file_meta_mime in document_mimes
-                
+                    
                     print('file_meta_type: %s' % file_meta_type)
                     print('file_meta_mime: %s' % file_meta_mime)
                     print('is_app: %s' % is_app)
@@ -1250,10 +1269,6 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     if debug:
                         #print(e.stderr)
                         print('-Probe Failed')
-                
-                format_short, format_long, height, width, duration, bit_depth = None,None,None,None,None,None
-                video_bit_rate, frame_rate, audio_bit_rate, sample_rate, channels, channel_layout = None,None,None,None,None,None
-                title, album, artist, date, genre, publisher, track_number = None,None,None,None,None,None,None
                 
                 if probe:
                     stream = probe.get('streams')
@@ -1520,8 +1535,8 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
     #match_file_meta_list = getMeta(match_file_meta_data)
     #match_file_meta_options = getOptions(match_file_meta_data)
     #file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
-    same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
     no_match_case = NO_MATCH_CASE in match_file_meta_options
+    same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
     
     meta_list_index, i = -1, -1
     for meta_data in match_file_meta_list:
@@ -1547,7 +1562,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             #print('Size Meta')
             file_meta_size = file_meta_data[select_meta_data]
             
-            # Serarate file size out into GB / MB / KB / Bytes
+            # Separate file size out into GB / MB / KB / Bytes
             file_gb, file_mb, file_kb, file_bytes = file_meta_size,file_meta_size,file_meta_size,file_meta_size
             if file_meta_size > GIGABYTE:
                 file_gb = math.floor(file_meta_size / GIGABYTE)
@@ -1721,11 +1736,19 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
                     if time_length < match_time_delta_high and time_length > match_time_delta_low:
                         match_skipped = True
             
-            elif how_to_match == WITHIN_THE_PAST: # or LESS_THAN
+            elif how_to_match == BEFORE: # or LESS_THAN
+                if match_time_delta < file_meta_timestamp:
+                    match_failed = True
+            
+            elif how_to_match == AFTER: # or MORE_THAN
+                if match_time_delta > file_meta_timestamp:
+                    match_failed = True
+            
+            elif how_to_match == WITHIN_THE_PAST:
                 if timestamp_now - file_meta_timestamp > match_time_delta:
                     match_failed = True
             
-            elif how_to_match == OLDER_THAN: # or MORE_THAN
+            elif how_to_match == OLDER_THAN:
                 if timestamp_now - file_meta_timestamp < match_time_delta:
                     match_failed = True
             
@@ -1798,7 +1821,6 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
                 match_meta_number_high = match_meta_number + (match_meta_number * 0.05)
                 match_meta_number_low = match_meta_number - (match_meta_number * 0.05)
-                #print('LOOSE_MATCH: %s <> %s <> %s' % (match_meta_number_high, file_meta_number, match_meta_number_low))
                 
                 if how_to_match == LOOSE_MATCH:
                     if file_meta_number > match_meta_number_high or file_meta_number < match_meta_number_low:
@@ -2047,7 +2069,6 @@ def getInsertText(edit_details, list_index = -1):
                 
                 else:
                     insert_text = False
-                    #print('A max count limit hit.')
             
             elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
                 
@@ -2057,11 +2078,30 @@ def getInsertText(edit_details, list_index = -1):
                 
                 edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
             
+            elif INSERT_META_DATA in modify_options:
+                
+                file_meta_data = tracked_data.get(CURRENT_FILE_META)
+                
+                text = ''
+                for meta_type in insert_text[list_index]:
+                    if type(meta_type) == str:
+                        text += meta_type
+                    else:
+                        if len(file_meta_data) > meta_type:
+                            meta_data = file_meta_data[meta_type]
+                        text += formatMetaData(meta_data, meta_type)
+                
+                if text == '':
+                    insert_text = False
+                else:
+                    insert_text = text
+            
             elif REGEX in modify_options: ## TODO
                 print('TODO REGEX')
+                insert_text = False
             
             else:
-                print('/nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
+                print('\nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
                 insert_text = False
         
         else: # Plain Text
@@ -2074,9 +2114,82 @@ def getInsertText(edit_details, list_index = -1):
         if insert_text != '' and insert_text.find('.') != 0:
             insert_text = '.'+insert_text # Add a '.' if missing
     
-    #print(insert_text)
+    #if debug: print(insert_text)
     
     return insert_text, edit_details
+
+
+### Turn file meta data into formatted text to insert into a file name.
+###     (meta_data) File meta data that is either text or a number.
+###     (type) The type of meta data will determine how it is formatted.
+###     --> Returns a [String]
+def formatMetaData(meta_data, type):
+    text = ''
+    
+    # File Size
+    if type == FILE_META_SIZE: ## TODO: in Bytes, MB...?
+        text = str(meta_data)
+    
+    # Integer to Text
+    elif type == FILE_META_TYPE:
+        if meta_data == TYPE_APPLICATION:
+            text = 'Application'
+        elif meta_data == TYPE_AUDIO:
+            text = 'Audio'
+        elif meta_data == TYPE_FONT:
+            text = 'Font'
+        elif meta_data == TYPE_IMAGE:
+            text = 'Image'
+        elif meta_data == TYPE_MESSAGE:
+            text = 'Message'
+        elif meta_data == TYPE_MODEL:
+            text = 'Model'
+        elif meta_data == TYPE_MULTIPART:
+            text = 'Multipart'
+        elif meta_data == TYPE_TEXT:
+            text = 'Text'
+        elif meta_data == TYPE_VIDEO:
+            text = 'Video'
+        elif meta_data == TYPE_ARCHIVE:
+            text = 'Archive'
+        elif meta_data == TYPE_DOCUMENT:
+            text = 'Document'
+    
+    # Date
+    elif type == FILE_META_ACCESSED or type == FILE_META_MODIFIED or type == FILE_META_CREATED: # or FILE_META_METADATA
+        if meta_data:
+            file_meta_date_time = datetime.fromtimestamp(float(meta_data))
+            text = file_meta_date_time.strftime(date_time_fomat)
+    
+    # Time
+    elif type == FILE_META_LENGTH and meta_data:
+        file_meta_date_time = timedelta(seconds=float(meta_data)).seconds
+        text = time_length_format.format(file_meta_date_time // 3600, file_meta_date_time % 3600 // 60, file_meta_date_time % 60)
+    
+    # Text
+    elif (type == FILE_META_MIME          or type == FILE_META_FORMAT         or type == FILE_META_FORMAT_LONG
+       or type == FILE_META_AUDIO_TITLE   or type == FILE_META_AUDIO_ALBUM    or type == FILE_META_AUDIO_CHANNEL_LAYOUT
+       or type == FILE_META_AUDIO_ARTIST  or type == FILE_META_AUDIO_GENRE    or type == FILE_META_AUDIO_PUBLISHER):
+        text = str(meta_data)
+        illegal_characters = list('\\|:"<>/?')
+        for char in illegal_characters:
+            if char == '"':
+                text = text.replace(char, "'")
+            if char == ':' or char == '?':
+                text = text.replace(char, '.')
+            if char == '<' or char == '>':
+                text = text.replace(char, '_')
+            else:
+                text = text.replace(char, '-')
+    
+    # Number
+    elif (type == FILE_META_HEIGHT          or type == FILE_META_WIDTH          or type == FILE_META_BIT_DEPTH
+       or type == FILE_META_VIDEO_BITRATE   or type == FILE_META_AUDIO_BITRATE  or type == FILE_META_VIDEO_FRAME_RATE
+       or type == FILE_META_AUDIO_CHANNELS  or type == FILE_META_AUDIO_YEAR     or type == FILE_META_AUDIO_SAMPLE_RATE
+       or type == FILE_META_AUDIO_TRACK):
+        text = str(meta_data)
+    
+    return text
 
 
 ### Get random characters to be used in creating a new file name.
@@ -2159,6 +2272,7 @@ def insertTextIntoFileName(file_path, edit_details):
     match_text = edit_details.get(MATCH_TEXT, '')
     ignore_text = edit_details.get(IGNORE_TEXT, None)
     file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
+    
     match_file_meta_data = edit_details.get(MATCH_FILE_META, None)
     match_file_meta_list = getMeta(match_file_meta_data)
     match_file_meta_options = getOptions(match_file_meta_data)
@@ -2712,7 +2826,7 @@ def getUserPresetSelection(string_num):
 ###     (value) Option value
 ###     (parent_key) The Parent Option's key 
 ###     --> Returns a [String] 
-def intToStrText(key, value, parent_key = None): ## TODO: option to read back preset dictionary exactly as is.
+def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ## TODO: option to read back preset dictionary exactly as is.
     if type(value) != list and type(value) != tuple:
         value = [value]
     text = str(value)
@@ -2748,162 +2862,119 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                 text = 'Data That Is Tracked   '
         
         if (parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == MATCH_FILE_CONTENTS
-         or parent_key == MATCH_FILE_META or key == MATCH_FILE_META or parent_key == INSERT_TEXT):
+         or parent_key == MATCH_FILE_META or parent_key == INSERT_TEXT):
+            
+            if type(value) != list:
+                value = [value]
+            
             if key == TEXT:
-                text = 'TEXT : ' + str(value)
+                text = 'TEXT : '# + str(value)
+                
+                if parent_key == INSERT_TEXT:
+                    text += '['
+                    for val in value:
+                        if type(val) == tuple:
+                            if is_insert_meta_data:
+                                for v in val:
+                                    if type(v) == int:
+                                        text += getMetaDataStr(v).strip('By ')+', ' ##TODO get the var name as is instead formated text?
+                                    else:
+                                        text += '\''+str(v)+'\', '
+                            else:
+                                text += str(val)+', '
+                        else:
+                            text += '\''+str(val)+'\', '
+                    text = text.rstrip(', ')
+                    text += ']'
+                else:
+                    text += str(value)
+            
             if key == META:
                 text = 'META : '# + str(value)
-                if type(value) != list:
-                    value = [value]
-            new_line = ''
-            for object in value:
-                if type(object) == dict:
-                    for name, val in object.items():
-                        if name == FILE_META_SIZE:
-                            text += new_line + 'By File Size '
-                        elif name == FILE_META_ACCESSED:
-                            text += new_line + 'By Date Files Last Accessed '
-                        elif name == FILE_META_MODIFIED:
-                            text += new_line + 'By Date File Last Modified '
-                        elif name == FILE_META_CREATED:
-                            text += new_line + 'By Date File (or Meta Data) Created '
-                        elif name == FILE_META_TYPE:
-                            text += new_line + 'By Meta Data Type (Basic Mime) '
-                        elif name == FILE_META_MIME:
-                            text += new_line + 'By Meta Data Mime '
-                        elif name == FILE_META_FORMAT:
-                            text += new_line + 'By Meta Data Format '
-                        elif name == FILE_META_FORMAT_LONG:
-                            text += new_line + 'By Meta Data Format (Full Name) '
-                        elif name == FILE_META_HEIGHT:
-                            text += new_line + 'By Media\'s Height '
-                        elif name == FILE_META_WIDTH:
-                            text += new_line + 'By Media\'s Width '
-                        elif name == FILE_META_LENGTH:
-                            text += new_line + 'By Media\'s Duration (Time) '
-                        elif name == FILE_META_BIT_DEPTH:
-                            text += new_line + 'By Media\'s Bit Depth '
-                        elif name == FILE_META_VIDEO_BITRATE:
-                            text += new_line + 'By Video Bitrate '
-                        elif name == FILE_META_VIDEO_FRAME_RATE:
-                            text += new_line + 'By Video Frame Rate '
-                        elif name == FILE_META_AUDIO_BITRATE:
-                            text += new_line + 'By Audio Bitrate '
-                        elif name == FILE_META_AUDIO_SAMPLE_RATE:
-                            text += new_line + 'By Audio Sample Rate '
-                        elif name == FILE_META_AUDIO_CHANNELS:
-                            text += new_line + 'By Amount Of Audio Channels '
-                        elif name == FILE_META_AUDIO_CHANNEL_LAYOUT:
-                            text += new_line + 'By Audio Channel Layout '
-                        elif name == FILE_META_AUDIO_TITLE:
-                            text += new_line + 'By Audio Title '
-                        elif name == FILE_META_AUDIO_ALBUM:
-                            text += new_line + 'By Audio Album '
-                        elif name == FILE_META_AUDIO_ARTIST:
-                            text += new_line + 'By Audio Artist '
-                        elif name == FILE_META_AUDIO_YEAR:
-                            text += new_line + 'By Audio Year Released '
-                        elif name == FILE_META_AUDIO_PUBLISHER:
-                            text += new_line + 'By Audio Published '
-                        elif name == FILE_META_AUDIO_TRACK:
-                            text += new_line + 'By Audio Track Number '
-                        if name == FILE_META_ACCESSED or name == FILE_META_MODIFIED or name == FILE_META_CREATED:
-                            if val == EXACT_MATCH:
-                                text += 'Exactly On : '
-                            elif val == LOOSE_MATCH:
-                                text += 'Around (Give or Take) : '
-                            elif val == SKIP_EXACT_MATCH:
-                                text += 'Skip If On : '
-                            elif val == SKIP_LOOSE_MATCH:
-                                text += 'Skip If Around (Give or Take) : '
-                            elif val == WITHIN_THE_PAST:
-                                text += 'Within The Past : '
-                            elif val == OLDER_THAN:
-                                text += 'Older Than : '
-                        elif name == FILE_META_TYPE:
-                            text += ': '
-                        elif (name == FILE_META_MIME or name == FILE_META_FORMAT or name == FILE_META_FORMAT_LONG or name == FILE_META_AUDIO_CHANNEL_LAYOUT
-                         or name == FILE_META_AUDIO_TITLE or name == FILE_META_AUDIO_ALBUM or name == FILE_META_AUDIO_ARTIST or name == FILE_META_AUDIO_YEAR
-                         or name == FILE_META_AUDIO_GENRE or name == FILE_META_AUDIO_PUBLISHER or name == FILE_META_AUDIO_TRACK):
-                            if val == EXACT_MATCH:
-                                text += 'Exactly Matching : '
-                            elif val == LOOSE_MATCH:
-                                text += 'With The Text : '
-                            elif val == SKIP_EXACT_MATCH:
-                                text += 'Skip If Exact Match Found : '
-                            elif val == SKIP_LOOSE_MATCH:
-                                text += 'Skip If This Text Found : '
-                            elif val == LESS_THAN:
-                                text += 'Less Than : '
-                            elif val == MORE_THAN:
-                                text += 'More Than : '
-                        else:
-                            if val == EXACT_MATCH:
-                                text += 'At Exactly : '
-                            elif val == LOOSE_MATCH:
-                                text += 'Around (Give or Take) : '
-                            elif val == SKIP_EXACT_MATCH:
-                                text += 'Skip At : '
-                            elif val == SKIP_LOOSE_MATCH:
-                                text += 'Skip If Around (Give or Take) : '
-                            elif val == LESS_THAN:
-                                text += 'Less Than : '
-                            elif val == MORE_THAN:
-                                text += 'More Than : '
-                        if name == DATA:
-                            if val == TYPE_APPLICATION:
-                                text += 'Application '
-                            elif val == TYPE_AUDIO:
-                                text += 'Audio '
-                            elif val == TYPE_FONT:
-                                text += 'Font '
-                            elif val == TYPE_IMAGE:
-                                text += 'Image '
-                            elif val == TYPE_MESSAGE:
-                                text += 'Message '
-                            elif val == TYPE_MODEL:
-                                text += 'Model '
-                            elif val == TYPE_MULTIPART:
-                                text += 'Multipart '
-                            elif val == TYPE_TEXT:
-                                text += 'Text '
-                            elif val == TYPE_VIDEO:
-                                text += 'Video '
-                            elif val == TYPE_ARCHIVE:
-                                text += 'Archive '
-                            elif val == TYPE_DOCUMENT:
-                                text += 'Document '
+                
+                new_line = ''
+                for object in value:
+                    if type(object) == dict:
+                        for name, val in object.items():
+                            text += getMetaDataStr(name, new_line)
+                            if name == FILE_META_ACCESSED or name == FILE_META_MODIFIED or name == FILE_META_CREATED:
+                                if val == EXACT_MATCH:
+                                    text += 'Exactly On : '
+                                elif val == LOOSE_MATCH:
+                                    text += 'Around (Give or Take) : '
+                                elif val == SKIP_EXACT_MATCH:
+                                    text += 'Skip If On : '
+                                elif val == SKIP_LOOSE_MATCH:
+                                    text += 'Skip If Around (Give or Take) : '
+                                elif val == WITHIN_THE_PAST:
+                                    text += 'Within The Past : '
+                                elif val == OLDER_THAN:
+                                    text += 'Older Than : '
+                            elif name == FILE_META_TYPE:
+                                text += ': '
+                            elif (name == FILE_META_MIME or name == FILE_META_FORMAT or name == FILE_META_FORMAT_LONG or name == FILE_META_AUDIO_CHANNEL_LAYOUT
+                             or name == FILE_META_AUDIO_TITLE or name == FILE_META_AUDIO_ALBUM or name == FILE_META_AUDIO_ARTIST or name == FILE_META_AUDIO_YEAR
+                             or name == FILE_META_AUDIO_GENRE or name == FILE_META_AUDIO_PUBLISHER or name == FILE_META_AUDIO_TRACK):
+                                if val == EXACT_MATCH:
+                                    text += 'Exactly Matching : '
+                                elif val == LOOSE_MATCH:
+                                    text += 'With The Text : '
+                                elif val == SKIP_EXACT_MATCH:
+                                    text += 'Skip If Exact Match Found : '
+                                elif val == SKIP_LOOSE_MATCH:
+                                    text += 'Skip If This Text Found : '
+                                elif val == LESS_THAN:
+                                    text += 'Less Than : '
+                                elif val == MORE_THAN:
+                                    text += 'More Than : '
                             else:
-                                text += str(val) + ' '
-                        if name == GB:
-                            text += str(val) + ' Gigabytes, '
-                        elif name == MB:
-                            text += str(val) + ' Megabytes, '
-                        elif name == KB:
-                            text += str(val) + ' Kilobytes, '
-                        elif name == BYTES:
-                            text += str(val) + ' Bytes'
-                        elif name == IN_BYTES_ONLY:
-                            text += str(val) + ' Bytes Only'
-                        if name == YEAR:
-                            text += 'Year: ' + str(val) + ', '
-                        if name == MONTH:
-                            text += 'Month: ' + str(val) + ', '
-                        if name == DAY:
-                            text += 'Day: ' + str(val) + ', '
-                        if name == HOUR:
-                            text += 'Hour: ' + str(val) + ', '
-                        if name == MINUTE:
-                            text += 'Minute: ' + str(val) + ', '
-                        if name == SECOND:
-                            text += 'Second: ' + str(val) + ', '
-                        if name == MILLISECOND:
-                            text += 'Millasecond: ' + str(val) + ' '
-                        if name == MICROSECOND:
-                            text += 'Microsecond: ' + str(val) + ' '
-                    new_line = '\n                                     '
-                    text = text.rstrip(', ')
-                    #text += ' }'
+                                if val == EXACT_MATCH:
+                                    text += 'At Exactly : '
+                                elif val == LOOSE_MATCH:
+                                    text += 'Around (Give or Take) : '
+                                elif val == SKIP_EXACT_MATCH:
+                                    text += 'Skip At : '
+                                elif val == SKIP_LOOSE_MATCH:
+                                    text += 'Skip If Around (Give or Take) : '
+                                elif val == LESS_THAN:
+                                    text += 'Less Than : '
+                                elif val == MORE_THAN:
+                                    text += 'More Than : '
+                            if name == DATA:
+                                type_str = getMetaDataStr(val)
+                                if type_str == '':
+                                    text += str(val) + ' '
+                                else:
+                                    text += type_str
+                            if name == GB:
+                                text += str(val) + ' Gigabytes, '
+                            elif name == MB:
+                                text += str(val) + ' Megabytes, '
+                            elif name == KB:
+                                text += str(val) + ' Kilobytes, '
+                            elif name == BYTES:
+                                text += str(val) + ' Bytes'
+                            elif name == IN_BYTES_ONLY:
+                                text += str(val) + ' Bytes Only'
+                            if name == YEAR:
+                                text += 'Year: ' + str(val) + ', '
+                            if name == MONTH:
+                                text += 'Month: ' + str(val) + ', '
+                            if name == DAY:
+                                text += 'Day: ' + str(val) + ', '
+                            if name == HOUR:
+                                text += 'Hour: ' + str(val) + ', '
+                            if name == MINUTE:
+                                text += 'Minute: ' + str(val) + ', '
+                            if name == SECOND:
+                                text += 'Second: ' + str(val) + ', '
+                            if name == MILLISECOND:
+                                text += 'Millasecond: ' + str(val) + ' '
+                            if name == MICROSECOND:
+                                text += 'Microsecond: ' + str(val) + ' '
+                        new_line = '\n                                     '
+                        text = text.rstrip(', ')
+                        #text += ' }'
             
             if key == OPTIONS:
                 text = ''
@@ -2915,7 +2986,7 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                 if SEARCH_FROM_RIGHT in value:
                     text += new_line + 'Start Search From Right Side, '
                 if COUNT in value:
-                    text += new_line + 'Add An Incrementing Number To Text, '
+                    text += new_line + 'Insert An Incrementing Number, '
                 if COUNT_TO in value:
                     text += new_line + 'Limit Specific File Renames Made, '
                 if EXTENSION in value and parent_key == MATCH_TEXT:
@@ -2925,20 +2996,22 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                 if EXTENSION in value and parent_key == INSERT_TEXT:
                     text += new_line + 'Allow Extension To Be Modified, '
                 if RANDOM_NUMBERS in value:
-                    text += new_line + 'Add Random Numbers, '
+                    text += new_line + 'Insert Random Numbers, '
                 if RANDOM_LETTERS in value:
-                    text += new_line + 'Add Random Letters, '
+                    text += new_line + 'Insert Random Letters, '
                 if RANDOM_SPECIALS in value:
-                    text += new_line + 'Add Random Special Characters, '
+                    text += new_line + 'Insert Random Special Characters, '
                 if RANDOM_OTHER in value:
-                    text += new_line + 'Add Random Other Characters, '
+                    text += new_line + 'Insert Random Other Characters, '
                 if REGEX in value:
                     text += new_line + 'Regular Expressions, '
                 if SAME_MATCH_INDEX in value:
-                    text += new_line + 'Use Match Index While Selecting From Insert Lists, '
+                    text += new_line + 'Use Same Index For Match and Insert Text Lists,'
                 if NO_REPEAT_TEXT_LIST in value:
                     #text += 'Once End of Text List Reached Repeat List, '
                     text += new_line + 'Do Not Repeat Text List Once End Reached, '
+                if INSERT_META_DATA in value:
+                    text += new_line + 'Insert File Meta Data, '
                 for item in value:
                     if type(item) == tuple:
                         if MATCH_LIMIT in item:
@@ -2964,56 +3037,7 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                     text += ' of Match'
         
         elif parent_key == PRESORT_FILES:
-            if key == ALPHABETICALLY:
-                text = 'Alphabetically '
-            elif key == FILE_META_SIZE:
-                text = 'By File Size '
-            elif key == FILE_META_ACCESSED:
-                text = 'By Date Files Last Accessed '
-            elif key == FILE_META_MODIFIED:
-                text = 'By Date File Last Modified '
-            elif key == FILE_META_CREATED:
-                text = 'By Date File (or Meta Data) Created '
-            elif key == FILE_META_TYPE:
-                text = 'By Meta Data Type (Basic Mime) '
-            elif key == FILE_META_MIME:
-                text = 'By Meta Data Mime '
-            elif key == FILE_META_FORMAT:
-                text = 'By Meta Data Format '
-            elif key == FILE_META_FORMAT_LONG:
-                text = 'By Meta Data Format (Full Name) '
-            elif key == FILE_META_HEIGHT:
-                text = 'By Media\'s Height '
-            elif key == FILE_META_WIDTH:
-                text = 'By Media\'s Width '
-            elif key == FILE_META_LENGTH:
-                text = 'By Media\'s Duration (Time) '
-            elif key == FILE_META_BIT_DEPTH:
-                text = 'By Media\'s Bit Depth '
-            elif key == FILE_META_VIDEO_BITRATE:
-                text = 'By Video Bitrate '
-            elif key == FILE_META_VIDEO_FRAME_RATE:
-                text = 'By Video Frame Rate '
-            elif key == FILE_META_AUDIO_BITRATE:
-                text = 'By Audio Bitrate '
-            elif key == FILE_META_AUDIO_SAMPLE_RATE:
-                text = 'By Audio Sample Rate '
-            elif key == FILE_META_AUDIO_CHANNELS:
-                text = 'By Amount Of Audio Channels '
-            elif key == FILE_META_AUDIO_CHANNEL_LAYOUT:
-                text = 'By Audio Channel Layout '
-            elif key == FILE_META_AUDIO_TITLE:
-                text = 'By Audio Title '
-            elif key == FILE_META_AUDIO_ALBUM:
-                text = 'By Audio Album '
-            elif key == FILE_META_AUDIO_ARTIST:
-                text = 'By Audio Artist '
-            elif key == FILE_META_AUDIO_YEAR:
-                text = 'By Audio Year Released '
-            elif key == FILE_META_AUDIO_PUBLISHER:
-                text = 'By Audio Published '
-            elif key == FILE_META_AUDIO_TRACK:
-                text = 'By Audio Track Number '
+            text = getMetaDataStr(key)
             if ASCENDING in value:
                 text += 'In Ascending Order'
             elif DESCENDING in value:
@@ -3075,32 +3099,102 @@ def intToStrText(key, value, parent_key = None): ## TODO: option to read back pr
                 text = 'Rename'
         elif parent_key == MATCH_FILE_META:
             text = 'Meta Data Type (Mime) : '
-            if TYPE_APPLICATION in value:
-                text += 'Application'
-            elif value == TYPE_AUDIO:
-                text += 'Audio'
-            elif value == TYPE_FONT:
-                text += 'Font'
-            elif value == TYPE_IMAGE:
-                text += 'Image'
-            elif value == TYPE_MESSAGE:
-                text += 'Message'
-            elif value == TYPE_MODEL:
-                text += 'Model'
-            elif value == TYPE_MULTIPART:
-                text += 'Multipart'
-            elif TYPE_TEXT in value:
-                text += 'Text'
-            elif value == TYPE_VIDEO:
-                text += 'Video'
-            elif value == TYPE_ARCHIVE:
-                text += 'Archive'
-            elif value == TYPE_DOCUMENT:
-                text += 'Document'
-            else:
+            type_str = getMetaDataStr(value[0], text)
+            if type_str == '':
                 text += str(value)
+            else:
+                text = type_str
+        elif parent_key == SOFT_RENAME_LIMIT or parent_key == HARD_RENAME_LIMIT:
+            if value[0] == NO_LIMIT:
+                text = 'No Limit'
+            else:
+                text = str(value[0])
         else:
             text = str(value)
+    
+    return text
+
+
+### Convert integer constants into readable text.
+###     (const) Interger Constant
+###     (starting_text) Optional text to insert first.
+###     --> Returns a [String]
+def getMetaDataStr(const, starting_text = ''):
+    text = ''
+    
+    if const == ALPHABETICALLY:
+        text = starting_text + 'Alphabetically '
+    elif const == FILE_META_SIZE:
+        text = starting_text + 'By File Size '
+    elif const == FILE_META_ACCESSED:
+        text = starting_text + 'By Date Files Last Accessed '
+    elif const == FILE_META_MODIFIED:
+        text = starting_text + 'By Date File Last Modified '
+    elif const == FILE_META_CREATED:
+        text = starting_text + 'By Date File (or Meta Data) Created '
+    elif const == FILE_META_TYPE:
+        text = starting_text + 'By Meta Data Type (Basic Mime) '
+    elif const == FILE_META_MIME:
+        text = starting_text + 'By Meta Data Mime '
+    elif const == FILE_META_FORMAT:
+        text = starting_text + 'By Meta Data Format '
+    elif const == FILE_META_FORMAT_LONG:
+        text = starting_text + 'By Meta Data Format (Full Name) '
+    elif const == FILE_META_HEIGHT:
+        text = starting_text + 'By Media\'s Height '
+    elif const == FILE_META_WIDTH:
+        text = starting_text + 'By Media\'s Width '
+    elif const == FILE_META_LENGTH:
+        text = starting_text + 'By Media\'s Duration (Time) '
+    elif const == FILE_META_BIT_DEPTH:
+        text = starting_text + 'By Media\'s Bit Depth '
+    elif const == FILE_META_VIDEO_BITRATE:
+        text = starting_text + 'By Video Bitrate '
+    elif const == FILE_META_VIDEO_FRAME_RATE:
+        text = starting_text + 'By Video Frame Rate '
+    elif const == FILE_META_AUDIO_BITRATE:
+        text = starting_text + 'By Audio Bitrate '
+    elif const == FILE_META_AUDIO_SAMPLE_RATE:
+        text = starting_text + 'By Audio Sample Rate '
+    elif const == FILE_META_AUDIO_CHANNELS:
+        text = starting_text + 'By Amount Of Audio Channels '
+    elif const == FILE_META_AUDIO_CHANNEL_LAYOUT:
+        text = starting_text + 'By Audio Channel Layout '
+    elif const == FILE_META_AUDIO_TITLE:
+        text = starting_text + 'By Audio Title '
+    elif const == FILE_META_AUDIO_ALBUM:
+        text = starting_text + 'By Audio Album '
+    elif const == FILE_META_AUDIO_ARTIST:
+        text = starting_text + 'By Audio Artist '
+    elif const == FILE_META_AUDIO_YEAR:
+        text = starting_text + 'By Audio Year Released '
+    elif const == FILE_META_AUDIO_PUBLISHER:
+        text = starting_text + 'By Audio Published '
+    elif const == FILE_META_AUDIO_TRACK:
+        text = starting_text + 'By Audio Track Number '
+    
+    elif const == TYPE_APPLICATION:
+        text = starting_text + 'Application'
+    elif const == TYPE_AUDIO:
+        text = starting_text + 'Audio'
+    elif const == TYPE_FONT:
+        text = starting_text + 'Font'
+    elif const == TYPE_IMAGE:
+        text = starting_text + 'Image'
+    elif const == TYPE_MESSAGE:
+        text = starting_text + 'Message'
+    elif const == TYPE_MODEL:
+        text = starting_text + 'Model'
+    elif const == TYPE_MULTIPART:
+        text = starting_text + 'Multipart'
+    elif const == TYPE_TEXT:
+        text = starting_text + 'Text'
+    elif const == TYPE_VIDEO:
+        text = starting_text + 'Video'
+    elif const == TYPE_ARCHIVE:
+        text = starting_text + 'Archive'
+    elif const == TYPE_DOCUMENT:
+        text = starting_text + 'Document'
     
     return text
 
