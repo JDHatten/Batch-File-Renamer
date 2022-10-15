@@ -2,7 +2,7 @@
 
 If you ever had a need to reorganize a large amount of files by renaming them this is the script to accomplish that task quickly.
 
-This script will rename one or more files either by adding new text or replacing text in the file names.  Adding text can be placed at the start, end, or both sides of either matched text or the entire file name itself.  Replacing text will replace the first or all instances of matched text in a file name including the extension.  Renaming will just rename the entire file, but an iterating number or some other modify option must be used.
+This script will rename one or more files either by adding new text or replacing text in the file names.  Adding text can be placed at the start, end, or both sides of either matched text or the entire file name itself.  Replacing text will replace the first or all instances of matched text in a file name including the extension.  Renaming will just rename the entire file, but an iterating number or some other modify option should be used.
 
 **Extra Features**:
 - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
@@ -14,6 +14,19 @@ This script will rename one or more files either by adding new text or replacing
 ## How To Use:
 > Simply drag and drop one or more files or directories onto the script.<br>
 > Create *custom presets* for more complex renaming methods.<br>
+
+<br>
+
+## Requirements:
+> Matching and inserting meta data from files requires ffmpeg-python and filetype packages. This is an optional feature. *Install Via Pip*:
+```
+pip install ffmpeg-python
+```
+```
+pip install filetype
+```
+- https://github.com/kkroening/ffmpeg-python
+- https://github.com/h2non/filetype.py
 
 <br>
 
@@ -63,7 +76,7 @@ This script will rename one or more files either by adding new text or replacing
 > `META` is the file meta data to search for and match before editing a file name. If a match is not made then that file name will not be changed.<br>
 >> `TYPE_APPLICATION`, `TYPE_AUDIO`, `TYPE_FONT`, `TYPE_IMAGE`, `TYPE_MESSAGE`, `TYPE_MODEL`, `TYPE_MULTIPART`, `TYPE_TEXT`, `TYPE_VIDEO TYPE_ARCHIVE`, `TYPE_DOCUMENT`<br>
 >> `FILE_META_SIZE`, `FILE_META_ACCESSED`, `FILE_META_MODIFIED`, `FILE_META_CREATED`(*Windows Only*), `FILE_META_METADATA`(*UNIX*), `FILE_META_TYPE`, `FILE_META_MIME`, `FILE_META_FORMAT`, `FILE_META_FORMAT_LONG`, `FILE_META_HEIGHT`, `FILE_META_WIDTH`, `FILE_META_LENGTH`, `FILE_META_BIT_DEPTH`, `FILE_META_VIDEO_BITRATE`, `FILE_META_VIDEO_FRAME_RATE`, `FILE_META_AUDIO_BITRATE`, `FILE_META_AUDIO_SAMPLE_RATE`, `FILE_META_AUDIO_CHANNELS`, `FILE_META_AUDIO_CHANNEL_LAYOUT`, `FILE_META_AUDIO_TITLE`, `FILE_META_AUDIO_ALBUM`, `FILE_META_AUDIO_ARTIST`, `FILE_META_AUDIO_YEAR`, `FILE_META_AUDIO_GENRE`, `FILE_META_AUDIO_PUBLISHER`, `FILE_META_AUDIO_TRACK`<br>
->> `EXACT_MATCH`, `LOOSE_MATCH`, `SKIP_EXACT_MATCH`, `SKIP_LOOSE_MATCH` `LESS_THAN`, `MORE_THAN`, `WITHIN_THE_PAST`, `OLDER_THAN`<br>
+>> `EXACT_MATCH`, `LOOSE_MATCH`, `SKIP_EXACT_MATCH`, `SKIP_LOOSE_MATCH` `LESS_THAN`, `MORE_THAN`, `BEFORE`, `AFTER`, `WITHIN_THE_PAST`, `OLDER_THAN`<br>
 >> `YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE` `SECOND`, `MILLISECOND`, `MICROSECOND`, `TIMESTAMP`, `BYTES`, `KB`, `MB`, `GB`, `IN_BYTES_ONLY`<br>
 
 > `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
@@ -90,6 +103,8 @@ This script will rename one or more files either by adding new text or replacing
 >> `RANDOM_SEED` is the starting seed number to use in random generators. Default: (RANDOM_SEED, None)<br>
 >> `REPEAT_TEXT_LIST` will repeat a text list once the end of a text list is reached. The length of a text list is treated as a soft rename limit unless this option is used. **TEXT** must be dynamic if used, [**COUNT**, **RANDOM**, etc.].<br>
 >> `EXTENSION` if used in modify options and **EDIT_TYPE : ADD or REPLACE** only the extension will be replaced or added on to the **END**. If used with **EDIT_TYPE : RENAME** the entire file name may be rewritten including the extension, but only if a "." is in **TEXT**. Note: You don't need to use **EXTENSION** in all cases where you wish to match or modify the extension.<br>
+>> `INSERT_META_DATA` will retrieve specific meta data from a file and add it to the file name.  ('Text', *File Meta Data*, 'Text', *File Meta Data*, 'Text', ...)<br>
+
 
 > `PLACEMENT` when using **EDIT_TYPE : ADD** this signifies where to place text. For example, **( START, OF_FILE_NAME )**. All current placement options are listed below:<br>
 >> `START` to place at the start of...<br>
@@ -139,8 +154,8 @@ This script will rename one or more files either by adding new text or replacing
 <br>
 
 **Dynamic Text Format**<br>
-> `Tuple`("Starting Text", Integer/Tuple, "Ending Text")<br>
-> `List`["Text1", "Text2", ...]<br>
+> *Tuple*: ("Starting Text", Integer/Tuple, "Ending Text")<br>
+> *List*:  ["Text1", "Text2", ...]<br>
 > Tuples can go inside of Lists. [ "Text", ("Text-[", (1,10), "]") ]
 
 <br>
@@ -198,4 +213,4 @@ This preset searches for all files except those that have the string "skip" in t
 **Example File Renames:**
 - "a_file.pdf" will change to "RandomS-(1py7).pdf"<br>
 - "skip_file.doc" will not be renamed.<br>
-- "some_file.txt" will change to "RandomL-[ jjc124z].txt"<br>
+- "some_file.txt" will change to "RandomL-[jjc124z].txt"<br>
