@@ -19,13 +19,13 @@ Usage:
     Simply drag and drop one or more files or directories onto the script. Create your own custom presets for more
     complex renaming tasks.
 
-To search and insert meta data from files ffmpeg-python and filetype packages are required:
+Requirements:
+    Matching and inserting meta data from files requires ffmpeg-python and filetype packages. This is an optional feature.
     - https://github.com/kkroening/ffmpeg-python
     - https://github.com/h2non/filetype.py
-
-Install Via Pip:
-    pip install ffmpeg-python
-    pip install filetype
+    - Install Via Pip:
+        pip install ffmpeg-python
+        pip install filetype
 
 TODO:
     [] Rename directories too
@@ -42,6 +42,7 @@ TODO:
     [DONE] Ignore text option that will skip files that match the ignore text.
     [] Match file contents.
     [DONE] Match file meta data.
+    [Done] Backup link files before overwriting them.
     [] Import separate settings and/or preset files.
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
@@ -74,6 +75,7 @@ from pathlib import Path, PurePath
 import os
 import random
 #import re
+import shutil
 import sys
 if sys.platform == "linux" or sys.platform == "linux2":
     print('Linux')
@@ -127,7 +129,7 @@ CURRENT_FILE_META = 8
 CURRENT_FILE_RENAME = 9
 USED_RANDOM_CHARS = 10
 SKIPPED_FILES = 11
-SKIP_WARNINGS = 12
+ONE_TIME_FLAGS = 12
 LOG_DATA = 13
 ORG_FILE_PATHS = 20
 NEW_FILE_PATHS = 21
@@ -140,8 +142,11 @@ INDEX_POINTER = 0
 LIMIT = 1
 UPDATE_COUNT = 1
 UPDATE_LIMIT = 1
-UPDATE_SKIP = 1
+UPDATE_FLAGS = 1
 FULL_AMOUNT = 2
+
+SMI_WARNING = 0
+LF_BACKED_UP = 1
 
 # Basic Constants
 ALL = 999
@@ -170,6 +175,8 @@ STARTING_COUNT = 0
 ENDING_COUNT = 1
 
 ### File Meta Data
+### Note: Using meta data beyond FILE_META_CREATED/FILE_META_METADATA can add a bit more time to rename tasks.
+###       Estimate of about 1 minute per 1000 files.  Used in MATCH_FILE_META, PRESORT_FILES and the option INSERT_META_DATA.
 FILE_META_PATH = 0                  # DATA: 'Text'
 FILE_META_SIZE = 1                  # GB/MB/KB/BYTES : Number
 FILE_META_ACCESSED = 2              # YEAR/MONTH/... : Number
@@ -279,7 +286,7 @@ RANDOM_SPECIALS = 26    # Generate random special characters.   {TEXT: ('Text', 
 RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) characters.
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
 NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
-INSERT_META_DATA = 30   # Obtain specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
+INSERT_META_DATA = 30   # Get specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
 
 ### Placement Options
 START = 40              # Place at the start of...
@@ -340,7 +347,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 25
+selected_preset = 19
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -512,7 +519,7 @@ preset23 = {
                                         { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
                                         { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
                         OPTIONS     : [ SAME_MATCH_INDEX ] },
-  #MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
+  MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] },
   PRESORT_FILES     : { FILE_META_WIDTH : ASCENDING }
@@ -531,7 +538,7 @@ preset25 = {
   EDIT_TYPE         : ADD,
   MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO } ],
                         OPTIONS     : [ NO_MATCH_CASE ] },
-  INSERT_TEXT       : { TEXT        :  ( ' (', FILE_META_HEIGHT, 'p) (', FILE_META_LENGTH, ')' ),
+  INSERT_TEXT       : { TEXT        :  ( ' (', FILE_META_HEIGHT, 'p-ū) (', FILE_META_LENGTH, ')' ),
                         OPTIONS     : [ INSERT_META_DATA ],
                         PLACEMENT   : ( END, OF_FILE_NAME ) },
   PRESORT_FILES     : { FILE_META_HEIGHT : DESCENDING }
@@ -693,12 +700,15 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
     files_reviewed = getTrackedData(edit_details_copy, FILES_REVIEWED, [AMOUNT])
     files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [AMOUNT])
     individual_files_renamed = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [AMOUNT])
-    skip_warnings = getTrackedData(edit_details_copy, SKIP_WARNINGS)
+    one_time_flags = getTrackedData(edit_details_copy, ONE_TIME_FLAGS)
     log_data = getTrackedData(edit_details_copy, LOG_DATA)
     
     # Set the seed for random character generators
     random_seed = getOptions(edit_details_copy[INSERT_TEXT], RANDOM_SEED, None)
     random.seed(random_seed)
+    
+    # If there is no need to use extra meta data then don't retrieve it to save time.
+    get_extra_meta = isExtraMetaNeeded(edit_details_copy)
     
     for meta in files_meta_data:
         
@@ -717,13 +727,13 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     #print('--Directory: [ %s ]' % (dir))
                 
                 # Sort Files
-                files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None), root)
+                files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None), root, get_extra_meta)
                 
                 # Prepare Edit Details and add Tracker
                 if not log_data:
-                    skip_warnings = getTrackedData(edit_details_copy, SKIP_WARNINGS)
+                    one_time_flags = getTrackedData(edit_details_copy, ONE_TIME_FLAGS)
                     log_data = getTrackedData(edit_details_copy, LOG_DATA)
-                edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, skip_warnings, log_data)
+                edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, one_time_flags, log_data)
                 #if debug: displayPreset(edit_details_copy)
                 
                 for file in files_meta:
@@ -752,7 +762,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                 # Save some tracked data for next directory loop or individually grouped files.
                 files_reviewed = getTrackedData(edit_details_copy, FILES_REVIEWED, [AMOUNT])
                 files_renamed += getTrackedData(edit_details_copy, DIRECTORY_FILES_RENAMED, [AMOUNT])
-                skip_warnings = getTrackedData(edit_details_copy, SKIP_WARNINGS)
+                one_time_flags = getTrackedData(edit_details_copy, ONE_TIME_FLAGS)
                 log_data = getTrackedData(edit_details_copy, LOG_DATA)
                 
                 if not include_sub_dirs or hard_limit_hit:
@@ -762,7 +772,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
         elif type(meta) == list:
             
             # Prepare Edit Details and add Tracker
-            edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, True, skip_warnings, log_data)
+            edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, True, one_time_flags, log_data)
             
             limit_reached = False
             hard_rename_limit = getTrackedData(edit_details_copy, FILES_REVIEWED, [LIMIT])
@@ -889,10 +899,10 @@ def getRenameRevertFilesAndEditDetails(log_file):
 ###     (directory_files_renamed) Keep directory files renamed when creating additional edit details copies.
 ###     (individual_files_renamed) Keep individual files renamed when creating additional edit details copies.
 ###     (individual_file_group) File group to use when updating rename values.
-###     (skip_warnings) Keep skip warnings when creating additional edit details copies.
+###     (one_time_flags) Keep one time flags/changes when creating additional edit details copies.
 ###     (log_data) Keep log data when creating additional edit details copies.
 ###     --> Returns a [Dictionary] 
-def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 0, individual_files_renamed = 0, individual_file_group = False, skip_warnings = [], log_data = {}):
+def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 0, individual_files_renamed = 0, individual_file_group = False, one_time_flags = [], log_data = {}):
     start_time = datetime.now().timestamp()
     
     edit_details_copy = edit_details.copy()
@@ -955,8 +965,8 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
         fnc.append(value_reset)
     if not fncl:
         fncl.append(NO_LIMIT)
-    if not skip_warnings:
-        skip_warnings = [False]
+    if not one_time_flags:
+        one_time_flags = [False,False]
     if not log_data:
         log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : start_time, END_TIME : value_reset }
     
@@ -971,7 +981,7 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                                                  CURRENT_FILE_RENAME : '',
                                                  USED_RANDOM_CHARS : [],
                                                  SKIPPED_FILES : [], ## TODO should this be updated each copy? what if a directory file and an individual file are the same?
-                                                 SKIP_WARNINGS : skip_warnings,
+                                                 ONE_TIME_FLAGS : one_time_flags,
                                                  LOG_DATA : log_data
                                                } } )
     
@@ -1006,7 +1016,7 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
             td = tracked_data.get(specific_data, False)
         
         elif (specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES 
-              or specific_data == SKIP_WARNINGS or specific_data == USED_RANDOM_CHARS or specific_data == CURRENT_FILE_META):
+              or specific_data == ONE_TIME_FLAGS or specific_data == USED_RANDOM_CHARS or specific_data == CURRENT_FILE_META):
             td = tracked_data.get(specific_data, [])
             for i in key_index:
                 if i < len(td):
@@ -1100,9 +1110,9 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     if SKIPPED_FILES in update_data:
         edit_details[TRACKED_DATA][SKIPPED_FILES].append( update_data[SKIPPED_FILES] )
     
-    if SKIP_WARNINGS in update_data:
-        index = update_data[SKIP_WARNINGS][INDEX_POINTER]
-        edit_details[TRACKED_DATA][SKIP_WARNINGS][index] = update_data[SKIP_WARNINGS][UPDATE_SKIP]
+    if ONE_TIME_FLAGS in update_data:
+        index = update_data[ONE_TIME_FLAGS][INDEX_POINTER]
+        edit_details[TRACKED_DATA][ONE_TIME_FLAGS][index] = update_data[ONE_TIME_FLAGS][UPDATE_FLAGS]
     
     if ORG_FILE_PATHS in update_data:
         edit_details[TRACKED_DATA][LOG_DATA][ORG_FILE_PATHS].append( update_data[ORG_FILE_PATHS] )
@@ -1123,12 +1133,45 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     return edit_details
 
 
+### Check if extra file meta data is needed. If there is no need to use extra meta data then save time by not retrieving it.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [Boolean]
+def isExtraMetaNeeded(edit_details):
+    get_extra_meta = False
+    match_file_meta = edit_details.get(MATCH_FILE_META, None)
+    insert_text = edit_details.get(INSERT_TEXT, None)
+    presort_files = edit_details.get(PRESORT_FILES, None)
+    
+    if match_file_meta and not get_extra_meta:
+        if type(match_file_meta) == dict:
+            match_file_meta_list = getMeta(match_file_meta)
+            for meta_data in match_file_meta_list:
+                meta = next(iter(meta_data))
+                if meta > 4:
+                    get_extra_meta = True
+                    break
+        else:
+            # Assumed FILE_META_TYPE or FILE_META_MIME
+            get_extra_meta = True
+    
+    if insert_text and not get_extra_meta:
+        # Assuming extra file meta data being inserted. (Who would add basic file property data to a file name?)
+        get_extra_meta = getOptions(insert_text, INSERT_META_DATA)
+    
+    if presort_files and not get_extra_meta:
+        meta_sorted = next(iter(presort_files))
+        get_extra_meta = True if meta_sorted > 4 else False
+    
+    return get_extra_meta
+
+
 ### Get all the meta data from a list of files and sort the list in various ways before renaming.
 ###     (files) A List of file names or paths.
 ###     (sort_option) A Dictionary with a file sorting option.
 ###     (root) Root path if files List has only names.
+###     (get_extra_meta) If there is no need to use extra meta data then don't retrieve it to save time.
 ###     --> Returns a [List]
-def getFileMetaData(files, sort_option = None, root = ''):
+def getFileMetaData(files, sort_option = None, root = '', get_extra_meta = False):
     files_meta = []
     directory_list = []
     individual_file_list = []
@@ -1143,11 +1186,11 @@ def getFileMetaData(files, sort_option = None, root = ''):
         if Path.exists(file_path):
             file_meta = os.stat(file_path)
             
-            format_short, format_long, height, width, duration, bit_depth = None,None,None,None,None,None
-            video_bit_rate, frame_rate, audio_bit_rate, sample_rate, channels, channel_layout = None,None,None,None,None,None
+            file_meta_type, file_meta_mime, format_short, format_long, height, width, duration = None,None,None,None,None,None,None
+            bit_depth, video_bit_rate, frame_rate, audio_bit_rate, sample_rate, channels, channel_layout = None,None,None,None,None,None,None
             title, album, artist, date, genre, publisher, track_number = None,None,None,None,None,None,None
             
-            if ffmpeg_installed and filetype_installed:
+            if ffmpeg_installed and filetype_installed and get_extra_meta:
                 if debug: print(file_path)
                 try:
                     file_type = filetype.guess(file_path)
@@ -1185,8 +1228,6 @@ def getFileMetaData(files, sort_option = None, root = ''):
                                   'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.ms-excel',
                                   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
                 
-                file_meta_type = None
-                file_meta_mime = None
                 file_type_basic = None
                 if file_type:
                     #print('File extension: %s' % file_type.extension)
@@ -1290,7 +1331,7 @@ def getFileMetaData(files, sort_option = None, root = ''):
                     if is_video:
                         video_bit_rate = stream[0].get('bit_rate')
                         audio_bit_rate = stream[1].get('bit_rate')
-                    else:
+                    elif is_audio:
                         video_bit_rate = None
                         audio_bit_rate = stream[0].get('bit_rate')
                     if video_bit_rate: video_bit_rate = float(video_bit_rate) / 1000
@@ -1415,15 +1456,18 @@ def createNewFileName(some_file, edit_details):
         if not skip_file:
             linked_files = edit_details.get(LINKED_FILES, [])
             linked_files_updates = []
+            lf_backed_up = getTrackedData(edit_details, ONE_TIME_FLAGS, [LF_BACKED_UP])
+            #print('lf_backed_up: %s' % lf_backed_up)
+            
             for file in linked_files:
-                links_updated = updateLinksInFile(file, str(file_path), str(new_file_path))
+                links_updated = updateLinksInFile(file, str(file_path), str(new_file_path), lf_backed_up)
                 linked_files_updates.append(links_updated)
                 if links_updated:
                     if debug: print('----Link File Updated: [ %s ]' % (file))
                 #else:
                     #if debug: print('----Link File Not Updated: [ %s ]' % (file))
             
-            edit_details = updateTrackedData(edit_details, { LINKED_FILES_UPDATED : linked_files_updates })
+            edit_details = updateTrackedData(edit_details, { LINKED_FILES_UPDATED : linked_files_updates, ONE_TIME_FLAGS : [LF_BACKED_UP, True] })
     
     else:
         print('--File Not Renamed: %s' % (file_path))
@@ -2309,7 +2353,7 @@ def insertTextIntoFileName(file_path, edit_details):
     
     renamed_number = getTrackedData(edit_details, FILES_RENAMED, [AMOUNT])
     renamed_limit = getTrackedData(edit_details, FILES_RENAMED, [LIMIT])
-    skip_warning_smi = getTrackedData(edit_details, SKIP_WARNINGS, [0])
+    skip_warning_smi = getTrackedData(edit_details, ONE_TIME_FLAGS, [0])
     
     new_file_name = file_path.name # Start with orginal current file name
     
@@ -2455,7 +2499,7 @@ def insertTextIntoFileName(file_path, edit_details):
             
             break # If here then a match was found so break loop
     
-    edit_details = updateTrackedData(edit_details, { CURRENT_LIST_INDEX : match_index, CURRENT_FILE_RENAME : new_file_name, SKIP_WARNINGS : [0, skip_warning_smi] })
+    edit_details = updateTrackedData(edit_details, { CURRENT_LIST_INDEX : match_index, CURRENT_FILE_RENAME : new_file_name, ONE_TIME_FLAGS : [SMI_WARNING, skip_warning_smi] })
     
     #if debug: print(new_file_name)
     
@@ -2565,9 +2609,15 @@ def renameFile(file_path, new_file_path, edit_details):
 ###     (linked_file) The full path to a file with links.
 ###     (old_file_path) A String of the full path to a file before renaming.
 ###     (new_file_path) A String of the full path to a file after renaming.
+###     (lf_backed_up) Have linked files been backup yet? Only necessary once.
 ###     --> Returns a [Boolean] 
-def updateLinksInFile(linked_file, old_file_path, new_file_path):
+def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
     linked_file = Path(linked_file)
+    #print(linked_file)
+    
+    if not Path.exists(linked_file): ## TODO check if all linked files exist before renaming any file and inform user if any don't
+        print('Linked file does not exist: [ %s ]' % linked_file)
+        return False
     
     ##TODO: Check file extensions and pick the proper encoding. xml, json = utf-8, txt = ascii
     try:
@@ -2581,6 +2631,20 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path):
             print('Failed to open linked file: [ %s ]' % linked_file)
             print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
             return False
+    
+    # Original linked file backed up before any modifications are made in case something goes wrong and user wants to
+    # manually revert all changes. The temp linked file is backed up to automatically revert to if something goes wrong.
+    org_backup_name = str(linked_file.stem) + '--backup' + str(linked_file.suffix)
+    tmp_backup_name = str(linked_file.stem) + '--temp_backup' + str(linked_file.suffix)
+    linked_file_org_backup = Path( PurePath().joinpath(linked_file.parent, org_backup_name) )
+    if not lf_backed_up:
+        #print('linked_file_org_backup: %s' % linked_file_org_backup)
+        shutil.copy2(linked_file, linked_file_org_backup)
+    linked_file_temp_backup = Path( PurePath().joinpath(linked_file.parent, tmp_backup_name) )
+    #print(linked_file_temp_backup)
+    shutil.copy2(linked_file, linked_file_temp_backup)
+    
+    ## TODO: Update linked files at end looping through tracked file renames
     
     write_data = read_data
     
@@ -2619,7 +2683,30 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path):
         data_changed = False
     else:
         data_changed = True
-        linked_file.write_text(write_data, encoding=text_encoding)
+        
+        try:
+            #text_encoding = 'ascii'
+            linked_file.write_text(write_data, encoding=text_encoding)
+        except:
+            try:
+                text_encoding = 'utf-8'
+                linked_file.write_text(write_data, encoding=text_encoding)
+            except:
+                print('\nFailed to write to linked file: [ %s ]' % linked_file)
+                print('Possible text encoding issue. Script only supports ascii and utf-8 text encoding.')
+                
+                print('Reverting to the last successfully written linked file.')
+                shutil.copy2(linked_file_temp_backup, linked_file)
+                
+                print('The original linked file before any modification were made can be found here:')
+                print(str(linked_file_org_backup) + '\n')
+                
+                data_changed = False
+                input('Continue...')
+    
+    # Delete temp linked file.
+    if os.path.exists(linked_file_temp_backup):
+        os.remove(linked_file_temp_backup)
     
     return data_changed
 
@@ -2730,7 +2817,7 @@ def updateLogFile(edit_details, log_revert = False):
             text_lines.extend(displayPreset(edit_details, -1, True))
         
         # Write Log File
-        log_file_name_path.write_text('\n'.join(text_lines), encoding=None, errors=None, newline=None)
+        log_file_name_path.write_text('\n'.join(text_lines), encoding='utf-8', errors=None, newline=None)
         print('Check log for more details.')
         os.startfile(log_file_name_path) # Open log file for viewing
         
@@ -3068,8 +3155,8 @@ def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ##
                 text = '\n                              Used Random Characters : ' + str(value)
             if key == SKIPPED_FILES:
                 text = '\n                              Files To Skip : ' + str(value)
-            if key == SKIP_WARNINGS:
-                text = '\n                              User Warning Skips : ' + str(value)
+            if key == ONE_TIME_FLAGS:
+                text = '\n                              One Time Flags : ' + str(value)
             if key == LOG_DATA:
                 text = '\n                              Log Data : '
                 text += '' if show_log_data else '[Not Shown]'
@@ -3322,7 +3409,8 @@ def drop(files):
             edit_details = preset_options[selected_preset]
             
             # Presort Files
-            files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None))
+            get_extra_meta = isExtraMetaNeeded(edit_details)
+            files_meta = getFileMetaData(files, edit_details.get(PRESORT_FILES, None), '', get_extra_meta)
             
             include_sub_dirs = edit_details.get(INCLUDE_SUB_DIRS, False)
             
