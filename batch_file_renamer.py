@@ -630,6 +630,25 @@ def illegalCharacterCheck(edit_details):
     return illegal_characters_found
 
 
+## Check if all linked files exist before renaming any files and inform user if any don't exist.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [Boolean]
+def linkedFilesCheck(edit_details):
+    linked_files = edit_details.get(LINKED_FILES, [])
+    broken_link = False
+    continue_renaming = True
+    for linked_file in linked_files:
+        if not Path.exists(Path(linked_file)):
+            if not broken_link: print('')
+            print('Linked file does not exist: [ %s ]' % linked_file)
+            broken_link = True
+    if broken_link:
+        continue_renaming = input('Do you wish to continue anyways? [ Y / N ]: ')
+        continue_renaming = yesTrue(continue_renaming)
+    
+    return continue_renaming
+
+
 ### Display one or all file rename preset options.
 ###     (preset) A List of file rename presets. Or a single preset Dictionary.
 ###     (number) Only show specific preset in List.
@@ -692,6 +711,9 @@ def displayPreset(presets, number = -1, log_preset = False):
 def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs = False):
     
     if illegalCharacterCheck(edit_details):
+        return edit_details # Full Stop
+    
+    if not linkedFilesCheck(edit_details):
         return edit_details # Full Stop
     
     edit_details_copy = edit_details
@@ -2613,11 +2635,6 @@ def renameFile(file_path, new_file_path, edit_details):
 ###     --> Returns a [Boolean] 
 def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
     linked_file = Path(linked_file)
-    #print(linked_file)
-    
-    if not Path.exists(linked_file): ## TODO check if all linked files exist before renaming any file and inform user if any don't
-        print('Linked file does not exist: [ %s ]' % linked_file)
-        return False
     
     ##TODO: Check file extensions and pick the proper encoding. xml, json = utf-8, txt = ascii
     try:
@@ -2641,12 +2658,56 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
         #print('linked_file_org_backup: %s' % linked_file_org_backup)
         shutil.copy2(linked_file, linked_file_org_backup)
     linked_file_temp_backup = Path( PurePath().joinpath(linked_file.parent, tmp_backup_name) )
-    #print(linked_file_temp_backup)
     shutil.copy2(linked_file, linked_file_temp_backup)
     
-    ## TODO: Update linked files at end looping through tracked file renames
-    
     write_data = read_data
+    
+    ## TODO: Update linked files at end looping through tracked file renames.
+    ## Code is partially ready to be implemented but unsure if I should do it this way.
+    ## If an issue happens half way through a renaming task, half of the files will be
+    ## renamed but not have their links updated.
+    '''
+    org_file_paths = old_file_path
+    new_file_paths = new_file_path
+    
+    i = 0
+    while i < len(org_file_paths):
+        
+        # Check for all style of slashes in links
+        org_file_path_esc = org_file_paths[i].replace('\\', '\\\\')
+        new_file_path_esc = new_file_paths[i].replace('\\', '\\\\')
+        org_file_path_rev = org_file_paths[i].replace('\\', '/')
+        new_file_path_rev = new_file_paths[i].replace('\\', '/')
+        
+        links_find = [org_file_paths[i], org_file_path_esc, org_file_path_rev]
+        links_replace = [new_file_paths[i], new_file_path_esc, new_file_path_rev]
+        
+        # Check for special characters & = &amp;
+        if org_file_paths[i].find('&') > -1:
+            org_file_path_amp = org_file_paths[i].replace('&', '&amp;')
+            new_file_path_amp = new_file_paths[i].replace('&', '&amp;')
+            org_file_path_amp_esc = org_file_path_amp.replace('\\', '\\\\')
+            new_file_path_amp_esc = new_file_path_amp.replace('\\', '\\\\')
+            org_file_path_amp_rev = org_file_path_amp.replace('\\', '/')
+            new_file_path_amp_rev = new_file_path_amp.replace('\\', '/')
+            links_find.append(org_file_path_amp)
+            links_find.append(org_file_path_amp_esc)
+            links_find.append(org_file_path_amp_rev)
+            links_replace.append(new_file_path_amp)
+            links_replace.append(new_file_path_amp_esc)
+            links_replace.append(new_file_path_amp_rev)
+        
+        x = 0
+        while x < len(links_find):
+            if write_data.find(links_find[x]) > -1:
+                write_data = write_data.replace(links_find[x], links_replace[x])
+                x = 99
+            x += 1
+        
+        ## TODO: Update tracked LINKED_FILES_UPDATED
+        
+        i += 1
+    '''
     
     # Check for all style of slashes in links
     old_file_path_esc = old_file_path.replace('\\', '\\\\')
