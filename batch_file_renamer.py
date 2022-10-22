@@ -311,6 +311,10 @@ FILE_NAME = 0           # File name [Default]
 #DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
 
 
+##############################
+########## Settings ##########
+##############################
+
 ### Edit characters used in random generators. You may also choose to use an even amount/weight
 ### of characters in each list when using multiple random lists.
 ### Note: Some characters can't be used in file names and are not included here.
@@ -341,13 +345,16 @@ log_dir_name = 'Logs of File Renames'
 log_file_limit = 10
 log_file_name_suffix = '__log.txt'
 
+### When displaying presets (including in log files) show them as is or as formatted readable text.
+readable_preset_text = True
+
 ### If False the script will just run after file(s) dropped with current selected preset and quit.
 ### If True the script will ask for a selected preset and ask for additional file drops after initial drop.
 loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 19
+selected_preset = 25
 
 preset0 = {         # Defaults
   EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -519,7 +526,7 @@ preset23 = {
                                         { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
                                         { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
                         OPTIONS     : [ SAME_MATCH_INDEX ] },
-  MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
+  #MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
   INSERT_TEXT       : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] },
   PRESORT_FILES     : { FILE_META_WIDTH : ASCENDING }
@@ -552,6 +559,10 @@ preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
 debug = False
 show_log_data = False
+
+##############################
+######## Settings End ########
+##############################
 
 
 ### Check for any use of excluded or illegal file name characters.
@@ -654,24 +665,39 @@ def linkedFilesCheck(edit_details):
 ###     (number) Only show specific preset in List.
 ###     (log_preset) Return preset in a List for use in log file.
 ###     --> Returns a [None] 
-def displayPreset(presets, number = -1, log_preset = False):
+def displayPreset(presets, formatted_text = True, number = -1, log_preset = False):
     log_lines = [] if log_preset else None
     
     if type(presets) == list and number == -1:
         preset_size = len(presets)
         for ps in presets:
             number += 1
-            if not log_preset: print('\nPreset %s' % str(number))
+            
+            if not log_preset:
+                if formatted_text:
+                    print('\nPreset %s' % number)
+                else:
+                    print('preset%s = {' % number)
+            
             for option, mod in ps.items():
-                opt_str = intToStrText(option, 'Preset Options')
+                
+                opt_str = presetConstantsToText(option, 'Preset Options', None, formatted_text)
                 mod_str = ''
+                
                 if type(mod) == dict:
                     is_insert_meta_data = INSERT_META_DATA in getOptions(mod)
                     for key, value in mod.items():
-                        mod_str += intToStrText(key, value, option, is_insert_meta_data)
+                        mod_str += presetConstantsToText(key, value, option, formatted_text, is_insert_meta_data)
                 else:
-                    mod_str = intToStrText(None, mod, option)
-                if not log_preset: print('    %s : %s' % (opt_str, mod_str))
+                    mod_str = presetConstantsToText(None, mod, option, formatted_text)
+                
+                if not log_preset:
+                    if not formatted_text and type(mod) == dict:
+                        print('    %s : { %s },' % (opt_str, mod_str))
+                    else:
+                        print('    %s : %s' % (opt_str, mod_str))
+            
+            if not formatted_text: print('}')
             
             if math.remainder(number, 5) == 0 and number != 0 and number < preset_size - 2:
                 input('Show More...')
@@ -681,21 +707,40 @@ def displayPreset(presets, number = -1, log_preset = False):
             if not log_preset: print('\nCurrent Preset In Use')
         else:
             presets = presets[number]
-            if not log_preset: print('\nCurrent Preset #%s' % str(number))
+            if not log_preset:
+                print('\nCurrent Preset #%s' % number)
+        
+        if not formatted_text:
+            print('preset%s = {' % number)
+            if log_preset: log_lines.append('preset%s = {' % number)
+        
         for option, mod in presets.items():
-            opt_str = intToStrText(option, 'Preset Options')
+            
+            opt_str = presetConstantsToText(option, 'Preset Options', None, formatted_text)
             mod_str = ''
+            
             if type(mod) == dict:
                 is_insert_meta_data = INSERT_META_DATA in getOptions(mod)
                 for key, value in mod.items():
-                    mod_str += intToStrText(key, value, option, is_insert_meta_data)
+                    mod_str += presetConstantsToText(key, value, option, formatted_text, is_insert_meta_data)
             else:
-                mod_str = intToStrText(None, mod, option)
+                mod_str = presetConstantsToText(None, mod, option, formatted_text)
+            
             if log_preset:
                 if option != TRACKED_DATA:
-                    log_lines.append('    %s : %s' % (opt_str, mod_str))
+                    if not formatted_text and type(mod) == dict:
+                        log_lines.append('    %s : { %s }' % (opt_str, mod_str))
+                    else:
+                        log_lines.append('    %s : %s' % (opt_str, mod_str))
             else:
-                print('    %s : %s' % (opt_str, mod_str))
+                if not formatted_text and type(mod) == dict:
+                    print('    %s : { %s },' % (opt_str, mod_str))
+                else:
+                    print('    %s : %s' % (opt_str, mod_str))
+        
+        if not formatted_text:
+            print('}')
+            if log_preset: log_lines.append('}')
     
     if not log_preset: print('\n')
     
@@ -756,7 +801,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     one_time_flags = getTrackedData(edit_details_copy, ONE_TIME_FLAGS)
                     log_data = getTrackedData(edit_details_copy, LOG_DATA)
                 edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, one_time_flags, log_data)
-                #if debug: displayPreset(edit_details_copy)
+                #if debug: displayPreset(edit_details_copy, False)
                 
                 for file in files_meta:
                     #print('--File: [ %s ]' % (file[FILE_META_PATH].name))
@@ -779,7 +824,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     
                     edit_details_copy = createNewFileName(file_path, edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
-                    if debug: displayPreset(edit_details_copy)
+                    if debug: displayPreset(edit_details_copy, False)
                 
                 # Save some tracked data for next directory loop or individually grouped files.
                 files_reviewed = getTrackedData(edit_details_copy, FILES_REVIEWED, [AMOUNT])
@@ -819,7 +864,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     edit_details_copy = createNewFileName(file_path, edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
                 
-                if debug: displayPreset(edit_details_copy)
+                if debug: displayPreset(edit_details_copy, False)
     
     edit_details_copy = updateTrackedData(edit_details_copy, { END_TIME : datetime.now().timestamp() })
     
@@ -2875,7 +2920,7 @@ def updateLogFile(edit_details, log_revert = False):
             #preset_str = ' (preset' + str(preset_options.index(preset)) + ')' if use_preset else ''
             preset_str = ' (preset' + str(selected_preset) + ')'
             text_lines.append( '\n\nEdit Criteria Used:' + preset_str)
-            text_lines.extend(displayPreset(edit_details, -1, True))
+            text_lines.extend(displayPreset(edit_details, readable_preset_text, selected_preset, True))
         
         # Write Log File
         log_file_name_path.write_text('\n'.join(text_lines), encoding='utf-8', errors=None, newline=None)
@@ -2969,12 +3014,14 @@ def getUserPresetSelection(string_num):
     return number
 
 
-### Convert all the integers used in Dictionary presets into readable text.
+### Convert all the integer constants used in Dictionary presets into readable text.
 ###     (key) Option key
 ###     (value) Option value
-###     (parent_key) The Parent Option's key 
-###     --> Returns a [String] 
-def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ## TODO: option to read back preset dictionary exactly as is.
+###     (parent_key) The Parent Option's key.
+###     (formatted_text) Format text so variables are easily readable or use exact variable names.
+###     (is_insert_meta_data) Check for INSERT_META_DATA option use.
+###     --> Returns a [String]
+def presetConstantsToText(key, value, parent_key = None, formatted_text = True, is_insert_meta_data = False):
     if type(value) != list and type(value) != tuple:
         value = [value]
     text = str(value)
@@ -2985,29 +3032,29 @@ def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ##
         
         if parent_key == None:
             if key == EDIT_TYPE:
-                text = 'Edit Type              '
+                text = 'Edit Type              ' if formatted_text else 'EDIT_TYPE          '
             elif key == MATCH_TEXT:
-                text = 'Text To Match          '
+                text = 'Text To Match          ' if formatted_text else 'MATCH_TEXT         '
             elif key == IGNORE_TEXT:
-                text = 'Text To Ignore         '
+                text = 'Text To Ignore         ' if formatted_text else 'IGNORE_TEXT        '
             elif key == MATCH_FILE_CONTENTS:
-                text = 'Match Contents of File '
+                text = 'Match Contents of File ' if formatted_text else 'MATCH_FILE_CONTENTS'
             elif key == MATCH_FILE_META:
-                text = 'Match File Meta Data   '
+                text = 'Match File Meta Data   ' if formatted_text else 'MATCH_FILE_META    '
             elif key == INSERT_TEXT:
-                text = 'Text To Insert         '
+                text = 'Text To Insert         ' if formatted_text else 'INSERT_TEXT        '
             elif key == SOFT_RENAME_LIMIT:
-                text = 'File Rename Soft Limit '
+                text = 'File Rename Soft Limit ' if formatted_text else 'SOFT_RENAME_LIMIT  '
             elif key == HARD_RENAME_LIMIT:
-                text = 'File Rename Hard Limit '
+                text = 'File Rename Hard Limit ' if formatted_text else 'HARD_RENAME_LIMIT  '
             elif key == LINKED_FILES:
-                text = 'Files With Links       '
+                text = 'Files With Links       ' if formatted_text else 'LINKED_FILES       '
             elif key == INCLUDE_SUB_DIRS:
-                text = 'Include Sub Directories'
+                text = 'Include Sub Directories' if formatted_text else 'INCLUDE_SUB_DIRS   '
             elif key == PRESORT_FILES:
-                text = 'Pre-Sort Files         '
+                text = 'Pre-Sort Files         ' if formatted_text else 'PRESORT_FILES      '
             elif key == TRACKED_DATA:
-                text = 'Data That Is Tracked   '
+                text = 'Data That Is Tracked   ' if formatted_text else 'TRACKED_DATA       '
         
         if (parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == MATCH_FILE_CONTENTS
          or parent_key == MATCH_FILE_META or parent_key == INSERT_TEXT):
@@ -3016,181 +3063,215 @@ def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ##
                 value = [value]
             
             if key == TEXT:
-                text = 'TEXT : '# + str(value)
-                
-                if parent_key == INSERT_TEXT:
-                    text += '['
-                    for val in value:
-                        if type(val) == tuple:
-                            if is_insert_meta_data:
-                                for v in val:
-                                    if type(v) == int:
-                                        text += getMetaDataStr(v).strip('By ')+', ' ##TODO get the var name as is instead formated text?
-                                    else:
-                                        text += '\''+str(v)+'\', '
-                            else:
-                                text += str(val)+', '
+                text = 'TEXT      : ' if formatted_text else 'TEXT      : '
+                #if parent_key == INSERT_TEXT:
+                text += '[ '
+                for val in value:
+                    if type(val) == tuple:
+                        if is_insert_meta_data:
+                            for v in val:
+                                if type(v) == int:
+                                    text += getMetaDataStr(v, formatted_text).strip('By ')+', '
+                                else:
+                                    text += '\''+str(v)+'\', '
                         else:
-                            text += '\''+str(val)+'\', '
-                    text = text.rstrip(', ')
-                    text += ']'
-                else:
-                    text += str(value)
+                            text += str(val)+', '
+                    else:
+                        text += '\''+str(val)+'\', '
+                text = text.rstrip(', ')
+                text += ' ]'
+                #else:
+                #    text += str(value)
             
             if key == META:
-                text = 'META : '# + str(value)
+                text = 'META      : ' if formatted_text else 'META      : [ '
                 
                 new_line = ''
                 for object in value:
                     if type(object) == dict:
+                        if not formatted_text: text += new_line + '{ '
                         for name, val in object.items():
-                            text += getMetaDataStr(name, new_line)
+                            text += getMetaDataStr(name, formatted_text, new_line)
                             if name == FILE_META_ACCESSED or name == FILE_META_MODIFIED or name == FILE_META_CREATED:
                                 if val == EXACT_MATCH:
-                                    text += 'Exactly On : '
+                                    text += 'Exactly On : ' if formatted_text else ' : EXACT_MATCH, '
                                 elif val == LOOSE_MATCH:
-                                    text += 'Around (Give or Take) : '
+                                    text += 'Around (Give or Take) : ' if formatted_text else ' : LOOSE_MATCH, '
                                 elif val == SKIP_EXACT_MATCH:
-                                    text += 'Skip If On : '
+                                    text += 'Skip If On : ' if formatted_text else ' : SKIP_EXACT_MATCH, '
                                 elif val == SKIP_LOOSE_MATCH:
-                                    text += 'Skip If Around (Give or Take) : '
+                                    text += 'Skip If Around (Give or Take) : ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
                                 elif val == WITHIN_THE_PAST:
-                                    text += 'Within The Past : '
+                                    text += 'Within The Past : ' if formatted_text else ' : WITHIN_THE_PAST, '
                                 elif val == OLDER_THAN:
-                                    text += 'Older Than : '
+                                    text += 'Older Than : ' if formatted_text else ' : OLDER_THAN, '
                             elif name == FILE_META_TYPE:
-                                text += ': '
+                                if formatted_text:
+                                    text += ': '
+                                else:
+                                    if val == SKIP_EXACT_MATCH or val == SKIP_LOOSE_MATCH:
+                                        text += ' : SKIP_EXACT_MATCH, '
+                                    else:
+                                        text += ' : EXACT_MATCH, '
                             elif (name == FILE_META_MIME or name == FILE_META_FORMAT or name == FILE_META_FORMAT_LONG or name == FILE_META_AUDIO_CHANNEL_LAYOUT
                              or name == FILE_META_AUDIO_TITLE or name == FILE_META_AUDIO_ALBUM or name == FILE_META_AUDIO_ARTIST or name == FILE_META_AUDIO_YEAR
                              or name == FILE_META_AUDIO_GENRE or name == FILE_META_AUDIO_PUBLISHER or name == FILE_META_AUDIO_TRACK):
                                 if val == EXACT_MATCH:
-                                    text += 'Exactly Matching : '
+                                    text += 'Exactly Matching : ' if formatted_text else ' : EXACT_MATCH, '
                                 elif val == LOOSE_MATCH:
-                                    text += 'With The Text : '
+                                    text += 'With The Text : ' if formatted_text else ' : LOOSE_MATCH, '
                                 elif val == SKIP_EXACT_MATCH:
-                                    text += 'Skip If Exact Match Found : '
+                                    text += 'Skip If Exact Match Found : ' if formatted_text else ' : SKIP_EXACT_MATCH, '
                                 elif val == SKIP_LOOSE_MATCH:
-                                    text += 'Skip If This Text Found : '
+                                    text += 'Skip If This Text Found : ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
                                 elif val == LESS_THAN:
-                                    text += 'Less Than : '
+                                    text += 'Less Than : ' if formatted_text else ' : LESS_THAN, '
                                 elif val == MORE_THAN:
-                                    text += 'More Than : '
+                                    text += 'More Than : ' if formatted_text else ' : MORE_THAN, '
                             else:
                                 if val == EXACT_MATCH:
-                                    text += 'At Exactly : '
+                                    text += 'At Exactly : ' if formatted_text else ' : EXACT_MATCH, '
                                 elif val == LOOSE_MATCH:
-                                    text += 'Around (Give or Take) : '
+                                    text += 'Around (Give or Take) : ' if formatted_text else ' : LOOSE_MATCH, '
                                 elif val == SKIP_EXACT_MATCH:
-                                    text += 'Skip At : '
+                                    text += 'Skip At : ' if formatted_text else ' : SKIP_EXACT_MATCH, '
                                 elif val == SKIP_LOOSE_MATCH:
-                                    text += 'Skip If Around (Give or Take) : '
+                                    text += 'Skip If Around (Give or Take) : ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
                                 elif val == LESS_THAN:
-                                    text += 'Less Than : '
+                                    text += 'Less Than : ' if formatted_text else ' : LESS_THAN, '
                                 elif val == MORE_THAN:
-                                    text += 'More Than : '
+                                    text += 'More Than : ' if formatted_text else ' : MORE_THAN, '
                             if name == DATA:
-                                type_str = getMetaDataStr(val)
+                                if not formatted_text: text += 'DATA : '
+                                type_str = getMetaDataStr(val, formatted_text)
                                 if type_str == '':
                                     text += str(val) + ' '
                                 else:
                                     text += type_str
                             if name == GB:
-                                text += str(val) + ' Gigabytes, '
+                                text += str(val) + ' Gigabytes, ' if formatted_text else 'GB : ' + str(val) + ', '
                             elif name == MB:
-                                text += str(val) + ' Megabytes, '
+                                text += str(val) + ' Megabytes, ' if formatted_text else 'MB : ' + str(val) + ', '
                             elif name == KB:
-                                text += str(val) + ' Kilobytes, '
+                                text += str(val) + ' Kilobytes, ' if formatted_text else 'KB : ' + str(val) + ', '
                             elif name == BYTES:
-                                text += str(val) + ' Bytes'
+                                text += str(val) + ' Bytes' if formatted_text else 'BYTES : ' + str(val) + ', '
                             elif name == IN_BYTES_ONLY:
-                                text += str(val) + ' Bytes Only'
+                                text += str(val) + ' Bytes Only' if formatted_text else 'IN_BYTES_ONLY : ' + str(val) + ', '
                             if name == YEAR:
-                                text += 'Year: ' + str(val) + ', '
+                                text += 'Year: ' + str(val) + ', ' if formatted_text else 'YEAR : ' + str(val) + ', '
                             if name == MONTH:
-                                text += 'Month: ' + str(val) + ', '
+                                text += 'Month: ' + str(val) + ', ' if formatted_text else 'MONTH : ' + str(val) + ', '
                             if name == DAY:
-                                text += 'Day: ' + str(val) + ', '
+                                text += 'Day: ' + str(val) + ', ' if formatted_text else 'DAY : ' + str(val) + ', '
                             if name == HOUR:
-                                text += 'Hour: ' + str(val) + ', '
+                                text += 'Hour: ' + str(val) + ', ' if formatted_text else 'HOUR : ' + str(val) + ', '
                             if name == MINUTE:
-                                text += 'Minute: ' + str(val) + ', '
+                                text += 'Minute: ' + str(val) + ', ' if formatted_text else 'MINUTE : ' + str(val) + ', '
                             if name == SECOND:
-                                text += 'Second: ' + str(val) + ', '
+                                text += 'Second: ' + str(val) + ', ' if formatted_text else 'SECOND : ' + str(val) + ', '
                             if name == MILLISECOND:
-                                text += 'Millasecond: ' + str(val) + ' '
+                                text += 'Millasecond: ' + str(val) + ' ' if formatted_text else 'MILLISECOND : ' + str(val) + ', '
                             if name == MICROSECOND:
-                                text += 'Microsecond: ' + str(val) + ' '
-                        new_line = '\n                                     '
+                                text += 'Microsecond: ' + str(val) + ' ' if formatted_text else 'MICROSECOND : ' + str(val) + ', '
+                        new_line = '\n                                          '
                         text = text.rstrip(', ')
-                        #text += ' }'
+                        if not formatted_text: text += ' }, '
+                
+                if not formatted_text:
+                    text = text.rstrip(', ')
+                    text += ' ]'
             
             if key == OPTIONS:
-                text = ''
-                new_line = '\n                                        '
+                text = '' if formatted_text else '[ '
+                new_line = '\n                                          '
                 if MATCH_CASE in value:
-                    text += new_line + 'Search Case Sensitive, '
+                    text += new_line + 'Search Case Sensitive, ' if formatted_text else 'MATCH_CASE, '
                 if NO_MATCH_CASE in value:
-                    text += new_line + 'Search Not Case Sensitive, '
+                    text += new_line + 'Search Not Case Sensitive, ' if formatted_text else 'NO_MATCH_CASE, '
                 if SEARCH_FROM_RIGHT in value:
-                    text += new_line + 'Start Search From Right Side, '
+                    text += new_line + 'Start Search From Right Side, ' if formatted_text else 'SEARCH_FROM_RIGHT, '
                 if COUNT in value:
-                    text += new_line + 'Insert An Incrementing Number, '
+                    text += new_line + 'Insert An Incrementing Number, ' if formatted_text else 'COUNT, '
                 if COUNT_TO in value:
-                    text += new_line + 'Limit Specific File Renames Made, '
+                    text += new_line + 'Limit Specific File Renames Made, ' if formatted_text else 'COUNT_TO, '
                 if EXTENSION in value and parent_key == MATCH_TEXT:
-                    text += new_line + 'Only Search The Extension, '
+                    text += new_line + 'Only Search The Extension, ' if formatted_text else 'EXTENSION, '
                 if EXTENSION in value and parent_key == IGNORE_TEXT:
-                    text += new_line + 'Ignore This Extension, '
+                    text += new_line + 'Ignore This Extension, ' if formatted_text else 'EXTENSION, '
                 if EXTENSION in value and parent_key == INSERT_TEXT:
-                    text += new_line + 'Allow Extension To Be Modified, '
+                    text += new_line + 'Allow Extension To Be Modified, ' if formatted_text else 'EXTENSION, '
                 if RANDOM_NUMBERS in value:
-                    text += new_line + 'Insert Random Numbers, '
+                    text += new_line + 'Insert Random Numbers, ' if formatted_text else 'RANDOM_NUMBERS, '
                 if RANDOM_LETTERS in value:
-                    text += new_line + 'Insert Random Letters, '
+                    text += new_line + 'Insert Random Letters, ' if formatted_text else 'RANDOM_LETTERS, '
                 if RANDOM_SPECIALS in value:
-                    text += new_line + 'Insert Random Special Characters, '
+                    text += new_line + 'Insert Random Special Characters, ' if formatted_text else 'RANDOM_SPECIALS, '
                 if RANDOM_OTHER in value:
-                    text += new_line + 'Insert Random Other Characters, '
+                    text += new_line + 'Insert Random Other Characters, ' if formatted_text else 'RANDOM_OTHER, '
                 if REGEX in value:
-                    text += new_line + 'Regular Expressions, '
+                    text += new_line + 'Regular Expressions, ' if formatted_text else 'REGEX, '
                 if SAME_MATCH_INDEX in value:
-                    text += new_line + 'Use Same Index For Match and Insert Text Lists,'
+                    text += new_line + 'Use Same Index For Match and Insert Text Lists,' if formatted_text else 'SAME_MATCH_INDEX, '
                 if NO_REPEAT_TEXT_LIST in value:
                     #text += 'Once End of Text List Reached Repeat List, '
-                    text += new_line + 'Do Not Repeat Text List Once End Reached, '
+                    text += new_line + 'Do Not Repeat Text List Once End Reached, ' if formatted_text else 'NO_REPEAT_TEXT_LIST, '
                 if INSERT_META_DATA in value:
-                    text += new_line + 'Insert File Meta Data, '
+                    text += new_line + 'Insert File Meta Data, ' if formatted_text else 'INSERT_META_DATA, '
                 for item in value:
                     if type(item) == tuple:
                         if MATCH_LIMIT in item:
-                            text += new_line + 'Limit Matches To : ' + str(item[1]) + ', '
+                            text += new_line + 'Limit Matches To : ' + str(item[1]) + ', ' if formatted_text else '(MATCH_LIMIT : '+str(item[1])+')'
                         if MINIMUM_DIGITS in item:
-                            text += new_line + 'Minimum : ' + str(item[1]) + ' Digits, '
+                            text += new_line + 'Minimum : ' + str(item[1]) + ' Digits, ' if formatted_text else '(MINIMUM_DIGITS : '+str(item[1])+')'
                         if RANDOM_SEED in item:
-                            text += new_line + 'Random Seed Used : ' + str(item[1]) + ', '
+                            text += new_line + 'Random Seed Used : ' + str(item[1]) + ', ' if formatted_text else '(RANDOM_SEED : '+str(item[1])+')'
                 text = text.strip('\n, ')
-                text = '\n                              OPTIONS : ' + text
+                if formatted_text:
+                    text = '\n                              OPTIONS   : ' + text
+                else:
+                    #text = text.strip(' }')
+                    text = ',\n                            OPTIONS   : ' + text + ' ]'
             
             if key == PLACEMENT:
-                text = '\n                              PLACEMENT : '
-                if START in value:
-                    text += 'Start'
-                elif END in value:
-                    text += 'End'
-                elif BOTH_ENDS in value:
-                    text += 'Both Ends'
-                if OF_FILE_NAME in value:
-                    text += ' of File Name'
-                elif OF_MATCH in value:
-                    text += ' of Match'
+                if type(value[0]) == int:
+                    place = value[0]
+                    of = None
+                else:
+                    place = value[0][0]
+                    of = value[0][1]
+                if formatted_text:
+                    text = '\n                              PLACEMENT : '
+                else:
+                    if of: text = ',\n                            PLACEMENT : ('
+                    else: text = ',\n                            PLACEMENT : '
+                #if START in value:
+                if START == place:
+                    text += 'Start' if formatted_text else 'START'
+                #elif END in value:
+                elif END == place:
+                    text += 'End' if formatted_text else 'END'
+                #elif BOTH_ENDS in value:
+                elif BOTH_ENDS == place:
+                    text += 'Both Ends' if formatted_text else 'BOTH_ENDS'
+                if of: text += ', '
+                #if OF_FILE_NAME in value:
+                if OF_FILE_NAME == of:
+                    text += ' of File Name' if formatted_text else 'OF_FILE_NAME'
+                #elif OF_MATCH in value:
+                elif OF_MATCH == of:
+                    text += ' of Match' if formatted_text else 'OF_MATCH'
+                if of: text += ')'
         
         elif parent_key == PRESORT_FILES:
-            text = getMetaDataStr(key)
+            text = '' if formatted_text else ''
+            text += getMetaDataStr(key, formatted_text)
             if ASCENDING in value:
-                text += 'In Ascending Order'
+                text += 'In Ascending Order' if formatted_text else ' : ASCENDING'
             elif DESCENDING in value:
-                text += 'In Descending Order'
+                text += 'In Descending Order' if formatted_text else ' : DESCENDING'
         
+        ##TODO formatted_text
         elif parent_key == TRACKED_DATA:
             if key == FILES_REVIEWED:
                 text = 'Files Reviewed So Far : ' + str(value)
@@ -3235,30 +3316,31 @@ def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ##
                             text += 'END TIME : ' + str(items) + ', '
                     text = text.rstrip(', ')
     
+    ##TODO formatted_text more to be done
     if key == None:
         if type(value) == str:
             text = f'"{str(value)}"'
         elif parent_key == EDIT_TYPE:
             if ADD in value:
-                text = 'Add'
+                text = 'Add' if formatted_text else 'ADD,'
             elif REPLACE in value:
-                text = 'Replace'
+                text = 'Replace' if formatted_text else 'REPLACE,'
             elif RENAME in value:
-                text = 'Rename'
+                text = 'Rename' if formatted_text else 'RENAME,'
         elif parent_key == MATCH_FILE_META:
-            text = 'Meta Data Type (Mime) : '
-            type_str = getMetaDataStr(value[0], text)
+            text = 'Meta Data Type (Mime) : ' if formatted_text else 'MATCH_FILE_META'
+            type_str = getMetaDataStr(value[0], formatted_text, text)
             if type_str == '':
-                text += str(value)
+                text = str(value) + ','
             else:
-                text = type_str
+                text = type_str + ','
         elif parent_key == SOFT_RENAME_LIMIT or parent_key == HARD_RENAME_LIMIT:
             if value[0] == NO_LIMIT:
-                text = 'No Limit'
+                text = 'No Limit' if formatted_text else 'NO_LIMIT,'
             else:
                 text = str(value[0])
         else:
-            text = str(value)
+            text = str(value) + ','
     
     return text
 
@@ -3267,82 +3349,82 @@ def intToStrText(key, value, parent_key = None, is_insert_meta_data = False): ##
 ###     (const) Interger Constant
 ###     (starting_text) Optional text to insert first.
 ###     --> Returns a [String]
-def getMetaDataStr(const, starting_text = ''):
+def getMetaDataStr(const, formatted_text = True, starting_text = ''):
     text = ''
     
     if const == ALPHABETICALLY:
-        text = starting_text + 'Alphabetically '
+        text = starting_text + 'Alphabetically ' if formatted_text else 'ALPHABETICALLY'
     elif const == FILE_META_SIZE:
-        text = starting_text + 'By File Size '
+        text = starting_text + 'By File Size ' if formatted_text else 'FILE_META_SIZE'
     elif const == FILE_META_ACCESSED:
-        text = starting_text + 'By Date Files Last Accessed '
+        text = starting_text + 'By Date Files Last Accessed ' if formatted_text else 'FILE_META_ACCESSED'
     elif const == FILE_META_MODIFIED:
-        text = starting_text + 'By Date File Last Modified '
+        text = starting_text + 'By Date File Last Modified ' if formatted_text else 'FILE_META_MODIFIED'
     elif const == FILE_META_CREATED:
-        text = starting_text + 'By Date File (or Meta Data) Created '
+        text = starting_text + 'By Date File (or Meta Data) Created ' if formatted_text else 'FILE_META_CREATED'
     elif const == FILE_META_TYPE:
-        text = starting_text + 'By Meta Data Type (Basic Mime) '
+        text = starting_text + 'By Meta Data Type (Basic Mime) ' if formatted_text else 'FILE_META_TYPE'
     elif const == FILE_META_MIME:
-        text = starting_text + 'By Meta Data Mime '
+        text = starting_text + 'By Meta Data Mime ' if formatted_text else 'FILE_META_MIME'
     elif const == FILE_META_FORMAT:
-        text = starting_text + 'By Meta Data Format '
+        text = starting_text + 'By Meta Data Format ' if formatted_text else 'FILE_META_FORMAT'
     elif const == FILE_META_FORMAT_LONG:
-        text = starting_text + 'By Meta Data Format (Full Name) '
+        text = starting_text + 'By Meta Data Format (Full Name) ' if formatted_text else 'FILE_META_FORMAT_LONG'
     elif const == FILE_META_HEIGHT:
-        text = starting_text + 'By Media\'s Height '
+        text = starting_text + 'By Media\'s Height ' if formatted_text else 'FILE_META_HEIGHT'
     elif const == FILE_META_WIDTH:
-        text = starting_text + 'By Media\'s Width '
+        text = starting_text + 'By Media\'s Width ' if formatted_text else 'FILE_META_WIDTH'
     elif const == FILE_META_LENGTH:
-        text = starting_text + 'By Media\'s Duration (Time) '
+        text = starting_text + 'By Media\'s Duration (Time) ' if formatted_text else 'FILE_META_LENGTH'
     elif const == FILE_META_BIT_DEPTH:
-        text = starting_text + 'By Media\'s Bit Depth '
+        text = starting_text + 'By Media\'s Bit Depth ' if formatted_text else 'FILE_META_BIT_DEPTH'
     elif const == FILE_META_VIDEO_BITRATE:
-        text = starting_text + 'By Video Bitrate '
+        text = starting_text + 'By Video Bitrate ' if formatted_text else 'FILE_META_VIDEO_BITRATE'
     elif const == FILE_META_VIDEO_FRAME_RATE:
-        text = starting_text + 'By Video Frame Rate '
+        text = starting_text + 'By Video Frame Rate ' if formatted_text else 'FILE_META_VIDEO_FRAME_RATE'
     elif const == FILE_META_AUDIO_BITRATE:
-        text = starting_text + 'By Audio Bitrate '
+        text = starting_text + 'By Audio Bitrate ' if formatted_text else 'FILE_META_AUDIO_BITRATE'
     elif const == FILE_META_AUDIO_SAMPLE_RATE:
-        text = starting_text + 'By Audio Sample Rate '
+        text = starting_text + 'By Audio Sample Rate ' if formatted_text else 'FILE_META_AUDIO_SAMPLE_RATE'
     elif const == FILE_META_AUDIO_CHANNELS:
-        text = starting_text + 'By Amount Of Audio Channels '
+        text = starting_text + 'By Amount Of Audio Channels ' if formatted_text else 'FILE_META_AUDIO_CHANNELS'
     elif const == FILE_META_AUDIO_CHANNEL_LAYOUT:
-        text = starting_text + 'By Audio Channel Layout '
+        text = starting_text + 'By Audio Channel Layout ' if formatted_text else 'FILE_META_AUDIO_CHANNEL_LAYOUT'
     elif const == FILE_META_AUDIO_TITLE:
-        text = starting_text + 'By Audio Title '
+        text = starting_text + 'By Audio Title ' if formatted_text else 'FILE_META_AUDIO_TITLE'
     elif const == FILE_META_AUDIO_ALBUM:
-        text = starting_text + 'By Audio Album '
+        text = starting_text + 'By Audio Album ' if formatted_text else 'FILE_META_AUDIO_ALBUM'
     elif const == FILE_META_AUDIO_ARTIST:
-        text = starting_text + 'By Audio Artist '
+        text = starting_text + 'By Audio Artist ' if formatted_text else 'FILE_META_AUDIO_ARTIST'
     elif const == FILE_META_AUDIO_YEAR:
-        text = starting_text + 'By Audio Year Released '
+        text = starting_text + 'By Audio Year Released ' if formatted_text else 'FILE_META_AUDIO_YEAR'
     elif const == FILE_META_AUDIO_PUBLISHER:
-        text = starting_text + 'By Audio Published '
+        text = starting_text + 'By Audio Published ' if formatted_text else 'FILE_META_AUDIO_PUBLISHER'
     elif const == FILE_META_AUDIO_TRACK:
-        text = starting_text + 'By Audio Track Number '
+        text = starting_text + 'By Audio Track Number ' if formatted_text else 'FILE_META_AUDIO_TRACK'
     
     elif const == TYPE_APPLICATION:
-        text = starting_text + 'Application'
+        text = starting_text + 'Application' if formatted_text else 'TYPE_APPLICATION'
     elif const == TYPE_AUDIO:
-        text = starting_text + 'Audio'
+        text = starting_text + 'Audio' if formatted_text else 'TYPE_AUDIO'
     elif const == TYPE_FONT:
-        text = starting_text + 'Font'
+        text = starting_text + 'Font' if formatted_text else 'TYPE_FONT'
     elif const == TYPE_IMAGE:
-        text = starting_text + 'Image'
+        text = starting_text + 'Image' if formatted_text else 'TYPE_IMAGE'
     elif const == TYPE_MESSAGE:
-        text = starting_text + 'Message'
+        text = starting_text + 'Message' if formatted_text else 'TYPE_MESSAGE'
     elif const == TYPE_MODEL:
-        text = starting_text + 'Model'
+        text = starting_text + 'Model' if formatted_text else 'TYPE_MODEL'
     elif const == TYPE_MULTIPART:
-        text = starting_text + 'Multipart'
+        text = starting_text + 'Multipart' if formatted_text else 'TYPE_MULTIPART'
     elif const == TYPE_TEXT:
-        text = starting_text + 'Text'
+        text = starting_text + 'Text' if formatted_text else 'TYPE_TEXT'
     elif const == TYPE_VIDEO:
-        text = starting_text + 'Video'
+        text = starting_text + 'Video' if formatted_text else 'TYPE_VIDEO'
     elif const == TYPE_ARCHIVE:
-        text = starting_text + 'Archive'
+        text = starting_text + 'Archive' if formatted_text else 'TYPE_ARCHIVE'
     elif const == TYPE_DOCUMENT:
-        text = starting_text + 'Document'
+        text = starting_text + 'Document' if formatted_text else 'TYPE_DOCUMENT'
     
     return text
 
@@ -3434,7 +3516,7 @@ def drop(files):
                     edit_details_copy = startingFileRenameProcedure(revert_files_meta, edit_details)
                     files_renamed += getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
                     
-                    if debug: displayPreset(edit_details_copy)
+                    if debug: displayPreset(edit_details_copy, False)
                     updateLogFile(edit_details_copy, True)
                     if len(files_meta[0]) > 1:
                         delay.sleep(1) # Log files are named using time so wait a second to make sure next log file name is +1 second.
@@ -3448,12 +3530,12 @@ def drop(files):
             # Get User Preset Selection
             preset_loop = loop
             while preset_loop:
-                displayPreset(preset_options, selected_preset)
+                displayPreset(preset_options, readable_preset_text, selected_preset)
                 preset_selection = input('Continue with this Preset [ Enter ] or choose another? [ # ] or [ (S)how(A)ll ]: ')
                 preset_selection = getUserPresetSelection(preset_selection)
                 
                 if preset_selection == ALL:
-                    displayPreset(preset_options)
+                    displayPreset(preset_options, readable_preset_text)
                     preset_selection = input('Select a Preset [ # ]: ')
                     preset_selection = getUserPresetSelection(preset_selection)
                 
@@ -3480,7 +3562,7 @@ def drop(files):
             files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
             
             # Show and record details of file renames.
-            if debug: displayPreset(edit_details_copy)
+            if debug: displayPreset(edit_details_copy, readable_preset_text)
             updateLogFile(edit_details_copy)
     
     else:
