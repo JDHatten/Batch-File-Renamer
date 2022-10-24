@@ -364,7 +364,7 @@ preset0 = {         # Defaults
   INSERT_TEXT       : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
   SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
-  LINKED_FILES      : [],       # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
+  LINKED_FILES      : None,     # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
   INCLUDE_SUB_DIRS  : False,    # Search Sub-Directories (True or False)
   PRESORT_FILES     : None      # Sort before renaming files.  Dict{ File Meta Data : ASCENDING or DESCENDING }
 }                               # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
@@ -463,7 +463,7 @@ preset15 = {
                         OPTIONS     : [ COUNT, NO_REPEAT_TEXT_LIST ],
                         PLACEMENT   : ( END, OF_MATCH ) },
   SOFT_RENAME_LIMIT : NO_LIMIT,
-  LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
+  LINKED_FILES      : 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt',
 }
 preset16 = {
   EDIT_TYPE         : REPLACE,
@@ -645,7 +645,7 @@ def illegalCharacterCheck(edit_details):
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [Boolean]
 def linkedFilesCheck(edit_details):
-    linked_files = edit_details.get(LINKED_FILES, [])
+    linked_files = getLinkedFiles(edit_details)
     broken_link = False
     continue_renaming = True
     for linked_file in linked_files:
@@ -663,8 +663,8 @@ def linkedFilesCheck(edit_details):
 ### Display one or all file rename preset options.
 ###     (preset) A List of file rename presets. Or a single preset Dictionary.
 ###     (number) Only show specific preset in List.
-###     (log_preset) Return preset in a List for use in log file.
-###     --> Returns a [None] 
+###     (log_preset) Return preset in a List for use in a log file.
+###     --> Returns a [List] or None
 def displayPreset(presets, formatted_text = True, number = -1, log_preset = False):
     log_lines = [] if log_preset else None
     
@@ -711,8 +711,8 @@ def displayPreset(presets, formatted_text = True, number = -1, log_preset = Fals
                 print('\nCurrent Preset #%s' % number)
         
         if not formatted_text:
-            print('preset%s = {' % number)
             if log_preset: log_lines.append('preset%s = {' % number)
+            else: print('preset%s = {' % number)
         
         for option, mod in presets.items():
             
@@ -739,8 +739,8 @@ def displayPreset(presets, formatted_text = True, number = -1, log_preset = Fals
                     print('    %s : %s' % (opt_str, mod_str))
         
         if not formatted_text:
-            print('}')
             if log_preset: log_lines.append('}')
+            else: print('}')
     
     if not log_preset: print('\n')
     
@@ -1521,7 +1521,7 @@ def createNewFileName(some_file, edit_details):
         skip_file = checkForSkippedFiles(new_file_path, getTrackedData(edit_details, SKIPPED_FILES))
         
         if not skip_file:
-            linked_files = edit_details.get(LINKED_FILES, [])
+            linked_files = getLinkedFiles(edit_details)
             linked_files_updates = []
             lf_backed_up = getTrackedData(edit_details, ONE_TIME_FLAGS, [LF_BACKED_UP])
             #print('lf_backed_up: %s' % lf_backed_up)
@@ -2014,6 +2014,15 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
     return meta_list_index
 
 
+## Return a List of linked files if any provided or an empty list if None.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [List]
+def getLinkedFiles(edit_details):
+    linked_files = edit_details.get(LINKED_FILES, [])
+    linked_files = makeList(linked_files)
+    return linked_files
+
+
 ### Return the TEXT or META value from a Dictionary.
 ###     (data) A Dictionary that has a TEXT or META key.
 ###     (default) If text not found return default
@@ -2024,8 +2033,7 @@ def getText(data, default = [''], key = TEXT):
         # If no key but there's still data, just return the data assuming it's a single item with no options or placement.
         if text == default and data:
             text = data
-        if type(text) != list:
-            text = [text]
+        text = makeList(text)
     elif data == None or data == '':
         text = default
     else:
@@ -2044,8 +2052,7 @@ def getMeta(data, default = []):
 def getOptions(data, specific_option = None, default = False):
     if type(data) == dict:
         options = data.get(OPTIONS, [])
-        if type(options) != list:
-            options = [options]
+        options = makeList(options)
     else:
         options = []
     if specific_option != None:
@@ -2053,8 +2060,7 @@ def getOptions(data, specific_option = None, default = False):
     return options
 
 def getSpecificOption(options, specific_option, default = False):
-    if type(options) != list:
-        options = [options]
+    options = makeList(options)
     for option in options:
         if type(option) == tuple:
             if option[0] == specific_option:
@@ -2074,6 +2080,17 @@ def getPlacement(data):
     elif type(placement) != tuple:
         placement = (placement, NONE)
     return placement
+
+
+### Make any variable a list if not already a list.
+###     (variable) A variable of any kind.
+###     --> Returns a [List]
+def makeList(variable):
+    if variable == None:
+        variable = []
+    elif type(variable) != list:
+        variable = [variable]
+    return variable
 
 
 ### Returns +0 finding an index not currently limited, "-1" if index hit limit and no other indexes are avalible, or -2 when all avalible indexes in list hit limit.
@@ -2836,7 +2853,7 @@ def updateLogFile(edit_details, log_revert = False):
         print('Log File Not Created. Files Renamed: 0')
         return False
     
-    linked_files = edit_details.get(LINKED_FILES, [])
+    linked_files = getLinkedFiles(edit_details)
     org_file_paths = getTrackedData(edit_details, LOG_DATA, [ORG_FILE_PATHS])
     new_file_paths = getTrackedData(edit_details, LOG_DATA, [NEW_FILE_PATHS])
     linked_files_updated = getTrackedData(edit_details, LOG_DATA, [LINKED_FILES_UPDATED])
@@ -3022,8 +3039,8 @@ def getUserPresetSelection(string_num):
 ###     (is_insert_meta_data) Check for INSERT_META_DATA option use.
 ###     --> Returns a [String]
 def presetConstantsToText(key, value, parent_key = None, formatted_text = True, is_insert_meta_data = False):
-    if type(value) != list and type(value) != tuple:
-        value = [value]
+    #if type(value) != list and type(value) != tuple:
+    #    value = [value]
     text = str(value)
     new_line = ''
     
@@ -3059,13 +3076,11 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
         if (parent_key == MATCH_TEXT or parent_key == IGNORE_TEXT or parent_key == MATCH_FILE_CONTENTS
          or parent_key == MATCH_FILE_META or parent_key == INSERT_TEXT):
             
-            if type(value) != list:
-                value = [value]
+            value = makeList(value)
             
             if key == TEXT:
                 text = 'TEXT      : ' if formatted_text else 'TEXT      : '
-                #if parent_key == INSERT_TEXT:
-                text += '[ '
+                if not formatted_text: text += '[ '
                 for val in value:
                     if type(val) == tuple:
                         if is_insert_meta_data:
@@ -3079,13 +3094,10 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                     else:
                         text += '\''+str(val)+'\', '
                 text = text.rstrip(', ')
-                text += ' ]'
-                #else:
-                #    text += str(value)
+                if not formatted_text: text += ' ]'
             
             if key == META:
                 text = 'META      : ' if formatted_text else 'META      : [ '
-                
                 new_line = ''
                 for object in value:
                     if type(object) == dict:
@@ -3094,17 +3106,21 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                             text += getMetaDataStr(name, formatted_text, new_line)
                             if name == FILE_META_ACCESSED or name == FILE_META_MODIFIED or name == FILE_META_CREATED:
                                 if val == EXACT_MATCH:
-                                    text += 'Exactly On : ' if formatted_text else ' : EXACT_MATCH, '
+                                    text += 'Exactly On The ' if formatted_text else ' : EXACT_MATCH, '
                                 elif val == LOOSE_MATCH:
-                                    text += 'Around (Give or Take) : ' if formatted_text else ' : LOOSE_MATCH, '
+                                    text += 'Around (Give or Take) The ' if formatted_text else ' : LOOSE_MATCH, '
                                 elif val == SKIP_EXACT_MATCH:
-                                    text += 'Skip If On : ' if formatted_text else ' : SKIP_EXACT_MATCH, '
+                                    text += 'Skip If On The ' if formatted_text else ' : SKIP_EXACT_MATCH, '
                                 elif val == SKIP_LOOSE_MATCH:
-                                    text += 'Skip If Around (Give or Take) : ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
+                                    text += 'Skip If Around (Give or Take) The ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
+                                elif val == BEFORE:
+                                    text += 'Before The ' if formatted_text else ' : BEFORE, '
+                                elif val == AFTER:
+                                    text += 'After The ' if formatted_text else ' : AFTER, '
                                 elif val == WITHIN_THE_PAST:
-                                    text += 'Within The Past : ' if formatted_text else ' : WITHIN_THE_PAST, '
+                                    text += 'Within The Past ' if formatted_text else ' : WITHIN_THE_PAST, '
                                 elif val == OLDER_THAN:
-                                    text += 'Older Than : ' if formatted_text else ' : OLDER_THAN, '
+                                    text += 'Older Than ' if formatted_text else ' : OLDER_THAN, '
                             elif name == FILE_META_TYPE:
                                 if formatted_text:
                                     text += ': '
@@ -3117,30 +3133,30 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                              or name == FILE_META_AUDIO_TITLE or name == FILE_META_AUDIO_ALBUM or name == FILE_META_AUDIO_ARTIST or name == FILE_META_AUDIO_YEAR
                              or name == FILE_META_AUDIO_GENRE or name == FILE_META_AUDIO_PUBLISHER or name == FILE_META_AUDIO_TRACK):
                                 if val == EXACT_MATCH:
-                                    text += 'Exactly Matching : ' if formatted_text else ' : EXACT_MATCH, '
+                                    text += 'Exactly Matching: ' if formatted_text else ' : EXACT_MATCH, '
                                 elif val == LOOSE_MATCH:
-                                    text += 'With The Text : ' if formatted_text else ' : LOOSE_MATCH, '
+                                    text += 'With The Text: ' if formatted_text else ' : LOOSE_MATCH, '
                                 elif val == SKIP_EXACT_MATCH:
-                                    text += 'Skip If Exact Match Found : ' if formatted_text else ' : SKIP_EXACT_MATCH, '
+                                    text += 'Skip If Exact Match Found: ' if formatted_text else ' : SKIP_EXACT_MATCH, '
                                 elif val == SKIP_LOOSE_MATCH:
-                                    text += 'Skip If This Text Found : ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
+                                    text += 'Skip If This Text Found: ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
                                 elif val == LESS_THAN:
-                                    text += 'Less Than : ' if formatted_text else ' : LESS_THAN, '
+                                    text += 'Less Than: ' if formatted_text else ' : LESS_THAN, '
                                 elif val == MORE_THAN:
-                                    text += 'More Than : ' if formatted_text else ' : MORE_THAN, '
+                                    text += 'More Than: ' if formatted_text else ' : MORE_THAN, '
                             else:
                                 if val == EXACT_MATCH:
-                                    text += 'At Exactly : ' if formatted_text else ' : EXACT_MATCH, '
+                                    text += 'At Exactly: ' if formatted_text else ' : EXACT_MATCH, '
                                 elif val == LOOSE_MATCH:
-                                    text += 'Around (Give or Take) : ' if formatted_text else ' : LOOSE_MATCH, '
+                                    text += 'Around (Give or Take): ' if formatted_text else ' : LOOSE_MATCH, '
                                 elif val == SKIP_EXACT_MATCH:
-                                    text += 'Skip At : ' if formatted_text else ' : SKIP_EXACT_MATCH, '
+                                    text += 'Skip At: ' if formatted_text else ' : SKIP_EXACT_MATCH, '
                                 elif val == SKIP_LOOSE_MATCH:
-                                    text += 'Skip If Around (Give or Take) : ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
+                                    text += 'Skip If Around (Give or Take): ' if formatted_text else ' : SKIP_LOOSE_MATCH, '
                                 elif val == LESS_THAN:
-                                    text += 'Less Than : ' if formatted_text else ' : LESS_THAN, '
+                                    text += 'Less Than: ' if formatted_text else ' : LESS_THAN, '
                                 elif val == MORE_THAN:
-                                    text += 'More Than : ' if formatted_text else ' : MORE_THAN, '
+                                    text += 'More Than: ' if formatted_text else ' : MORE_THAN, '
                             if name == DATA:
                                 if not formatted_text: text += 'DATA : '
                                 type_str = getMetaDataStr(val, formatted_text)
@@ -3177,60 +3193,61 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                         new_line = '\n                                          '
                         text = text.rstrip(', ')
                         if not formatted_text: text += ' }, '
-                
                 if not formatted_text:
                     text = text.rstrip(', ')
                     text += ' ]'
             
             if key == OPTIONS:
                 text = '' if formatted_text else '[ '
-                new_line = '\n                                          '
-                if MATCH_CASE in value:
-                    text += new_line + 'Search Case Sensitive, ' if formatted_text else 'MATCH_CASE, '
-                if NO_MATCH_CASE in value:
-                    text += new_line + 'Search Not Case Sensitive, ' if formatted_text else 'NO_MATCH_CASE, '
-                if SEARCH_FROM_RIGHT in value:
-                    text += new_line + 'Start Search From Right Side, ' if formatted_text else 'SEARCH_FROM_RIGHT, '
-                if COUNT in value:
-                    text += new_line + 'Insert An Incrementing Number, ' if formatted_text else 'COUNT, '
-                if COUNT_TO in value:
-                    text += new_line + 'Limit Specific File Renames Made, ' if formatted_text else 'COUNT_TO, '
-                if EXTENSION in value and parent_key == MATCH_TEXT:
-                    text += new_line + 'Only Search The Extension, ' if formatted_text else 'EXTENSION, '
-                if EXTENSION in value and parent_key == IGNORE_TEXT:
-                    text += new_line + 'Ignore This Extension, ' if formatted_text else 'EXTENSION, '
-                if EXTENSION in value and parent_key == INSERT_TEXT:
-                    text += new_line + 'Allow Extension To Be Modified, ' if formatted_text else 'EXTENSION, '
-                if RANDOM_NUMBERS in value:
-                    text += new_line + 'Insert Random Numbers, ' if formatted_text else 'RANDOM_NUMBERS, '
-                if RANDOM_LETTERS in value:
-                    text += new_line + 'Insert Random Letters, ' if formatted_text else 'RANDOM_LETTERS, '
-                if RANDOM_SPECIALS in value:
-                    text += new_line + 'Insert Random Special Characters, ' if formatted_text else 'RANDOM_SPECIALS, '
-                if RANDOM_OTHER in value:
-                    text += new_line + 'Insert Random Other Characters, ' if formatted_text else 'RANDOM_OTHER, '
-                if REGEX in value:
-                    text += new_line + 'Regular Expressions, ' if formatted_text else 'REGEX, '
-                if SAME_MATCH_INDEX in value:
-                    text += new_line + 'Use Same Index For Match and Insert Text Lists,' if formatted_text else 'SAME_MATCH_INDEX, '
-                if NO_REPEAT_TEXT_LIST in value:
-                    #text += 'Once End of Text List Reached Repeat List, '
-                    text += new_line + 'Do Not Repeat Text List Once End Reached, ' if formatted_text else 'NO_REPEAT_TEXT_LIST, '
-                if INSERT_META_DATA in value:
-                    text += new_line + 'Insert File Meta Data, ' if formatted_text else 'INSERT_META_DATA, '
-                for item in value:
-                    if type(item) == tuple:
-                        if MATCH_LIMIT in item:
-                            text += new_line + 'Limit Matches To : ' + str(item[1]) + ', ' if formatted_text else '(MATCH_LIMIT : '+str(item[1])+')'
-                        if MINIMUM_DIGITS in item:
-                            text += new_line + 'Minimum : ' + str(item[1]) + ' Digits, ' if formatted_text else '(MINIMUM_DIGITS : '+str(item[1])+')'
-                        if RANDOM_SEED in item:
-                            text += new_line + 'Random Seed Used : ' + str(item[1]) + ', ' if formatted_text else '(RANDOM_SEED : '+str(item[1])+')'
-                text = text.strip('\n, ')
+                if not value:
+                    text += 'None'
+                else:
+                    new_line = '\n                                          '
+                    if MATCH_CASE in value:
+                        text += new_line + 'Search Case Sensitive' if formatted_text else 'MATCH_CASE, '
+                    if NO_MATCH_CASE in value:
+                        text += new_line + 'Search Not Case Sensitive' if formatted_text else 'NO_MATCH_CASE, '
+                    if SEARCH_FROM_RIGHT in value:
+                        text += new_line + 'Start Search From Right Side' if formatted_text else 'SEARCH_FROM_RIGHT, '
+                    if COUNT in value:
+                        text += new_line + 'Insert An Incrementing Number' if formatted_text else 'COUNT, '
+                    if COUNT_TO in value:
+                        text += new_line + 'Limit Specific File Renames Made' if formatted_text else 'COUNT_TO, '
+                    if EXTENSION in value and parent_key == MATCH_TEXT:
+                        text += new_line + 'Only Search The Extension' if formatted_text else 'EXTENSION, '
+                    if EXTENSION in value and parent_key == IGNORE_TEXT:
+                        text += new_line + 'Ignore This Extension' if formatted_text else 'EXTENSION, '
+                    if EXTENSION in value and parent_key == INSERT_TEXT:
+                        text += new_line + 'Allow Extension To Be Modified, ' if formatted_text else 'EXTENSION, '
+                    if RANDOM_NUMBERS in value:
+                        text += new_line + 'Insert Random Numbers' if formatted_text else 'RANDOM_NUMBERS, '
+                    if RANDOM_LETTERS in value:
+                        text += new_line + 'Insert Random Letters' if formatted_text else 'RANDOM_LETTERS, '
+                    if RANDOM_SPECIALS in value:
+                        text += new_line + 'Insert Random Special Characters' if formatted_text else 'RANDOM_SPECIALS, '
+                    if RANDOM_OTHER in value:
+                        text += new_line + 'Insert Random Other Characters' if formatted_text else 'RANDOM_OTHER, '
+                    if REGEX in value:
+                        text += new_line + 'Regular Expressions' if formatted_text else 'REGEX, '
+                    if SAME_MATCH_INDEX in value:
+                        text += new_line + 'Use Same Index For Match and Insert Text Lists' if formatted_text else 'SAME_MATCH_INDEX, '
+                    if NO_REPEAT_TEXT_LIST in value:
+                        #text += 'Once End of Text List Reached Repeat List, '
+                        text += new_line + 'Do Not Repeat Text List Once End Reached' if formatted_text else 'NO_REPEAT_TEXT_LIST, '
+                    if INSERT_META_DATA in value:
+                        text += new_line + 'Insert File Meta Data' if formatted_text else 'INSERT_META_DATA, '
+                    for item in value:
+                        if type(item) == tuple:
+                            if MATCH_LIMIT in item:
+                                text += new_line + 'Limit Matches To : ' + str(item[1]) if formatted_text else '(MATCH_LIMIT : '+str(item[1])+')'
+                            if MINIMUM_DIGITS in item:
+                                text += new_line + 'Minimum : ' + str(item[1]) + ' Digits' if formatted_text else '(MINIMUM_DIGITS : '+str(item[1])+')'
+                            if RANDOM_SEED in item:
+                                text += new_line + 'Random Seed Used : ' + str(item[1]) if formatted_text else '(RANDOM_SEED : '+str(item[1])+')'
+                    text = text.strip('\n, ')
                 if formatted_text:
                     text = '\n                              OPTIONS   : ' + text
                 else:
-                    #text = text.strip(' }')
                     text = ',\n                            OPTIONS   : ' + text + ' ]'
             
             if key == PLACEMENT:
@@ -3254,21 +3271,23 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 #elif BOTH_ENDS in value:
                 elif BOTH_ENDS == place:
                     text += 'Both Ends' if formatted_text else 'BOTH_ENDS'
-                if of: text += ', '
+                if of and not formatted_text: text += ', '
                 #if OF_FILE_NAME in value:
                 if OF_FILE_NAME == of:
                     text += ' of File Name' if formatted_text else 'OF_FILE_NAME'
                 #elif OF_MATCH in value:
                 elif OF_MATCH == of:
                     text += ' of Match' if formatted_text else 'OF_MATCH'
-                if of: text += ')'
+                if of and not formatted_text: text += ')'
         
         elif parent_key == PRESORT_FILES:
             text = '' if formatted_text else ''
             text += getMetaDataStr(key, formatted_text)
-            if ASCENDING in value:
+            #if ASCENDING in value:
+            if ASCENDING == value:
                 text += 'In Ascending Order' if formatted_text else ' : ASCENDING'
-            elif DESCENDING in value:
+            #elif DESCENDING in value:
+            elif DESCENDING == value:
                 text += 'In Descending Order' if formatted_text else ' : DESCENDING'
         
         ##TODO formatted_text
@@ -3302,8 +3321,8 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
             if key == LOG_DATA:
                 text = '\n                              Log Data : '
                 text += '' if show_log_data else '[Not Shown]'
-                if type(value[0]) == dict and show_log_data:
-                    for key, items in value[0].items():
+                if type(value) == dict and show_log_data:
+                    for key, items in value.items():
                         if key == ORG_FILE_PATHS:
                             text += 'ORGINAL FILE PATHS : ' + str(items) + ', '
                         elif key == NEW_FILE_PATHS:
@@ -3316,31 +3335,58 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                             text += 'END TIME : ' + str(items) + ', '
                     text = text.rstrip(', ')
     
-    ##TODO formatted_text more to be done
     if key == None:
+        
         if type(value) == str:
-            text = f'"{str(value)}"'
+            text = f"'{str(value)}'" if formatted_text else f"'{str(value)}',"
+        
         elif parent_key == EDIT_TYPE:
-            if ADD in value:
+            #if ADD in value:
+            if ADD == value:
                 text = 'Add' if formatted_text else 'ADD,'
-            elif REPLACE in value:
+            #elif REPLACE in value:
+            elif REPLACE == value:
                 text = 'Replace' if formatted_text else 'REPLACE,'
-            elif RENAME in value:
+            #elif RENAME in value:
+            elif RENAME == value:
                 text = 'Rename' if formatted_text else 'RENAME,'
+        
         elif parent_key == MATCH_FILE_META:
             text = 'Meta Data Type (Mime) : ' if formatted_text else 'MATCH_FILE_META'
-            type_str = getMetaDataStr(value[0], formatted_text, text)
+            #type_str = getMetaDataStr(value[0], formatted_text, text)
+            type_str = getMetaDataStr(value, formatted_text, text)
             if type_str == '':
-                text = str(value) + ','
+                text = str(value) if formatted_text else str(value) + ','
             else:
-                text = type_str + ','
+                text = type_str if formatted_text else type_str + ','
+        
         elif parent_key == SOFT_RENAME_LIMIT or parent_key == HARD_RENAME_LIMIT:
-            if value[0] == NO_LIMIT:
+            #if value[0] == NO_LIMIT:
+            if value == NO_LIMIT:
                 text = 'No Limit' if formatted_text else 'NO_LIMIT,'
             else:
-                text = str(value[0])
-        else:
-            text = str(value) + ','
+                #text = str(value[0]) if formatted_text else str(value[0]) + ','
+                text = str(value) if formatted_text else str(value) + ','
+        
+        elif parent_key == LINKED_FILES:
+            if value:
+                value = makeList(value)
+                text, newline = '',''
+                if not formatted_text: text += '[ '
+                for val in value:
+                    if formatted_text:
+                        text += newline + str(val)
+                        newline = '\n                              '
+                    else:
+                        text += '\'' + str(val) + '\', '
+                if not formatted_text:
+                    text = text.rstrip(', ')
+                    text += ' ]'
+            else:
+                text = str(value) if formatted_text else str(value) + ','
+        
+        else: # Booleans, Integers
+            text = str(value) if formatted_text else str(value) + ','
     
     return text
 
@@ -3455,8 +3501,7 @@ def drop(files):
     if not files:
         files = input('No files or directories found, drop one or more here to proceed: ')
     
-    if type(files) != list:
-        files = [files]
+    files = makeList(files)
     
     if len(files) == 1:
         
@@ -3543,7 +3588,7 @@ def drop(files):
                     preset_selection = selected_preset
                     preset_loop = False
                 
-                if preset_selection < len(preset_options) and preset_selection > NONE:
+                if type(preset_selection) == int and preset_selection < len(preset_options) and preset_selection > NONE:
                     selected_preset = preset_selection
                 else:
                     print('That Preset Doesn\'t Exist.')
