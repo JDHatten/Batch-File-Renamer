@@ -801,7 +801,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     one_time_flags = getTrackedData(edit_details_copy, ONE_TIME_FLAGS)
                     log_data = getTrackedData(edit_details_copy, LOG_DATA)
                 edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, one_time_flags, log_data)
-                #if debug: displayPreset(edit_details_copy, False)
+                #if debug: displayPreset(edit_details_copy, readable_preset_text)
                 
                 for file in files_meta:
                     #print('--File: [ %s ]' % (file[FILE_META_PATH].name))
@@ -824,7 +824,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     
                     edit_details_copy = createNewFileName(file_path, edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
-                    if debug: displayPreset(edit_details_copy, False)
+                    if debug: displayPreset(edit_details_copy, readable_preset_text)
                 
                 # Save some tracked data for next directory loop or individually grouped files.
                 files_reviewed = getTrackedData(edit_details_copy, FILES_REVIEWED, [AMOUNT])
@@ -864,7 +864,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     edit_details_copy = createNewFileName(file_path, edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
                 
-                if debug: displayPreset(edit_details_copy, False)
+                if debug: displayPreset(edit_details_copy, readable_preset_text)
     
     edit_details_copy = updateTrackedData(edit_details_copy, { END_TIME : datetime.now().timestamp() })
     
@@ -2728,6 +2728,7 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
     ## Code is partially ready to be implemented but unsure if I should do it this way.
     ## If an issue happens half way through a renaming task, half of the files will be
     ## renamed but not have their links updated.
+    ## Turn this into a only update linked files option?
     '''
     org_file_paths = old_file_path
     new_file_paths = new_file_path
@@ -3039,8 +3040,6 @@ def getUserPresetSelection(string_num):
 ###     (is_insert_meta_data) Check for INSERT_META_DATA option use.
 ###     --> Returns a [String]
 def presetConstantsToText(key, value, parent_key = None, formatted_text = True, is_insert_meta_data = False):
-    #if type(value) != list and type(value) != tuple:
-    #    value = [value]
     text = str(value)
     new_line = ''
     
@@ -3262,20 +3261,15 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 else:
                     if of: text = ',\n                            PLACEMENT : ('
                     else: text = ',\n                            PLACEMENT : '
-                #if START in value:
                 if START == place:
                     text += 'Start' if formatted_text else 'START'
-                #elif END in value:
                 elif END == place:
                     text += 'End' if formatted_text else 'END'
-                #elif BOTH_ENDS in value:
                 elif BOTH_ENDS == place:
                     text += 'Both Ends' if formatted_text else 'BOTH_ENDS'
                 if of and not formatted_text: text += ', '
-                #if OF_FILE_NAME in value:
                 if OF_FILE_NAME == of:
                     text += ' of File Name' if formatted_text else 'OF_FILE_NAME'
-                #elif OF_MATCH in value:
                 elif OF_MATCH == of:
                     text += ' of Match' if formatted_text else 'OF_MATCH'
                 if of and not formatted_text: text += ')'
@@ -3283,57 +3277,101 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
         elif parent_key == PRESORT_FILES:
             text = '' if formatted_text else ''
             text += getMetaDataStr(key, formatted_text)
-            #if ASCENDING in value:
             if ASCENDING == value:
                 text += 'In Ascending Order' if formatted_text else ' : ASCENDING'
-            #elif DESCENDING in value:
             elif DESCENDING == value:
                 text += 'In Descending Order' if formatted_text else ' : DESCENDING'
         
-        ##TODO formatted_text
         elif parent_key == TRACKED_DATA:
+            if formatted_text:
+                text = '\n                              '
+            else:
+                text = '\n                            '
             if key == FILES_REVIEWED:
-                text = 'Files Reviewed So Far : ' + str(value)
+                text = 'Files Reviewed So Far : ' if formatted_text else 'FILES_REVIEWED : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == FILES_RENAMED:
-                text = '\n                              Files Renamed So Far : ' + str(value)
+                text += 'Files Renamed So Far : ' if formatted_text else 'FILES_RENAMED : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == DIRECTORY_FILES_RENAMED:
-                text = '\n                              Directory Files Renamed So Far : ' + str(value)
+                text += 'Directory Files Renamed So Far : ' if formatted_text else 'DIRECTORY_FILES_RENAMED : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == INDIVIDUAL_FILES_RENAMED:
-                text = '\n                              Individual Files Renamed So Far : ' + str(value)
+                text += 'Individual Files Renamed So Far : ' if formatted_text else 'INDIVIDUAL_FILES_RENAMED : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == INDIVIDUAL_FILE_GROUP:
-                text = '\n                              Is Individual File Group Active : ' + str(value)
+                text += 'Is Individual File Group Active : ' if formatted_text else 'INDIVIDUAL_FILE_GROUP : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == FILE_NAME_COUNT:
-                text = '\n                              Current File Count Number : ' + str(value)
+                text += 'Current File Count Number : ' if formatted_text else 'FILE_NAME_COUNT : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == FILE_NAME_COUNT_LIMIT:
-                text = '\n                              File Count Number Max : ' + str(value)
+                text += 'File Count Number Max : ' if formatted_text else 'FILE_NAME_COUNT_LIMIT : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == CURRENT_LIST_INDEX:
-                text = '\n                              Current List Index : ' + str(value)
+                text += 'Current List Index : ' if formatted_text else 'CURRENT_LIST_INDEX : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == CURRENT_FILE_RENAME:
-                text = '\n                              Current File Name : ' + str(value)
+                text += 'Current File Name : ' if formatted_text else 'CURRENT_FILE_RENAME : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == CURRENT_FILE_META:
-                text = '\n                              Current File Meta Data : ' + str(value)
+                text += 'Current File Meta Data : ' if formatted_text else 'CURRENT_FILE_META : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == USED_RANDOM_CHARS:
-                text = '\n                              Used Random Characters : ' + str(value)
+                text += 'Used Random Characters : ' if formatted_text else 'USED_RANDOM_CHARS : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == SKIPPED_FILES:
-                text = '\n                              Files To Skip : ' + str(value)
+                text += 'Files To Skip : ' if formatted_text else 'SKIPPED_FILES : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == ONE_TIME_FLAGS:
-                text = '\n                              One Time Flags : ' + str(value)
+                text += 'One Time Flags : ' if formatted_text else 'ONE_TIME_FLAGS : '
+                text += str(value)
+                if not formatted_text: text += ','
             if key == LOG_DATA:
-                text = '\n                              Log Data : '
-                text += '' if show_log_data else '[Not Shown]'
-                if type(value) == dict and show_log_data:
+                text += 'Log Data : ' if formatted_text else 'LOG_DATA : '
+                if not formatted_text: text += '{ '
+                if not show_log_data:
+                    text += '**Not Shown**'
+                elif type(value) == dict:
                     for key, items in value.items():
+                        if formatted_text:
+                            text += '\n                                '
+                        else:
+                            text += '\n                              '
                         if key == ORG_FILE_PATHS:
-                            text += 'ORGINAL FILE PATHS : ' + str(items) + ', '
+                            text += 'Original File Paths : ' if formatted_text else 'ORG_FILE_PATHS : '
+                            text += str(items)
+                            if not formatted_text: text += ','
                         elif key == NEW_FILE_PATHS:
-                            text += 'NEW (RENAMED) FILE PATHS : ' + str(items) + ', '
+                            text += 'New Renamed File Paths : ' if formatted_text else 'NEW_FILE_PATHS : '
+                            text += str(items)
+                            if not formatted_text: text += ','
                         elif key == LINKED_FILES_UPDATED:
-                            text += 'LINKED FILES UPDATED : ' + str(items) + ', '
+                            text += 'Linked Files Updated : ' if formatted_text else 'LINKED_FILES_UPDATED : '
+                            text += str(items)
+                            if not formatted_text: text += ','
                         elif key == START_TIME:
-                            text += 'START TIME: ' + str(items) + ', '
+                            text += 'Rename Task Start Time : ' if formatted_text else 'START_TIME : '
+                            text += str(items)
+                            if not formatted_text: text += ','
                         elif key == END_TIME:
-                            text += 'END TIME : ' + str(items) + ', '
+                            text += 'Rename Task End Time : ' if formatted_text else 'END_TIME : '
+                            text += str(items)
+                            if not formatted_text: text += ','
                     text = text.rstrip(', ')
+                    if not formatted_text: text += '\n                            },\n                         '
     
     if key == None:
         
@@ -3341,19 +3379,15 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
             text = f"'{str(value)}'" if formatted_text else f"'{str(value)}',"
         
         elif parent_key == EDIT_TYPE:
-            #if ADD in value:
             if ADD == value:
                 text = 'Add' if formatted_text else 'ADD,'
-            #elif REPLACE in value:
             elif REPLACE == value:
                 text = 'Replace' if formatted_text else 'REPLACE,'
-            #elif RENAME in value:
             elif RENAME == value:
                 text = 'Rename' if formatted_text else 'RENAME,'
         
         elif parent_key == MATCH_FILE_META:
             text = 'Meta Data Type (Mime) : ' if formatted_text else 'MATCH_FILE_META'
-            #type_str = getMetaDataStr(value[0], formatted_text, text)
             type_str = getMetaDataStr(value, formatted_text, text)
             if type_str == '':
                 text = str(value) if formatted_text else str(value) + ','
@@ -3361,11 +3395,9 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 text = type_str if formatted_text else type_str + ','
         
         elif parent_key == SOFT_RENAME_LIMIT or parent_key == HARD_RENAME_LIMIT:
-            #if value[0] == NO_LIMIT:
             if value == NO_LIMIT:
                 text = 'No Limit' if formatted_text else 'NO_LIMIT,'
             else:
-                #text = str(value[0]) if formatted_text else str(value[0]) + ','
                 text = str(value) if formatted_text else str(value) + ','
         
         elif parent_key == LINKED_FILES:
@@ -3561,7 +3593,7 @@ def drop(files):
                     edit_details_copy = startingFileRenameProcedure(revert_files_meta, edit_details)
                     files_renamed += getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
                     
-                    if debug: displayPreset(edit_details_copy, False)
+                    if debug: displayPreset(edit_details_copy, readable_preset_text)
                     updateLogFile(edit_details_copy, True)
                     if len(files_meta[0]) > 1:
                         delay.sleep(1) # Log files are named using time so wait a second to make sure next log file name is +1 second.
