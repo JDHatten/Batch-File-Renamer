@@ -14,10 +14,20 @@ Batch File Renamer by JDHatten
       that use the those files.
     - Revert any file name changes by dropping the generated log file back into the script.
     - Sort groups of files before renaming using file meta data.
+    - Insert meta data into file names.
 
 Usage:
-    Simply drag and drop one or more files or directories onto the script. Create your own custom presets for more
-    complex renaming tasks.
+    - To Rename Files: Simply drag and drop one or more files or directories onto the script. Create your own custom
+                       presets for more complex renaming tasks.
+    - To Revert File Renames: Drag and drop one or more of the generated log files back into the script.
+    - To Update Links Only:  Drag and drop a file fitting the criteria below.
+                             File Name (Exactly): 'x:\same\path\as\this\script\find-replace-links.txt'
+                             File Contents (Example):
+                                    find = ['x:\path\to\old\file\link.jpg', ...]
+                                    replace = ['x:\path\to\new\file\link-01.jpg', ...]
+                                    links = ['x:\path\to\file\with\links.xml', ...]
+                             Notes: Use either single or double quotes (stick with one set of quotes) and
+                                    there is no need to escape characters (double slashes not necessary)
 
 Requirements:
     Matching and inserting meta data from files requires ffmpeg-python and filetype packages. This is an optional feature.
@@ -43,7 +53,9 @@ TODO:
     [] Match file contents.
     [DONE] Match file meta data.
     [Done] Backup link files before overwriting them.
+    [] Feature to update links in files only, no renaming. Also add a log and revert feature for this.
     [] Import separate settings and/or preset files.
+    [] GUI
     [] Special search and edits. Examples:
         [X] Find file names with a string then add another string at end of the file name.
         [X] Find file names with a string then rename entire file name and stop/return/end.
@@ -74,7 +86,7 @@ import mimetypes
 from pathlib import Path, PurePath
 import os
 import random
-#import re
+import re
 import shutil
 import sys
 if sys.platform == "linux" or sys.platform == "linux2":
@@ -2691,11 +2703,11 @@ def renameFile(file_path, new_file_path, edit_details):
 
 ### Update any files that have links to the renamed files to prevent broken links in whatever app that use the renamed files.
 ###     (linked_file) The full path to a file with links.
-###     (old_file_path) A String of the full path to a file before renaming.
+###     (org_file_path) A String of the full path to a file before renaming.
 ###     (new_file_path) A String of the full path to a file after renaming.
 ###     (lf_backed_up) Have linked files been backup yet? Only necessary once.
 ###     --> Returns a [Boolean] 
-def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
+def updateLinksInFile(linked_file, org_file_path, new_file_path, lf_backed_up):
     linked_file = Path(linked_file)
     
     ##TODO: Check file extensions and pick the proper encoding. xml, json = utf-8, txt = ascii
@@ -2724,31 +2736,66 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
     
     write_data = read_data
     
-    ## TODO: Update linked files at end looping through tracked file renames.
-    ## Code is partially ready to be implemented but unsure if I should do it this way.
-    ## If an issue happens half way through a renaming task, half of the files will be
-    ## renamed but not have their links updated.
-    ## Turn this into a only update linked files option?
-    '''
-    org_file_paths = old_file_path
-    new_file_paths = new_file_path
+    # Update multiple links in a file at once if lists are provided.
+    if type(org_file_path) == list and type(new_file_path) == list:
+        
+        org_file_paths = org_file_path
+        new_file_paths = new_file_path
+        
+        i = 0
+        while i < len(org_file_paths):
+            # Check for all style of slashes in links
+            org_file_path_esc = org_file_paths[i].replace('\\', '\\\\')
+            new_file_path_esc = new_file_paths[i].replace('\\', '\\\\')
+            org_file_path_rev = org_file_paths[i].replace('\\', '/')
+            new_file_path_rev = new_file_paths[i].replace('\\', '/')
+            
+            links_find = [org_file_paths[i], org_file_path_esc, org_file_path_rev]
+            links_replace = [new_file_paths[i], new_file_path_esc, new_file_path_rev]
+            
+            # Check for special characters & = &amp;
+            if org_file_paths[i].find('&') > -1:
+                org_file_path_amp = org_file_paths[i].replace('&', '&amp;')
+                new_file_path_amp = new_file_paths[i].replace('&', '&amp;')
+                org_file_path_amp_esc = org_file_path_amp.replace('\\', '\\\\')
+                new_file_path_amp_esc = new_file_path_amp.replace('\\', '\\\\')
+                org_file_path_amp_rev = org_file_path_amp.replace('\\', '/')
+                new_file_path_amp_rev = new_file_path_amp.replace('\\', '/')
+                links_find.append(org_file_path_amp)
+                links_find.append(org_file_path_amp_esc)
+                links_find.append(org_file_path_amp_rev)
+                links_replace.append(new_file_path_amp)
+                links_replace.append(new_file_path_amp_esc)
+                links_replace.append(new_file_path_amp_rev)
+            
+            x = 0
+            while x < len(links_find):
+                if write_data.find(links_find[x]) > -1:
+                    write_data = write_data.replace(links_find[x], links_replace[x])
+                    print('- Replaced This: [ %s ]' % links_find[x])
+                    print('--- With This:   [ %s ]' % links_replace[x])
+                    x = 99
+                x += 1
+            
+            ## TODO: Update tracked LINKED_FILES_UPDATED and make a log file for this.
+            
+            i += 1
     
-    i = 0
-    while i < len(org_file_paths):
-        
+    else:
+    
         # Check for all style of slashes in links
-        org_file_path_esc = org_file_paths[i].replace('\\', '\\\\')
-        new_file_path_esc = new_file_paths[i].replace('\\', '\\\\')
-        org_file_path_rev = org_file_paths[i].replace('\\', '/')
-        new_file_path_rev = new_file_paths[i].replace('\\', '/')
+        org_file_path_esc = org_file_path.replace('\\', '\\\\')
+        new_file_path_esc = new_file_path.replace('\\', '\\\\')
+        org_file_path_rev = org_file_path.replace('\\', '/')
+        new_file_path_rev = new_file_path.replace('\\', '/')
         
-        links_find = [org_file_paths[i], org_file_path_esc, org_file_path_rev]
-        links_replace = [new_file_paths[i], new_file_path_esc, new_file_path_rev]
+        links_find = [org_file_path, org_file_path_esc, org_file_path_rev]
+        links_replace = [new_file_path, new_file_path_esc, new_file_path_rev]
         
         # Check for special characters & = &amp;
-        if org_file_paths[i].find('&') > -1:
-            org_file_path_amp = org_file_paths[i].replace('&', '&amp;')
-            new_file_path_amp = new_file_paths[i].replace('&', '&amp;')
+        if org_file_path.find('&') > -1:
+            org_file_path_amp = org_file_path.replace('&', '&amp;')
+            new_file_path_amp = new_file_path.replace('&', '&amp;')
             org_file_path_amp_esc = org_file_path_amp.replace('\\', '\\\\')
             new_file_path_amp_esc = new_file_path_amp.replace('\\', '\\\\')
             org_file_path_amp_rev = org_file_path_amp.replace('\\', '/')
@@ -2760,48 +2807,12 @@ def updateLinksInFile(linked_file, old_file_path, new_file_path, lf_backed_up):
             links_replace.append(new_file_path_amp_esc)
             links_replace.append(new_file_path_amp_rev)
         
-        x = 0
-        while x < len(links_find):
-            if write_data.find(links_find[x]) > -1:
-                write_data = write_data.replace(links_find[x], links_replace[x])
-                x = 99
-            x += 1
-        
-        ## TODO: Update tracked LINKED_FILES_UPDATED
-        
-        i += 1
-    '''
-    
-    # Check for all style of slashes in links
-    old_file_path_esc = old_file_path.replace('\\', '\\\\')
-    new_file_path_esc = new_file_path.replace('\\', '\\\\')
-    old_file_path_rev = old_file_path.replace('\\', '/')
-    new_file_path_rev = new_file_path.replace('\\', '/')
-    
-    links_find = [old_file_path, old_file_path_esc, old_file_path_rev]
-    links_replace = [new_file_path, new_file_path_esc, new_file_path_rev]
-    
-    # Check for special characters & = &amp;
-    if old_file_path.find('&') > -1:
-        old_file_path_amp = old_file_path.replace('&', '&amp;')
-        new_file_path_amp = new_file_path.replace('&', '&amp;')
-        old_file_path_amp_esc = old_file_path_amp.replace('\\', '\\\\')
-        new_file_path_amp_esc = new_file_path_amp.replace('\\', '\\\\')
-        old_file_path_amp_rev = old_file_path_amp.replace('\\', '/')
-        new_file_path_amp_rev = new_file_path_amp.replace('\\', '/')
-        links_find.append(old_file_path_amp)
-        links_find.append(old_file_path_amp_esc)
-        links_find.append(old_file_path_amp_rev)
-        links_replace.append(new_file_path_amp)
-        links_replace.append(new_file_path_amp_esc)
-        links_replace.append(new_file_path_amp_rev)
-    
-    i = 0
-    while i < len(links_find):
-        if read_data.find(links_find[i]) > -1:
-            write_data = read_data.replace(links_find[i], links_replace[i])
-            i = 99
-        i += 1
+        i = 0
+        while i < len(links_find):
+            if read_data.find(links_find[i]) > -1:
+                write_data = read_data.replace(links_find[i], links_replace[i])
+                i = 99
+            i += 1
     
     if read_data == write_data:
         data_changed = False
@@ -3527,6 +3538,7 @@ def drop(files):
     
     global selected_preset
     start_reverting_renames = False
+    start_updating_links = False
     files_renamed = 0
     
     # If script is ran on it's own then ask for a file to rename.
@@ -3578,7 +3590,12 @@ def drop(files):
             start_reverting_renames = input('\nA log file was detected, do you wish to revert the file renames made in this log file? [ Yes / No ] ')
             start_reverting_renames = yesTrue(start_reverting_renames)
         
-        # Either reverting renames made in log files OR do normal file renaming to dropped files.
+        # Check if find-replace-links.txt file found and ask...
+        elif files[0].find( os.path.join(os.path.dirname(os.path.abspath(__file__)), 'find-replace-links') ) > -1:
+            start_updating_links = input('\nA find and replace links file was detected, do you wish to update linked files only? [ Yes / No ] ')
+            start_updating_links = yesTrue(start_updating_links)
+        
+        # Reverting File Renames (in log files).
         if start_reverting_renames:
             
             # Make sure log files are sorted in order of when the renames were made.
@@ -3600,8 +3617,70 @@ def drop(files):
                 
                 else:
                     print('\nThe files in this log file no longer exist: [ %s ]' % log_file[FILE_META_PATH].name)
-                    print('You may have already reverted, renamed or deleted these files. ')
+                    print('You may have already reverted, renamed or deleted these files.')
         
+        # Updating File Links Only (no file renaming).
+        elif start_updating_links:
+            
+            find_replace_links_path = Path(files[0])
+            
+            try:
+                text_encoding = 'ascii'
+                read_data = find_replace_links_path.read_text(encoding=text_encoding)
+            except:
+                try:
+                    text_encoding = 'utf-8'
+                    read_data = find_replace_links_path.read_text(encoding=text_encoding)
+                except:
+                    print('Failed to open file: [ %s ]' % find_replace_links_path)
+                    print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
+                    return False
+            
+            # Check for single or double quotes
+            quotes = "\'"
+            find_links_indexes = re.search('(F|f)(I|i)(N|n)(D|d)\s*=\s*\[\s*'+quotes, read_data)
+            if not find_links_indexes:
+                quotes = '\"'
+                find_links_indexes = re.search('(F|f)(I|i)(N|n)(D|d)\s*=\s*\[\s*'+quotes, read_data)
+            
+            replace_links_indexes = re.search(quotes+'\s*\]\s*(R|r)(E|e)(P|p)(L|l)(A|a)(C|c)(E|e)\s*=\s*\[\s*'+quotes, read_data)
+            links_indexes = re.search(quotes+'\s*\]\s*(L|l)(I|i)(N|n)(K|k)(S|s)\s*=\s*\[\s*'+quotes, read_data)
+            end_indexes = re.search(quotes+'\s*\]\s*$', read_data)
+            
+            #print(find_links_indexes)
+            #print(replace_links_indexes)
+            #print(links_indexes)
+            #print(end_indexes)
+            
+            if find_links_indexes and replace_links_indexes and links_indexes and end_indexes:
+                find_links_text = read_data[ find_links_indexes.end() : replace_links_indexes.start() ]
+                find_links_text = find_links_text.replace('\\\\', '\\')
+                find_links_list = re.split(quotes+',\s*'+quotes, find_links_text)
+                
+                replace_links_text = read_data[ replace_links_indexes.end() : links_indexes.start() ]
+                replace_links_text = replace_links_text.replace('\\\\', '\\')
+                replace_links_list = re.split(quotes+',\s*'+quotes, "%s" % replace_links_text)
+                
+                links_text = read_data[ links_indexes.end() : end_indexes.start() ]
+                links_text = links_text.replace('\\\\', '\\')
+                links_list = re.split(quotes+',\s*'+quotes, links_text)
+                
+                if debug: print(find_links_list)
+                if debug: print(replace_links_list)
+                if debug: print(links_list)
+                
+                for link_file in links_list:
+                    if not Path.exists(Path(link_file)):
+                        print('\nLinked file does not exist: [ %s ]' % linked_file)
+                    else:
+                        link_file_updated = updateLinksInFile(link_file, find_links_list, replace_links_list, False)
+                        not_updated = ' not' if not link_file_updated else ''
+                        print('\nLinked file%s updated: [ %s ]' % (not_updated, link_file))
+            
+            else:
+                print('\nIncorrectly formatted [ %s ] file.' % find_replace_links_path.name)
+        
+        # Normal File Renaming
         else:
             
             # Get User Preset Selection
@@ -3664,6 +3743,7 @@ if __name__ == '__main__':
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub1\\sub2')
     #sys.argv.append('V:\\Apps\\Scripts\\folder with spaces\\sub2')
     #sys.argv.append(os.path.join(ROOT_DIR,'Logs of File Renames'))
+    #sys.argv.append(os.path.join(ROOT_DIR,'find-replace-links.txt'))
     
     files_renamed = drop(sys.argv[1:])
     print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
