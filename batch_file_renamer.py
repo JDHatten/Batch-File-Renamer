@@ -53,7 +53,8 @@ TODO:
     [] Match file contents.
     [DONE] Match file meta data.
     [Done] Backup link files before overwriting them.
-    [] Feature to update links in files only, no renaming. Also add a log and revert feature for this.
+    [] Update links in files only, no renaming. Also add a log and revert feature for this.
+    [] Custom file renaming procedures via the CUSTOM option.
     [] Import separate settings and/or preset files.
     [] GUI
     [] Special search and edits. Examples:
@@ -299,6 +300,7 @@ RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) c
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
 NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
 INSERT_META_DATA = 30   # Get specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
+CUSTOM = 31             ## TODO: For when you need to write/code your own unique custom file renaming procedure. (getCustomText)
 
 ### Placement Options
 START = 40              # Place at the start of...
@@ -896,17 +898,8 @@ def getRenameRevertFilesAndEditDetails(log_file):
         LINKED_FILES      : []
     }
     
-    try:
-        text_encoding = 'ascii'
-        read_log_file = log_file[FILE_META_PATH].read_text(encoding=text_encoding)
-    except:
-        try:
-            text_encoding = 'utf-8'
-            read_log_file = log_file[FILE_META_PATH].read_text(encoding=text_encoding)
-        except:
-            print('Failed to open log file: [ %s ]' % log_file[FILE_META_PATH])
-            print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
-            return False
+    read_log_file, text_encoding = readFile(log_file[FILE_META_PATH])
+    if not read_log_file: return False
     
     log_file_lines = read_log_file.splitlines()
     i = -1
@@ -1649,7 +1642,7 @@ def getSearchData(search_data, ignore_data, file_path):
 
 
 ### Search current file meta data for any specific meta data in edit_details. Return -1 or 0+ (meta_list_index).
-###     (file_meta_data) The current file meta data.
+###     (file_meta_data) The current file's meta data.
 ###     (match_file_meta_list) The meta search and match data.
 ###     (match_file_meta_options) The meta search and match options.
 ###     --> Returns a [Integer]
@@ -2025,6 +2018,32 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
     
     return meta_list_index
 
+
+### Search current file's contents for any specific text. Return -1 or 0+ (contents_list_index).
+###     (file_path) The path to the file to search through.
+###     (match_file_contents_list) The file contents to search for.
+###     (match_file_contents_options) The file contents search options.
+###     --> Returns a [Integer]
+def getFileContentsSearchResults(file_path, match_file_contents_list, match_file_contents_options): ## TODO
+    
+    if Path.exists(file_path):
+        read_data, text_encoding = readFile(file_path)
+        if not read_data: return -1
+    else:
+        print('File Not Found: [ %s ]' % file_path)
+        return -1
+    
+    no_match_case = NO_MATCH_CASE in match_file_contents_options
+    same_meta_match_index = SAME_MATCH_INDEX in match_file_contents_options
+    
+    contents_list_index, i = -1, -1
+    for match_contents in match_file_contents_list:
+        i += 1
+        match_failed = False
+        match_skipped = False
+        print('Current Contents to Match: %s' % match_contents)
+
+    return contents_list_index
 
 ## Return a List of linked files if any provided or an empty list if None.
 ###     (edit_details) All the details on how to proceed with the file name edits.
@@ -2701,6 +2720,26 @@ def renameFile(file_path, new_file_path, edit_details):
     return edit_details
 
 
+### Read a file and return the contents and encoding used. Currently only opens text files.
+###     (file) The full path to a file.
+###     --> Returns a [Boolean] or [String] and [String]
+def readFile(file):
+    ##TODO: Check file extensions and pick the proper encoding. xml, json = utf-8, txt = ascii
+    try:
+        text_encoding = 'ascii'
+        file_contents = file.read_text(encoding=text_encoding)
+    except:
+        try:
+            text_encoding = 'utf-8'
+            file_contents = file.read_text(encoding=text_encoding)
+        except:
+            print('Failed to open file: [ %s ]' % file)
+            print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
+            file_contents = False
+    
+    return file_contents, text_encoding
+
+
 ### Update any files that have links to the renamed files to prevent broken links in whatever app that use the renamed files.
 ###     (linked_file) The full path to a file with links.
 ###     (org_file_path) A String of the full path to a file before renaming.
@@ -2710,18 +2749,8 @@ def renameFile(file_path, new_file_path, edit_details):
 def updateLinksInFile(linked_file, org_file_path, new_file_path, lf_backed_up):
     linked_file = Path(linked_file)
     
-    ##TODO: Check file extensions and pick the proper encoding. xml, json = utf-8, txt = ascii
-    try:
-        text_encoding = 'ascii'
-        read_data = linked_file.read_text(encoding=text_encoding)
-    except:
-        try:
-            text_encoding = 'utf-8'
-            read_data = linked_file.read_text(encoding=text_encoding)
-        except:
-            print('Failed to open linked file: [ %s ]' % linked_file)
-            print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
-            return False
+    read_data, text_encoding = readFile(linked_file)
+    if not read_data: return False
     
     # Original linked file backed up before any modifications are made in case something goes wrong and user wants to
     # manually revert all changes. The temp linked file is backed up to automatically revert to if something goes wrong.
@@ -3624,17 +3653,8 @@ def drop(files):
             
             find_replace_links_path = Path(files[0])
             
-            try:
-                text_encoding = 'ascii'
-                read_data = find_replace_links_path.read_text(encoding=text_encoding)
-            except:
-                try:
-                    text_encoding = 'utf-8'
-                    read_data = find_replace_links_path.read_text(encoding=text_encoding)
-                except:
-                    print('Failed to open file: [ %s ]' % find_replace_links_path)
-                    print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
-                    return False
+            read_data, text_encoding = readFile(find_replace_links_path)
+            if not read_data: return 0
             
             # Check for single or double quotes
             quotes = "\'"
@@ -3665,9 +3685,12 @@ def drop(files):
                 links_text = links_text.replace('\\\\', '\\')
                 links_list = re.split(quotes+',\s*'+quotes, links_text)
                 
-                if debug: print(find_links_list)
-                if debug: print(replace_links_list)
-                if debug: print(links_list)
+                if debug:
+                    print(find_links_list)
+                    print()
+                    print(replace_links_list)
+                    print()
+                    print(links_list)
                 
                 for link_file in links_list:
                     if not Path.exists(Path(link_file)):
