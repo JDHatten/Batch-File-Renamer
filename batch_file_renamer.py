@@ -50,10 +50,11 @@ TODO:
     [DONE] Use more than one search/modify option at a time.
     [DONE] Option to revert name changes back to original names.
     [DONE] Ignore text option that will skip files that match the ignore text.
-    [] Match file contents.
+    [DONE] Match file contents.
     [DONE] Match file meta data.
-    [Done] Backup link files before overwriting them.
+    [DONE] Backup link files before overwriting them.
     [] Update links in files only, no renaming. Also add a log and revert feature for this.
+    [] Option NO_ADD_DUPES that won't "re-add" the same string of text to a file name in the same spot/placement.
     [] Custom file renaming procedures via the CUSTOM option.
     [] Import separate settings and/or preset files.
     [] GUI
@@ -107,7 +108,7 @@ MIN_VERSION_STR = '.'.join([str(n) for n in MIN_VERSION])
 EDIT_TYPE = 0           # The type of edit to make on a file name: ADD text, REPLACE text or RENAME entire file name. [Required]
 MATCH_TEXT = 1          # The text to search for and match before renaming a file name.
 IGNORE_TEXT = 2         # The text to search for and if found in a file name skip that file renaming, effectively renaming every other file not matched.
-MATCH_FILE_CONTENTS = 3 ## TODO: Match text in the contents of a file before renaming it.
+MATCH_FILE_CONTENTS = 3 # Match text in the contents of a file before renaming it.
 MATCH_FILE_META = 4     # Match specific meta data from a file before renaming it.
 INSERT_TEXT = 5         # The text used in renaming files. This can be static text or dynamic text that changes depending on the OPTIONS used. [Required]
 SOFT_RENAME_LIMIT = 6   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
@@ -276,10 +277,11 @@ DATA = 400
 MATCH_CASE = 0          # Case sensitive search. [Default]
 NO_MATCH_CASE = 1       # Not a case sensitive search.
 SEARCH_FROM_RIGHT = 2   # Start searching from right to left.
-MATCH_LIMIT = 3         # Matches to make (or text inserts) per file name. Default: (MATCH_LIMIT, NO_LIMIT)
-SAME_MATCH_INDEX = 4    # When a match is made from the "MATCH_TEXT List" use the same index when choosing text from the "INSERT_TEXT List".
+MATCH_LIMIT = 3         # Matches to make (or text to insert per match) per file name. Default: (MATCH_LIMIT, NO_LIMIT)
+SAME_MATCH_INDEX = 4    # When a match is made from any "MATCH_TEXT List" use the same index when choosing text from the "INSERT_TEXT List".
                         # Useful when making a long lists of specific files to find and rename.
                         # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
+MATCH_ALL_INDEXES = 5   ## TODO Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
 
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
@@ -300,7 +302,7 @@ RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) c
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
 NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
 INSERT_META_DATA = 30   # Get specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
-CUSTOM = 31             ## TODO: For when you need to write/code your own unique custom file renaming procedure. (getCustomText)
+CUSTOM = 31             ## TODO: For when you need to write/code your own unique custom file renaming procedure. (Search: def getCustomText)
 
 ### Placement Options
 START = 40              # Place at the start of...
@@ -368,20 +370,21 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 25
+selected_preset = 26
 
-preset0 = {         # Defaults
-  EDIT_TYPE         : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
-  MATCH_TEXT        : '',       # 'Text' to Find  -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
-  IGNORE_TEXT       : None,     # 'Text' to Find and Skip -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
-  MATCH_FILE_META   : None,     # A FILE_META_TYPE or FILE_META_MIME -OR- Dict{ META : [ {'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ...}, {}, ... ], OPTIONS : Search Options }
-  INSERT_TEXT       : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
-  SOFT_RENAME_LIMIT : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
-  HARD_RENAME_LIMIT : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
-  LINKED_FILES      : None,     # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
-  INCLUDE_SUB_DIRS  : False,    # Search Sub-Directories (True or False)
-  PRESORT_FILES     : None      # Sort before renaming files.  Dict{ File Meta Data : ASCENDING or DESCENDING }
-}                               # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
+preset0 = {           # Defaults
+  EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
+  MATCH_TEXT          : '',       # 'Text' to Find -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
+  IGNORE_TEXT         : None,     # 'Text' to Find and Skip -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
+  MATCH_FILE_CONTENTS : None,     # 'Text' to Find inside a file's contents -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
+  MATCH_FILE_META     : None,     # A FILE_META_TYPE or FILE_META_MIME -OR- Dict{ META : [ {'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ...}, {}, ... ], OPTIONS : Search Options }
+  INSERT_TEXT         : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
+  SOFT_RENAME_LIMIT   : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
+  HARD_RENAME_LIMIT   : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
+  LINKED_FILES        : None,     # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
+  INCLUDE_SUB_DIRS    : False,    # Search Sub-Directories (True or False)
+  PRESORT_FILES       : None      # Sort before renaming files.  Dict{ File Meta Data : ASCENDING or DESCENDING }
+}                                 # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
 preset1 = {
   EDIT_TYPE         : REPLACE,
   MATCH_TEXT        : { TEXT : '(Text)', OPTIONS : [ (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
@@ -564,10 +567,18 @@ preset25 = {
                         PLACEMENT   : ( END, OF_FILE_NAME ) },
   PRESORT_FILES     : { FILE_META_HEIGHT : DESCENDING }
 }
+preset26 = {
+  EDIT_TYPE             : ADD,
+  MATCH_FILE_CONTENTS   : { TEXT        : [ 'Somthing: True', 'SomthingElse: False' ],
+                            OPTIONS     : [ NO_MATCH_CASE, MATCH_ALL_INDEXES ] },
+  INSERT_TEXT           : { TEXT        : ' [Verified]',
+                            OPTIONS     : [ ],
+                            PLACEMENT   : ( END, OF_FILE_NAME ) }
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23,preset24,preset25]
+                  preset21,preset22,preset23,preset24,preset25,preset26]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -1652,7 +1663,8 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
     #match_file_meta_options = getOptions(match_file_meta_data)
     #file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
     no_match_case = NO_MATCH_CASE in match_file_meta_options
-    same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
+    same_match_meta_index = SAME_MATCH_INDEX in match_file_meta_options
+    match_all = MATCH_ALL_INDEXES in match_file_meta_options
     
     meta_list_index, i = -1, -1
     for meta_data in match_file_meta_list:
@@ -1703,7 +1715,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             if debug: print('file_meta_size: %s' % file_meta_size)
             if debug: print('file_size_match: %s' % file_size_match)
             
-            # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
+            # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
             if how_to_match == EXACT_MATCH:
                 if gb and gb != file_gb:
                     match_failed = True
@@ -1746,17 +1758,19 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             # IF...
             if match_failed:
-                if same_meta_match_index: continue
+                if same_match_meta_index or not match_all: continue
                 else:
                     meta_list_index = -1
                     break
-            if match_skipped:
+            if match_skipped and match_all:
                 meta_list_index = -1
                 break
+            elif match_skipped and not match_all:
+                continue
             
             # ELSE... A Match Was Made
             meta_list_index = i
-            if same_meta_match_index: break
+            if same_match_meta_index or not match_all: break
             else: continue # To Match All
         
         if (select_meta_data == FILE_META_ACCESSED
@@ -1802,7 +1816,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
                 match_time_delta += microsecond / 1000 / 1000
             if debug: print('match_time_delta: %s' % match_time_delta)
             
-            # Check if file meta matches all meta data in preset or break on first match found if same_meta_match_index
+            # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
             if how_to_match == EXACT_MATCH:
                 if year and year != file_meta_date_time.year:
                     match_failed = True
@@ -1870,17 +1884,19 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             # IF...
             if match_failed:
-                if same_meta_match_index: continue
+                if same_match_meta_index or not match_all: continue
                 else:
                     meta_list_index = -1
                     break
-            if match_skipped:
+            if match_skipped and match_all:
                 meta_list_index = -1
                 break
+            elif match_skipped and not match_all:
+                continue
             
             # ELSE... A Match Was Made
             meta_list_index = i
-            if same_meta_match_index: break
+            if same_match_meta_index or not match_all: break
             else: continue # To Match All
         
         if select_meta_data == FILE_META_TYPE:
@@ -1900,18 +1916,32 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             if how_to_match == EXACT_MATCH or how_to_match == LOOSE_MATCH: # Only EXACT_MATCH works here
                 if file_meta_constant != match_meta_constant:
-                    if same_meta_match_index: continue
-                    else:
-                        meta_list_index = -1
-                        break
+                    match_failed = True
+                    #if same_match_meta_index: continue
+                    #else:
+                    #    meta_list_index = -1
+                    #    break
             elif how_to_match == SKIP_EXACT_MATCH or how_to_match == SKIP_LOOSE_MATCH: # Only SKIP_EXACT_MATCH works here
                 if file_meta_constant == match_meta_constant:
+                    match_skipped = True
+                    #meta_list_index = -1
+                    #break
+            
+            # IF...
+            if match_failed:
+                if same_match_meta_index or not match_all: continue
+                else:
                     meta_list_index = -1
                     break
+            if match_skipped and match_all:
+                meta_list_index = -1
+                break
+            elif match_skipped and not match_all:
+                continue
             
-            # A Match Made
+            # ELSE... A Match Was Made
             meta_list_index = i
-            if same_meta_match_index: break
+            if same_match_meta_index or not match_all: break
             else: continue # To Match All
         
         if (select_meta_data == FILE_META_HEIGHT            or select_meta_data == FILE_META_WIDTH
@@ -1956,17 +1986,19 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             # IF...
             if match_failed:
-                if same_meta_match_index: continue
+                if same_match_meta_index or not match_all: continue
                 else:
                     meta_list_index = -1
                     break
-            if match_skipped:
+            if match_skipped and match_all:
                 meta_list_index = -1
                 break
+            elif match_skipped and not match_all:
+                continue
             
             # ELSE... A Match Was Made
             meta_list_index = i
-            if same_meta_match_index: break
+            if same_match_meta_index or not match_all: break
             else: continue # To Match All
         
         if (select_meta_data == FILE_META_MIME              or select_meta_data == FILE_META_FORMAT
@@ -2001,17 +2033,19 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             # IF...
             if match_failed:
-                if same_meta_match_index: continue
+                if same_match_meta_index or not match_all: continue
                 else:
                     meta_list_index = -1
                     break
-            if match_skipped:
+            if match_skipped and match_all:
                 meta_list_index = -1
                 break
+            elif match_skipped and not match_all: ## Test
+                continue
             
             # ELSE... A Match Was Made
             meta_list_index = i
-            if same_meta_match_index: break
+            if same_match_meta_index or not match_all: break
             else: continue # To Match All
     
     if debug: print('meta_list_index: %s' % meta_list_index)
@@ -2024,25 +2058,42 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
 ###     (match_file_contents_list) The file contents to search for.
 ###     (match_file_contents_options) The file contents search options.
 ###     --> Returns a [Integer]
-def getFileContentsSearchResults(file_path, match_file_contents_list, match_file_contents_options): ## TODO
+def getFileContentsSearchResults(file_path, match_file_contents_list, match_file_contents_options):
     
     if Path.exists(file_path):
-        read_data, text_encoding = readFile(file_path)
-        if not read_data: return -1
+        file_contents, text_encoding = readFile(file_path)
+        if not file_contents: return -1
     else:
         print('File Not Found: [ %s ]' % file_path)
         return -1
     
     no_match_case = NO_MATCH_CASE in match_file_contents_options
-    same_meta_match_index = SAME_MATCH_INDEX in match_file_contents_options
+    same_match_index = SAME_MATCH_INDEX in match_file_contents_options
+    match_all = MATCH_ALL_INDEXES in match_file_contents_options
+    ##TODO regex_search = REGEX in match_file_contents_options
     
     contents_list_index, i = -1, -1
     for match_contents in match_file_contents_list:
         i += 1
         match_failed = False
-        match_skipped = False
+        match_skipped = False ## TODO: ignore matched contents?
         print('Current Contents to Match: %s' % match_contents)
-
+        
+        if file_contents.find(match_contents) == -1:
+            match_failed = True
+        
+        # IF...
+        if match_failed:
+            if same_match_index or not match_all: continue
+            else:
+                contents_list_index = -1
+                break
+        
+        # ELSE... A Match Was Made
+        contents_list_index = i
+        if same_match_index or not match_all: break
+        else: continue # To Match All
+    
     return contents_list_index
 
 ## Return a List of linked files if any provided or an empty list if None.
@@ -2421,22 +2472,33 @@ def getRandomCharacters(edit_details, list_index = -1):
     return random_characters
 
 
-### Prepare the text to be inserted into file making and changes or text matches before renaming.
+### Prepare the text to be inserted into file making any changes or text matches before renaming.
 ### If the same file name is returned then the original file did not match the criteria in the edit details.
 ###     (file_path) The full path to a file.
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [String] 
 def insertTextIntoFileName(file_path, edit_details):
     
+    #file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
+    
     match_text = edit_details.get(MATCH_TEXT, '')
     ignore_text = edit_details.get(IGNORE_TEXT, None)
     file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
+    
+    match_file_contents_data = edit_details.get(MATCH_FILE_CONTENTS, None)
+    match_file_contents_list = getText(match_file_contents_data)
+    match_file_contents_options = getOptions(match_file_contents_data)
     
     match_file_meta_data = edit_details.get(MATCH_FILE_META, None)
     match_file_meta_list = getMeta(match_file_meta_data)
     match_file_meta_options = getOptions(match_file_meta_data)
     
     match_text_list, searchable_match_file_name, ignore_text_list, searchable_ignore_file_name = getSearchData(match_text, ignore_text, file_path)
+    if match_file_contents_data:
+        contents_list_index = getFileContentsSearchResults(file_path, match_file_contents_list, match_file_contents_options)
+    else:
+        contents_list_index = 0
+    
     if match_file_meta_data:
         meta_list_index = getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_options)
     else:
@@ -2461,8 +2523,10 @@ def insertTextIntoFileName(file_path, edit_details):
     
     match_limit = getOptions(match_text, MATCH_LIMIT, ALL)
     match_limit = ALL if match_limit <= NO_LIMIT else match_limit
+    
     same_match_text_index = SAME_MATCH_INDEX in search_options
-    same_meta_match_index = SAME_MATCH_INDEX in match_file_meta_options
+    same_match_contents_index = SAME_MATCH_INDEX in match_file_contents_options
+    same_match_meta_index = SAME_MATCH_INDEX in match_file_meta_options
     
     tracked_data = edit_details[TRACKED_DATA]
     
@@ -2472,18 +2536,23 @@ def insertTextIntoFileName(file_path, edit_details):
     
     new_file_name = file_path.name # Start with orginal current file name
     
+    ## TODO: MATCH_ALL_INDEXES
     i = -1
     for match_text in match_text_list: # Loop breaks on first match found
         i += 1
         
-        if same_match_text_index or same_meta_match_index:
+        if same_match_text_index or same_match_contents_index or same_match_meta_index:
             ## TODO: Which is best order of importance? Or warn user if multple SAME_MATCH_INDEX in use.
-            if same_meta_match_index:
-                match_index = meta_list_index
-                match_list_size = len(match_file_meta_list)
+            # Order of importance: same_match_text_index > same_match_meta_index > same_match_contents_index
             if same_match_text_index:
                 match_index = i
                 match_list_size = len(match_text_list)
+            elif same_match_meta_index:
+                match_index = meta_list_index
+                match_list_size = len(match_file_meta_list)
+            elif same_match_contents_index:
+                match_index = contents_list_index
+                match_list_size = len(same_match_contents_index)
             
             # Fix out of bound indexes
             if match_list_size > text_list_size:
@@ -2510,7 +2579,7 @@ def insertTextIntoFileName(file_path, edit_details):
         
         insert_text, edit_details = getInsertText(edit_details, match_index)
         
-        if type(insert_text) != bool and searchable_match_file_name.find(match_text) > -1 and meta_list_index > -1 :
+        if type(insert_text) != bool and searchable_match_file_name.find(match_text) > -1 and contents_list_index > -1 and meta_list_index > -1 :
             
             match_size = len(match_text)
             index_matches = []
