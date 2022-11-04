@@ -30,12 +30,16 @@ Usage:
                                     there is no need to escape characters (double slashes not necessary)
 
 Requirements:
-    Matching and inserting meta data from files requires ffmpeg-python and filetype packages. This is an optional feature.
+    Matching and inserting meta data from files requires the ffmpeg-python and filetype packages.
+    Also in order to read and write a larger variety of linked files, chardet is required to detect file encodings.
+    These are optional features.
     - https://github.com/kkroening/ffmpeg-python
     - https://github.com/h2non/filetype.py
+    - https://github.com/chardet/chardet
     - Install Via Pip:
         pip install ffmpeg-python
         pip install filetype
+        pip install chardet
 
 TODO:
     [] Rename directories too
@@ -70,7 +74,11 @@ TODO:
         [] Make use of regular expressions.
 '''
 
-
+try:
+    import chardet
+    chardet_installed = True
+except ModuleNotFoundError:
+    chardet_installed = False
 from datetime import datetime
 from datetime import timedelta
 try:
@@ -144,7 +152,8 @@ CURRENT_FILE_RENAME = 9
 USED_RANDOM_CHARS = 10
 SKIPPED_FILES = 11
 ONE_TIME_FLAGS = 12
-LOG_DATA = 13
+LINKED_FILES_ENCODINGS = 13
+LOG_DATA = 14
 ORG_FILE_PATHS = 20
 NEW_FILE_PATHS = 21
 LINKED_FILES_UPDATED = 22
@@ -666,23 +675,41 @@ def illegalCharacterCheck(edit_details):
     return illegal_characters_found
 
 
-## Check if all linked files exist before renaming any files and inform user if any don't exist.
-###     (edit_details) All the details on how to proceed with the file name edits.
-###     --> Returns a [Boolean]
-def linkedFilesCheck(edit_details):
-    linked_files = getLinkedFiles(edit_details)
+### Check if all linked files exist before renaming any files and inform user if any don't exist.
+### Also if chardet installed get the proper file encoding of each linked file.
+###     (linked_files) List of linked file paths.
+###     --> Returns a [Boolean] and [List]
+def linkedFilesCheck(linked_files):
+    #linked_files = getLinkedFiles(edit_details)
     broken_link = False
     continue_renaming = True
+    linked_file_encodings = []
+    
+    if linked_files and chardet_installed: print('Detecting Linked File Encodings...')
     for linked_file in linked_files:
-        if not Path.exists(Path(linked_file)):
+        
+        linked_file = Path(linked_file)
+        if Path.exists(Path(linked_file)):
+            
+            if chardet_installed:
+                blob = linked_file.read_bytes()
+                detection = chardet.detect(blob)
+                if debug: print(detection)
+                linked_file_encodings.append(detection)
+            else:
+                linked_file_encodings.append(None)
+        
+        else:
             if not broken_link: print('')
             print('Linked file does not exist: [ %s ]' % linked_file)
             broken_link = True
+            linked_file_encodings.append(None)
+            
     if broken_link:
         continue_renaming = input('Do you wish to continue anyways? [ Y / N ]: ')
         continue_renaming = yesTrue(continue_renaming)
     
-    return continue_renaming
+    return continue_renaming, linked_file_encodings
 
 
 ### Display one or all file rename preset options.
@@ -718,9 +745,9 @@ def displayPreset(presets, formatted_text = True, number = -1, log_preset = Fals
                 
                 if not log_preset:
                     if not formatted_text and type(mod) == dict:
-                        print('    %s : { %s },' % (opt_str, mod_str))
+                        print('  %s : { %s },' % (opt_str, mod_str))
                     else:
-                        print('    %s : %s' % (opt_str, mod_str))
+                        print('  %s : %s' % (opt_str, mod_str))
             
             if not formatted_text: print('}')
             
@@ -754,14 +781,14 @@ def displayPreset(presets, formatted_text = True, number = -1, log_preset = Fals
             if log_preset:
                 if option != TRACKED_DATA:
                     if not formatted_text and type(mod) == dict:
-                        log_lines.append('    %s : { %s }' % (opt_str, mod_str))
+                        log_lines.append('  %s : { %s }' % (opt_str, mod_str))
                     else:
-                        log_lines.append('    %s : %s' % (opt_str, mod_str))
+                        log_lines.append('  %s : %s' % (opt_str, mod_str))
             else:
                 if not formatted_text and type(mod) == dict:
-                    print('    %s : { %s },' % (opt_str, mod_str))
+                    print('  %s : { %s },' % (opt_str, mod_str))
                 else:
-                    print('    %s : %s' % (opt_str, mod_str))
+                    print('  %s : %s' % (opt_str, mod_str))
         
         if not formatted_text:
             if log_preset: log_lines.append('}')
@@ -783,7 +810,9 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
     if illegalCharacterCheck(edit_details):
         return edit_details # Full Stop
     
-    if not linkedFilesCheck(edit_details):
+    linked_files = getLinkedFiles(edit_details)
+    continue_renaming, linked_file_encodings = linkedFilesCheck(linked_files)
+    if not continue_renaming:
         return edit_details # Full Stop
     
     edit_details_copy = edit_details
@@ -825,7 +854,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                 if not log_data:
                     one_time_flags = getTrackedData(edit_details_copy, ONE_TIME_FLAGS)
                     log_data = getTrackedData(edit_details_copy, LOG_DATA)
-                edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, one_time_flags, log_data)
+                edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, False, one_time_flags, linked_file_encodings, log_data)
                 #if debug: displayPreset(edit_details_copy, readable_preset_text)
                 
                 for file in files_meta:
@@ -864,7 +893,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
         elif type(meta) == list:
             
             # Prepare Edit Details and add Tracker
-            edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, True, one_time_flags, log_data)
+            edit_details_copy = copyEditDetails(edit_details, files_reviewed, files_renamed, individual_files_renamed, True, one_time_flags, linked_file_encodings, log_data)
             
             limit_reached = False
             hard_rename_limit = getTrackedData(edit_details_copy, FILES_REVIEWED, [LIMIT])
@@ -985,7 +1014,8 @@ def getRenameRevertFilesAndEditDetails(log_file):
 ###     (one_time_flags) Keep one time flags/changes when creating additional edit details copies.
 ###     (log_data) Keep log data when creating additional edit details copies.
 ###     --> Returns a [Dictionary] 
-def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 0, individual_files_renamed = 0, individual_file_group = False, one_time_flags = [], log_data = {}):
+def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 0, individual_files_renamed = 0,
+                    individual_file_group = False, one_time_flags = [], linked_file_encodings = [], log_data = {}):
     start_time = datetime.now().timestamp()
     
     edit_details_copy = edit_details.copy()
@@ -1065,6 +1095,7 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
                                                  USED_RANDOM_CHARS : [],
                                                  SKIPPED_FILES : [], ## TODO should this be updated each copy? what if a directory file and an individual file are the same?
                                                  ONE_TIME_FLAGS : one_time_flags,
+                                                 LINKED_FILES_ENCODINGS : linked_file_encodings,
                                                  LOG_DATA : log_data
                                                } } )
     
@@ -1098,8 +1129,9 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
         elif specific_data == INDIVIDUAL_FILE_GROUP:
             td = tracked_data.get(specific_data, False)
         
-        elif (specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES 
-              or specific_data == ONE_TIME_FLAGS or specific_data == USED_RANDOM_CHARS or specific_data == CURRENT_FILE_META):
+        elif (specific_data == FILE_NAME_COUNT or specific_data == FILE_NAME_COUNT_LIMIT or specific_data == SKIPPED_FILES or
+              specific_data == CURRENT_FILE_META or specific_data == ONE_TIME_FLAGS or specific_data == USED_RANDOM_CHARS or
+              specific_data == LINKED_FILES_ENCODINGS):
             td = tracked_data.get(specific_data, [])
             for i in key_index:
                 if i < len(td):
@@ -1542,9 +1574,12 @@ def createNewFileName(some_file, edit_details):
             lf_backed_up = getTrackedData(edit_details, ONE_TIME_FLAGS, [LF_BACKED_UP])
             #print('lf_backed_up: %s' % lf_backed_up)
             
+            linked_file_encodings = getTrackedData(edit_details, LINKED_FILES_ENCODINGS)
+            i = 0
             for file in linked_files:
-                links_updated = updateLinksInFile(file, str(file_path), str(new_file_path), lf_backed_up)
+                links_updated = updateLinksInFile(file, linked_file_encodings[i], str(file_path), str(new_file_path), lf_backed_up)
                 linked_files_updates.append(links_updated)
+                i += 1
                 if links_updated:
                     if debug: print('----Link File Updated: [ %s ]' % (file))
                 #else:
@@ -2070,17 +2105,21 @@ def getFileContentsSearchResults(file_path, match_file_contents_list, match_file
     no_match_case = NO_MATCH_CASE in match_file_contents_options
     same_match_index = SAME_MATCH_INDEX in match_file_contents_options
     match_all = MATCH_ALL_INDEXES in match_file_contents_options
-    ##TODO regex_search = REGEX in match_file_contents_options
+    regex_search = REGEX in match_file_contents_options
     
     contents_list_index, i = -1, -1
     for match_contents in match_file_contents_list:
         i += 1
         match_failed = False
         match_skipped = False ## TODO: ignore matched contents?
-        print('Current Contents to Match: %s' % match_contents)
+        #print('Current Contents to Match: %s' % match_contents)
         
-        if file_contents.find(match_contents) == -1:
+        if regex_search:
+            print('TODO REGEX') ## TODO
             match_failed = True
+        else:
+            if file_contents.find(match_contents) == -1:
+                match_failed = True
         
         # IF...
         if match_failed:
@@ -2537,6 +2576,9 @@ def insertTextIntoFileName(file_path, edit_details):
     new_file_name = file_path.name # Start with orginal current file name
     
     ## TODO: MATCH_ALL_INDEXES
+    ## TODO: Refactor file name searches
+    #search_index, str_index_matches, = getFileNameSearchResults(match_text_list, searchable_match_file_name, search_options, ignore_text_list, searchable_ignore_file_name, ignore_options)
+    
     i = -1
     for match_text in match_text_list: # Loop breaks on first match found
         i += 1
@@ -2577,6 +2619,7 @@ def insertTextIntoFileName(file_path, edit_details):
         
         #if debug: print('match_index: %s' % match_index)
         
+        ## TODO: getCustomText(edit_details)
         insert_text, edit_details = getInsertText(edit_details, match_index)
         
         if type(insert_text) != bool and searchable_match_file_name.find(match_text) > -1 and contents_list_index > -1 and meta_list_index > -1 :
@@ -2789,36 +2832,38 @@ def renameFile(file_path, new_file_path, edit_details):
     return edit_details
 
 
-### Read a file and return the contents and encoding used. Currently only opens text files.
-###     (file) The full path to a file.
+### Read a file and return the contents and encoding used.
+###     (file_path) The full path to a file.
+###     (file_encoding) A string representing a file encoder.
 ###     --> Returns a [Boolean] or [String] and [String]
-def readFile(file):
-    ##TODO: Check file extensions and pick the proper encoding. xml, json = utf-8, txt = ascii
+def readFile(file_path, file_encoding = None):
+    file_path = Path(file_path)
+    encoding_str = file_encoding if file_encoding else 'ascii'
     try:
-        text_encoding = 'ascii'
-        file_contents = file.read_text(encoding=text_encoding)
+        file_contents = file_path.read_text(encoding=encoding_str)
     except:
         try:
-            text_encoding = 'utf-8'
-            file_contents = file.read_text(encoding=text_encoding)
+            encoding_str = 'utf-8'
+            file_contents = file_path.read_text(encoding=encoding_str)
         except:
-            print('Failed to open file: [ %s ]' % file)
+            print('Failed to open file: [ %s ]' % file_path)
             print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
             file_contents = False
     
-    return file_contents, text_encoding
+    return file_contents, encoding_str
 
 
 ### Update any files that have links to the renamed files to prevent broken links in whatever app that use the renamed files.
 ###     (linked_file) The full path to a file with links.
+###     (linked_file_encoding) A string representing a file encoder.
 ###     (org_file_path) A String of the full path to a file before renaming.
 ###     (new_file_path) A String of the full path to a file after renaming.
 ###     (lf_backed_up) Have linked files been backup yet? Only necessary once.
 ###     --> Returns a [Boolean] 
-def updateLinksInFile(linked_file, org_file_path, new_file_path, lf_backed_up):
+def updateLinksInFile(linked_file, linked_file_encoding, org_file_path, new_file_path, lf_backed_up):
     linked_file = Path(linked_file)
     
-    read_data, text_encoding = readFile(linked_file)
+    read_data, text_encoding = readFile(linked_file, linked_file_encoding)
     if not read_data: return False
     
     # Original linked file backed up before any modifications are made in case something goes wrong and user wants to
@@ -3298,7 +3343,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                                 text += 'Millasecond: ' + str(val) + ' ' if formatted_text else 'MILLISECOND : ' + str(val) + ', '
                             if name == MICROSECOND:
                                 text += 'Microsecond: ' + str(val) + ' ' if formatted_text else 'MICROSECOND : ' + str(val) + ', '
-                        new_line = '\n                                          '
+                        new_line = '\n                                        '
                         text = text.rstrip(', ')
                         if not formatted_text: text += ' }, '
                 if not formatted_text:
@@ -3310,7 +3355,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 if not value:
                     text += 'None'
                 else:
-                    new_line = '\n                                          '
+                    new_line = '\n                                        '
                     if MATCH_CASE in value:
                         text += new_line + 'Search Case Sensitive' if formatted_text else 'MATCH_CASE, '
                     if NO_MATCH_CASE in value:
@@ -3354,9 +3399,9 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                                 text += new_line + 'Random Seed Used : ' + str(item[1]) if formatted_text else '(RANDOM_SEED : '+str(item[1])+')'
                     text = text.strip('\n, ')
                 if formatted_text:
-                    text = '\n                              OPTIONS   : ' + text
+                    text = '\n                            OPTIONS   : ' + text
                 else:
-                    text = ',\n                            OPTIONS   : ' + text + ' ]'
+                    text = ',\n                          OPTIONS   : ' + text + ' ]'
             
             if key == PLACEMENT:
                 if type(value[0]) == int:
@@ -3366,10 +3411,10 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                     place = value[0][0]
                     of = value[0][1]
                 if formatted_text:
-                    text = '\n                              PLACEMENT : '
+                    text = '\n                            PLACEMENT : '
                 else:
-                    if of: text = ',\n                            PLACEMENT : ('
-                    else: text = ',\n                            PLACEMENT : '
+                    if of: text = ',\n                          PLACEMENT : ('
+                    else: text = ',\n                          PLACEMENT : '
                 if START == place:
                     text += 'Start' if formatted_text else 'START'
                 elif END == place:
@@ -3393,9 +3438,9 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
         
         elif parent_key == TRACKED_DATA:
             if formatted_text:
-                text = '\n                              '
-            else:
                 text = '\n                            '
+            else:
+                text = '\n                          '
             if key == FILES_REVIEWED:
                 text = 'Files Reviewed So Far : ' if formatted_text else 'FILES_REVIEWED : '
                 text += str(value)
@@ -3456,9 +3501,9 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 elif type(value) == dict:
                     for key, items in value.items():
                         if formatted_text:
-                            text += '\n                                '
-                        else:
                             text += '\n                              '
+                        else:
+                            text += '\n                            '
                         if key == ORG_FILE_PATHS:
                             text += 'Original File Paths : ' if formatted_text else 'ORG_FILE_PATHS : '
                             text += str(items)
@@ -3480,7 +3525,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                             text += str(items)
                             if not formatted_text: text += ','
                     text = text.rstrip(', ')
-                    if not formatted_text: text += '\n                            },\n                         '
+                    if not formatted_text: text += '\n                          },\n                       '
     
     if key == None:
         
@@ -3517,7 +3562,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 for val in value:
                     if formatted_text:
                         text += newline + str(val)
-                        newline = '\n                              '
+                        newline = '\n                            '
                     else:
                         text += '\'' + str(val) + '\', '
                 if not formatted_text:
@@ -3641,7 +3686,7 @@ def drop(files):
     
     # If script is ran on it's own then ask for a file to rename.
     if not files:
-        files = input('No files or directories found, drop one or more here to proceed: ')
+        files = input('\nNo files or directories found, drop one or more here to proceed: ')
     
     files = makeList(files)
     
@@ -3681,7 +3726,12 @@ def drop(files):
     
     if files:
         
-        print('\nNumber of Files or Directories Dropped: [ %s ]' % len(files))
+        print('\nDirectories or Files Dropped:')
+        n = 0
+        for drop in files:
+            n += 1
+            dir_file = '[File]' if os.path.isfile(drop) else '[Dir] '
+            print('  %s. %s %s' % (n, dir_file, drop))
         
         # Check if first file drop is a log file and ask if it is ok to start reverting file renames.
         if files[0].find(log_dir_name) > -1 and files[0].find(log_file_name_suffix) > -1:
@@ -3761,13 +3811,18 @@ def drop(files):
                     print()
                     print(links_list)
                 
+                continue_updating, linked_file_encodings = linkedFilesCheck(links_list)
+                if not continue_updating: return 0
+                
+                i = 0
                 for link_file in links_list:
                     if not Path.exists(Path(link_file)):
                         print('\nLinked file does not exist: [ %s ]' % linked_file)
                     else:
-                        link_file_updated = updateLinksInFile(link_file, find_links_list, replace_links_list, False)
+                        link_file_updated = updateLinksInFile(link_file, linked_file_encodings[i], find_links_list, replace_links_list, False)
                         not_updated = ' not' if not link_file_updated else ''
                         print('\nLinked file%s updated: [ %s ]' % (not_updated, link_file))
+                        i += 1
             
             else:
                 print('\nIncorrectly formatted [ %s ] file.' % find_replace_links_path.name)
@@ -3824,7 +3879,7 @@ if __name__ == '__main__':
     print(sys.version)
     print('\n==============================')
     print('Batch File Renamer by JDHatten')
-    print('==============================\n')
+    print('==============================')
     assert sys.version_info >= MIN_VERSION, f"This Script Requires Python v{MIN_VERSION_STR} or Newer"
     
     # Testing: Simulating File Drops
