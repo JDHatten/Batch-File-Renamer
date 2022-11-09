@@ -300,7 +300,8 @@ EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLA
                         # Use EXTENSION in search options for matching "only" the exact file extension (.doc != .docx).
                         # Using EXTENSION in modify options means only the extension will be replaced or added to (END), unless RENAME where the entire file name may be rewritten.
                         # Note: You don't need to use EXTENSION in all cases where you wish to match or modify the extension.
-REGEX = 11              ## TODO: Regular Expressions
+REGEX = 11              # Use regular expression to search and/or replace text. Use raw (r) strings, example: r'[R]\s*[E]'
+                        # Note: Currently for use in MATCH_TEXT and INSERT_TEXT only.
 
 ### Modify Options
 COUNT = 20              # Iterate a number that is added to a file name.  {TEXT: ('Text', (Starting Number, Ending Number), 'Text')} "Ending number is optional."
@@ -382,7 +383,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 26
+selected_preset = 27
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -587,10 +588,18 @@ preset26 = {
                             OPTIONS     : [ ],
                             PLACEMENT   : ( END, OF_FILE_NAME ) }
 }
+preset27 = {
+  EDIT_TYPE             : ADD,
+  MATCH_TEXT            : { TEXT        : [ r'([W|w][I|i][N|n])(\S*)', r'(W|w)(I|i)(N|n).*-' ],
+                            OPTIONS     : [ REGEX, (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
+  INSERT_TEXT           : { TEXT        : [ r'\1-Flow-\2-Doe', 'PlainText' ],
+                            OPTIONS     : [ REGEX ],
+                            PLACEMENT   : ( END, OF_FILE_NAME ) }
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23,preset24,preset25,preset26]
+                  preset21,preset22,preset23,preset24,preset25,preset26,preset27]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -610,66 +619,78 @@ def illegalCharacterCheck(edit_details):
     illegal_characters_found = False
     illegal_characters = list('\\|:"<>/?')
     
-    match_text = getText(edit_details.get(MATCH_TEXT))
-    ignore_text = getText(edit_details.get(IGNORE_TEXT))
-    insert_text = getText(edit_details.get(INSERT_TEXT))
+    match_data = edit_details.get(MATCH_TEXT)
+    ignore_data = edit_details.get(IGNORE_TEXT)
+    insert_data = edit_details.get(INSERT_TEXT)
+    
+    match_text = getText(match_data)
+    ignore_text = getText(ignore_data)
+    insert_text = getText(insert_data)
+    
+    regex_search = getOptions(match_data, REGEX)
+    regex_ignore = getOptions(ignore_data, REGEX)
+    regex_modify = getOptions(insert_data, REGEX)
+    
     before = ', ...'
     after = '..., '
     
     for char in illegal_characters:
         
-        i = -1
-        for text in match_text:
-            i += 1
-            
-            if char in text:
-                if not illegal_characters_found: print('')
-                text_mistake = '\'' + str(text) + '\''
-                if i > 0: text_mistake = after + text_mistake
-                if i < len(match_text): text_mistake += before
-                print('Found  %s  in  MATCH_TEXT  : [ %s ]' % (char, text_mistake))
-                illegal_characters_found = True
-        
-        i = -1
-        for text in ignore_text:
-            i += 1
-            
-            if char in text:
-                if not illegal_characters_found: print('')
-                text_mistake = '\'' + str(text) + '\''
-                if i > 0: text_mistake = after + text_mistake
-                if i < len(ignore_text): text_mistake += before
-                print('Found  %s  in  IGNORE_TEXT : [ %s ]' % (char, text_mistake))
-                illegal_characters_found = True
-        
-        i = -1
-        for text in insert_text:
-            i += 1
-            
-            if type(text) == tuple:
+        if not regex_search:
+            i = -1
+            for text in match_text:
+                i += 1
                 
-                text_mistake = str(text)
-                if i > 0: text_mistake = after + text_mistake
-                if i < len(insert_text): text_mistake += before
-                
-                if char in text[STARTING_TEXT]:
-                    if not illegal_characters_found: print('')
-                    print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
-                    illegal_characters_found = True
-                
-                if len(text) > 2 and char in text[ENDING_TEXT]:
-                    if not illegal_characters_found: print('')
-                    print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
-                    illegal_characters_found = True
-            
-            else:
                 if char in text:
                     if not illegal_characters_found: print('')
                     text_mistake = '\'' + str(text) + '\''
                     if i > 0: text_mistake = after + text_mistake
-                    if i < len(insert_text): text_mistake += before
-                    print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                    if i < len(match_text): text_mistake += before
+                    print('Found  %s  in  MATCH_TEXT  : [ %s ]' % (char, text_mistake))
                     illegal_characters_found = True
+        
+        if not regex_ignore:
+            i = -1
+            for text in ignore_text:
+                i += 1
+                
+                if char in text:
+                    if not illegal_characters_found: print('')
+                    text_mistake = '\'' + str(text) + '\''
+                    if i > 0: text_mistake = after + text_mistake
+                    if i < len(ignore_text): text_mistake += before
+                    print('Found  %s  in  IGNORE_TEXT : [ %s ]' % (char, text_mistake))
+                    illegal_characters_found = True
+        
+        if not regex_modify:
+            i = -1
+            for text in insert_text:
+                i += 1
+                
+                if type(text) == tuple:
+                    
+                    text_mistake = str(text)
+                    if i > 0: text_mistake = after + text_mistake
+                    if i < len(insert_text): text_mistake += before
+                    
+                    if char in text[STARTING_TEXT]:
+                        if not illegal_characters_found: print('')
+                        print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                        illegal_characters_found = True
+                    
+                    if len(text) > 2 and char in text[ENDING_TEXT]:
+                        if not illegal_characters_found: print('')
+                        print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                        illegal_characters_found = True
+                
+                else:
+                    if char in text:
+                        if not illegal_characters_found: print('')
+                        text_mistake = '\'' + str(text) + '\''
+                        if i > 0: text_mistake = after + text_mistake
+                        if i < len(insert_text): text_mistake += before
+                        print('Found  %s  in  INSERT_TEXT : [ %s ]' % (char, text_mistake))
+                        illegal_characters_found = True
     
     if illegal_characters_found:
         print('\nWARNING: Excluded or illegal file name characters were found in [ Preset #%s ].' % selected_preset)
@@ -1656,8 +1677,8 @@ def getSearchData(search_data, ignore_data, file_path):
                  [ignore_text_list, ignore_options, searchable_ignore_file_name]]
     
     for data in data_loop:
-        if REGEX in data[1]: ## TODO
-            print('TODO REGEX')
+        #if REGEX in data[1]: ## TODO
+        #    print('TODO REGEX')
         #else: ## this should override every other option, when added.
         
         # Default MATCH_CASE
@@ -1697,63 +1718,115 @@ def getSearchData(search_data, ignore_data, file_path):
 def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_options, modify_options):
     search_index, i = -1, -1
     edit_extension = False
-    str_index_matches = []
+    compiled_match_data = []
     
     match_all = MATCH_ALL_INDEXES in match_options
     search_from_right = SEARCH_FROM_RIGHT in match_options
     match_limit = getSpecificOption(match_options, MATCH_LIMIT, ALL)
     match_limit = ALL if match_limit <= NO_LIMIT else match_limit # NO_LIMIT(-1) == ALL(999)
+    
+    regex = REGEX in match_options
+    
     match_extension = EXTENSION in match_options
     modify_extension = EXTENSION in modify_options
     
     for match_text in match_text_list:
         i += 1
         
-        # Make a match
-        index_match = searchable_match_file_name.rfind(match_text)
-        if index_match > -1:
-            search_index = i
-        elif match_all:
-            search_index = -1
-            break # skip rename
-        else:
-            continue # next, try again if more text in list
-        
-        # Edit extension only
-        if match_extension:
-            if match_text == searchable_match_file_name: # A perfect match is made
-                edit_extension = True
-                break # MATCH_ALL_INDEXES ignored because there's only one extention to match
-        elif modify_extension: # Any match is made
-            edit_extension = True
-            if not match_all: break
-            else: continue
-        
-        # Get all the indexes of matches made within a string.
-        match_size = len(match_text)
-        str_index_matches = []
-        if match_size > 0:
-            while index_match > -1:
-                str_index_matches.append( (index_match, index_match+match_size) ) # STARTING_INDEX, ENDING_INDEX
-                index_match = searchable_match_file_name.rfind(match_text, 0, index_match) # Reverse Find
-        
-        # Remove string index matches made if above match limit
-        ignore = len(str_index_matches) - match_limit
-        #ignore = 0 if ignore < 0 else ignore ## TODO is this needed?
-        while ignore > 0:
-            if search_from_right:
-                str_index_matches.pop(-1)
+        if regex:
+            # Make a regular expression match.
+            re_pattern = re.compile(match_text)
+            re_matches = re_pattern.search(searchable_match_file_name)
+            ##TODO pefrect match if match_extension?  re_matches = re_pattern.fullmatch(searchable_match_file_name)
+            
+            if re_matches:
+                search_index = i
+            elif match_all:
+                search_index = -1
+                break # skip rename
             else:
-                str_index_matches.pop(0)
-            ignore -= 1
-        #str_index_matches.append(index_matches)## TODO: do I want to handle multiple adds/replaces?
-        str_index_matches = str_index_matches ## TODO: or just the first match made (or last if match_all)?
-        #if debug: print(str_index_matches)
+                continue # next, try again if more text in list
+            
+            ##TODO: EXTENSION Test
+            # Edit extension only?
+            if match_extension:
+                #if match_text == searchable_match_file_name: # A perfect match is made
+                if re_matches.group() == searchable_match_file_name: # A perfect match is made
+                    edit_extension = True
+                    break # MATCH_ALL_INDEXES ignored because there's only one extention to match
+            elif modify_extension: # Any match is made
+                edit_extension = True
+                if not match_all: break
+                else: continue
+            
+            # Get all the other RE matches made within a string if any.
+            compiled_match_data = []
+            while re_matches:
+                compiled_match_data.append( re_matches )
+                re_matches = re_pattern.search(searchable_match_file_name, re_matches.end())
+            
+            compiled_match_data.reverse()
+            
+            # Remove string index matches made if above match limit (lists are reversed).
+            if REGEX in modify_options:
+                ignore = len(compiled_match_data) - match_limit
+                while ignore > 0:
+                    if search_from_right:
+                        compiled_match_data.pop(-1)
+                    else:
+                        compiled_match_data.pop(0)
+                    ignore -= 1
+        
+        else:
+            # Make a simple match.
+            str_index_match = searchable_match_file_name.rfind(match_text)
+            if str_index_match > -1:
+                search_index = i
+            elif match_all:
+                search_index = -1
+                break # skip rename
+            else:
+                continue # next, try again if more text in list
+            
+            # Edit extension only?
+            if match_extension:
+                if match_text == searchable_match_file_name: # A perfect match is made
+                    edit_extension = True
+                    break # MATCH_ALL_INDEXES ignored because there's only one extention to match
+            elif modify_extension: # Any match is made
+                edit_extension = True
+                if not match_all: break
+                else: continue
+            
+            # Get all the other indexes of matches made within a string if any.
+            match_size = len(match_text)
+            compiled_match_data = []
+            if match_size > 0:
+                while str_index_match > -1:
+                    compiled_match_data.append( (str_index_match, str_index_match+match_size) ) # STARTING_INDEX, ENDING_INDEX
+                    str_index_match = searchable_match_file_name.rfind(match_text, 0, str_index_match) # Reverse Find
+            
+            # Remove string index matches made if above match limit (lists are reversed)
+            ignore = len(compiled_match_data) - match_limit
+            #ignore = 0 if ignore < 0 else ignore
+            while ignore > 0:
+                if search_from_right:
+                    compiled_match_data.pop(-1)
+                else:
+                    compiled_match_data.pop(0)
+                ignore -= 1
+        #compiled_match_data.append(index_matches)## TODO: do I want to handle multiple adds/replaces?
+        #compiled_match_data = compiled_match_data ## TODO: or just the first match made (or last if match_all)?
+        #if debug: print(compiled_match_data)
         
         if not match_all:
             break # No need to find more, only one match needed
     
-    return search_index, edit_extension, str_index_matches
+    #print(search_index)
+    #print(edit_extension)
+    #print(compiled_match_data)
+    
+    return search_index, edit_extension, compiled_match_data
 
 
 ### Get all text needed to make a proper search.
@@ -1763,7 +1836,7 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
 ###     --> Returns a [Boolean]
 def getFileNameIgnoreResults(ignore_text_list, searchable_ignore_file_name, ignore_options):
     
-    match_all_ignore = MATCH_ALL_IGNORE_INDEXES in ignore_options ## MATCH_ALL_IGNORE_INDEXES ?
+    match_all_ignore = MATCH_ALL_IGNORE_INDEXES in ignore_options
     
     # Look for ignore text in file name and skip this rename if found.
     ignore_match = False
@@ -2234,6 +2307,150 @@ def getFileContentsSearchResults(file_path, match_file_contents_list, match_file
     
     return contents_list_index
 
+
+### Turn file meta data into formatted text to insert into a file name.
+###     (meta_data) File meta data that is either text or a number.
+###     (type) The type of meta data will determine how it is formatted.
+###     --> Returns a [String]
+def formatMetaData(meta_data, type):
+    text = ''
+    
+    # File Size
+    if type == FILE_META_SIZE: ## TODO: in Bytes, MB...?
+        text = str(meta_data)
+    
+    # Integer to Text
+    elif type == FILE_META_TYPE:
+        if meta_data == TYPE_APPLICATION:
+            text = 'Application'
+        elif meta_data == TYPE_AUDIO:
+            text = 'Audio'
+        elif meta_data == TYPE_FONT:
+            text = 'Font'
+        elif meta_data == TYPE_IMAGE:
+            text = 'Image'
+        elif meta_data == TYPE_MESSAGE:
+            text = 'Message'
+        elif meta_data == TYPE_MODEL:
+            text = 'Model'
+        elif meta_data == TYPE_MULTIPART:
+            text = 'Multipart'
+        elif meta_data == TYPE_TEXT:
+            text = 'Text'
+        elif meta_data == TYPE_VIDEO:
+            text = 'Video'
+        elif meta_data == TYPE_ARCHIVE:
+            text = 'Archive'
+        elif meta_data == TYPE_DOCUMENT:
+            text = 'Document'
+    
+    # Date
+    elif type == FILE_META_ACCESSED or type == FILE_META_MODIFIED or type == FILE_META_CREATED: # or FILE_META_METADATA
+        if meta_data:
+            file_meta_date_time = datetime.fromtimestamp(float(meta_data))
+            text = file_meta_date_time.strftime(date_time_fomat)
+    
+    # Time
+    elif type == FILE_META_LENGTH and meta_data:
+        file_meta_date_time = timedelta(seconds=float(meta_data)).seconds
+        text = time_length_format.format(file_meta_date_time // 3600, file_meta_date_time % 3600 // 60, file_meta_date_time % 60)
+    
+    # Text
+    elif (type == FILE_META_MIME          or type == FILE_META_FORMAT         or type == FILE_META_FORMAT_LONG
+       or type == FILE_META_AUDIO_TITLE   or type == FILE_META_AUDIO_ALBUM    or type == FILE_META_AUDIO_CHANNEL_LAYOUT
+       or type == FILE_META_AUDIO_ARTIST  or type == FILE_META_AUDIO_GENRE    or type == FILE_META_AUDIO_PUBLISHER):
+        text = str(meta_data)
+        illegal_characters = list('\\|:"<>/?')
+        for char in illegal_characters:
+            if char == '"':
+                text = text.replace(char, "'")
+            if char == ':' or char == '?':
+                text = text.replace(char, '.')
+            if char == '<' or char == '>':
+                text = text.replace(char, '_')
+            else:
+                text = text.replace(char, '-')
+    
+    # Number
+    elif (type == FILE_META_HEIGHT          or type == FILE_META_WIDTH          or type == FILE_META_BIT_DEPTH
+       or type == FILE_META_VIDEO_BITRATE   or type == FILE_META_AUDIO_BITRATE  or type == FILE_META_VIDEO_FRAME_RATE
+       or type == FILE_META_AUDIO_CHANNELS  or type == FILE_META_AUDIO_YEAR     or type == FILE_META_AUDIO_SAMPLE_RATE
+       or type == FILE_META_AUDIO_TRACK):
+        text = str(meta_data)
+    
+    return text
+
+
+### Get random characters to be used in creating a new file name.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     (list_index) If text list is used provide current index.
+###     --> Returns a [String]
+def getRandomCharacters(edit_details, list_index = -1):
+    
+    if list_index > -1:
+        dynamic_text = getText(edit_details[INSERT_TEXT])[list_index][DYNAMIC_TEXT]
+    else:
+        dynamic_text = getText(edit_details[INSERT_TEXT])[DYNAMIC_TEXT]
+    
+    modify_options = getOptions(edit_details[INSERT_TEXT])
+    random_list = []
+    random_characters = ''
+    smallest_char_list = None
+    
+    if even_weighted_random_char_list:
+        length_numbers, length_leters, length_special, length_other = 999, 999, 999, 999
+        if RANDOM_NUMBERS in modify_options:
+            length_numbers = len(list_numbers)
+        if RANDOM_LETTERS in modify_options:
+            length_letters = len(list_leters)
+        if RANDOM_SPECIALS in modify_options:
+            length_special = len(list_special)
+        if RANDOM_OTHER in modify_options:
+            length_other = len(list_other)
+        smallest_char_list = min(length_numbers, length_leters, length_special, length_other)
+    
+    if RANDOM_NUMBERS in modify_options:
+        random.shuffle(list_numbers)
+        random_list.extend( list_numbers[:smallest_char_list] )
+    if RANDOM_LETTERS in modify_options:
+        if letter_cases == LOWER:
+            random.shuffle(list_leters)
+            random_list.extend( list_leters[:smallest_char_list] )
+        elif letter_cases == UPPER:
+            random.shuffle(list_capital_leters)
+            random_list.extend( list_capital_leters[:smallest_char_list] )
+        elif letter_cases == LOWER_AND_UPPER:
+            list_leters.extend(list_capital_leters)
+            random.shuffle(list_leters)
+            random_list.extend( list_leters[:smallest_char_list] )
+    if RANDOM_SPECIALS in modify_options:
+        random.shuffle(list_special)
+        random_list.extend( list_special[:smallest_char_list] )
+    if RANDOM_OTHER in modify_options:
+        random.shuffle(list_other)
+        random_list.extend( list_other[:smallest_char_list] )
+    
+    if type(dynamic_text) == tuple:
+        random_length = dynamic_text[0]
+    else:
+        random_length = int(dynamic_text)
+    
+    if no_repeat_random_chars:
+        random_characters = random.shuffle(random_list)[:random_length]
+    else:
+        length = 0
+        while length < random_length:
+            random_characters += random.choice(random_list)
+            length += 1
+    
+    # Check if string of random characters has been used already in current group of file renames.
+    used_random_chars = getTrackedData(edit_details, USED_RANDOM_CHARS)
+    if random_characters in used_random_chars:
+        random_characters = getRandomCharacters(edit_details, insert_text_data)
+    
+    return random_characters
+
+
 ## Return a List of linked files if any provided or an empty list if None.
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [List]
@@ -2389,22 +2606,23 @@ def getInsertText(edit_details, list_index = -1):
     modify_data = edit_details[INSERT_TEXT] # No get, force error if missing
     search_options = getOptions(edit_details.get(MATCH_TEXT, ''))
     same_match_index = SAME_MATCH_INDEX in search_options
-    insert_text = getText(modify_data) # Always a List
+    insert_text_list = getText(modify_data) # Always a List
     modify_options = getOptions(modify_data)
     no_repeat_text_list = NO_REPEAT_TEXT_LIST in modify_options
     tracked_data = getTrackedData(edit_details)
     
-    insert_text_list_size = len(insert_text)
+    insert_text_list_size = len(insert_text_list)
+    insert_text = ''
     
     if list_index > -1 and list_index < insert_text_list_size:
         
-        if type(insert_text[list_index]) == tuple: # Dynamic Text
+        if REGEX in search_options and REGEX in modify_options: # Regular Expression Text
+            ## TODO: what about other search options? IGNORE_TEXT, MATCH_FILE_CONTENTS, MATCH_FILE_META
+            insert_text = insert_text_list[list_index]
+        
+        elif type(insert_text_list[list_index]) == tuple: # Dynamic Text
             
-            if REGEX in modify_options: ## TODO
-                print('TODO REGEX')
-                insert_text = ''#False
-            
-            elif COUNT in modify_options or COUNT_TO in modify_options:
+            if COUNT in modify_options or COUNT_TO in modify_options:
                 
                 dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
                 
@@ -2414,19 +2632,19 @@ def getInsertText(edit_details, list_index = -1):
                     dynamic_count = getTrackedData(edit_details, FILE_NAME_COUNT, [list_index])
                     
                     if COUNT in modify_options:
-                        insert_text = getDynamicText(insert_text[list_index], dynamic_count, modify_options)
+                        insert_text = getDynamicText(insert_text_list[list_index], dynamic_count, modify_options)
                     
                     elif COUNT_TO in modify_options:
-                        insert_text = insert_text[list_index][STARTING_TEXT]
+                        insert_text = insert_text_list[list_index][STARTING_TEXT]
                 
                 else:
-                    insert_text = ''#False
+                    insert_text = ''
             
             elif RANDOM_NUMBERS in modify_options or RANDOM_LETTERS in modify_options or RANDOM_SPECIALS in modify_options or RANDOM_OTHER in modify_options:
                 
                 random_characters = getRandomCharacters(edit_details, list_index)
                 
-                insert_text = getDynamicText(insert_text[list_index], random_characters, modify_options)
+                insert_text = getDynamicText(insert_text_list[list_index], random_characters, modify_options)
                 
                 edit_details = updateTrackedData(edit_details, { USED_RANDOM_CHARS : random_characters })
             
@@ -2435,7 +2653,7 @@ def getInsertText(edit_details, list_index = -1):
                 file_meta_data = tracked_data.get(CURRENT_FILE_META)
                 
                 text = ''
-                for meta_type in insert_text[list_index]:
+                for meta_type in insert_text_list[list_index]:
                     if type(meta_type) == str:
                         text += meta_type
                     else:
@@ -2443,171 +2661,25 @@ def getInsertText(edit_details, list_index = -1):
                             meta_data = file_meta_data[meta_type]
                         text += formatMetaData(meta_data, meta_type)
                 
-                #if text == '':
-                #    insert_text = False
-                #else:
                 insert_text = text
             
             else:
                 print('\nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
-                insert_text = ''#False
+                insert_text = ''
         
         else: # Plain Text
-            insert_text = insert_text[list_index]
+            insert_text = insert_text_list[list_index]
     
     else: ## TODO Index Out Of Bounds, Warn User?
-        insert_text = ''#False
+        insert_text = ''
     
-    if EXTENSION in modify_options and edit_type != RENAME and type(insert_text) != bool:
+    if EXTENSION in modify_options and edit_type != RENAME:# and type(insert_text) != bool:
         if insert_text != '' and insert_text.find('.') != 0:
             insert_text = '.'+insert_text # Add a '.' if missing
     
     #if debug: print(insert_text)
     
     return insert_text, edit_details
-
-
-### Turn file meta data into formatted text to insert into a file name.
-###     (meta_data) File meta data that is either text or a number.
-###     (type) The type of meta data will determine how it is formatted.
-###     --> Returns a [String]
-def formatMetaData(meta_data, type):
-    text = ''
-    
-    # File Size
-    if type == FILE_META_SIZE: ## TODO: in Bytes, MB...?
-        text = str(meta_data)
-    
-    # Integer to Text
-    elif type == FILE_META_TYPE:
-        if meta_data == TYPE_APPLICATION:
-            text = 'Application'
-        elif meta_data == TYPE_AUDIO:
-            text = 'Audio'
-        elif meta_data == TYPE_FONT:
-            text = 'Font'
-        elif meta_data == TYPE_IMAGE:
-            text = 'Image'
-        elif meta_data == TYPE_MESSAGE:
-            text = 'Message'
-        elif meta_data == TYPE_MODEL:
-            text = 'Model'
-        elif meta_data == TYPE_MULTIPART:
-            text = 'Multipart'
-        elif meta_data == TYPE_TEXT:
-            text = 'Text'
-        elif meta_data == TYPE_VIDEO:
-            text = 'Video'
-        elif meta_data == TYPE_ARCHIVE:
-            text = 'Archive'
-        elif meta_data == TYPE_DOCUMENT:
-            text = 'Document'
-    
-    # Date
-    elif type == FILE_META_ACCESSED or type == FILE_META_MODIFIED or type == FILE_META_CREATED: # or FILE_META_METADATA
-        if meta_data:
-            file_meta_date_time = datetime.fromtimestamp(float(meta_data))
-            text = file_meta_date_time.strftime(date_time_fomat)
-    
-    # Time
-    elif type == FILE_META_LENGTH and meta_data:
-        file_meta_date_time = timedelta(seconds=float(meta_data)).seconds
-        text = time_length_format.format(file_meta_date_time // 3600, file_meta_date_time % 3600 // 60, file_meta_date_time % 60)
-    
-    # Text
-    elif (type == FILE_META_MIME          or type == FILE_META_FORMAT         or type == FILE_META_FORMAT_LONG
-       or type == FILE_META_AUDIO_TITLE   or type == FILE_META_AUDIO_ALBUM    or type == FILE_META_AUDIO_CHANNEL_LAYOUT
-       or type == FILE_META_AUDIO_ARTIST  or type == FILE_META_AUDIO_GENRE    or type == FILE_META_AUDIO_PUBLISHER):
-        text = str(meta_data)
-        illegal_characters = list('\\|:"<>/?')
-        for char in illegal_characters:
-            if char == '"':
-                text = text.replace(char, "'")
-            if char == ':' or char == '?':
-                text = text.replace(char, '.')
-            if char == '<' or char == '>':
-                text = text.replace(char, '_')
-            else:
-                text = text.replace(char, '-')
-    
-    # Number
-    elif (type == FILE_META_HEIGHT          or type == FILE_META_WIDTH          or type == FILE_META_BIT_DEPTH
-       or type == FILE_META_VIDEO_BITRATE   or type == FILE_META_AUDIO_BITRATE  or type == FILE_META_VIDEO_FRAME_RATE
-       or type == FILE_META_AUDIO_CHANNELS  or type == FILE_META_AUDIO_YEAR     or type == FILE_META_AUDIO_SAMPLE_RATE
-       or type == FILE_META_AUDIO_TRACK):
-        text = str(meta_data)
-    
-    return text
-
-
-### Get random characters to be used in creating a new file name.
-###     (edit_details) All the details on how to proceed with the file name edits.
-###     (list_index) If text list is used provide current index.
-###     --> Returns a [String] 
-def getRandomCharacters(edit_details, list_index = -1):
-    
-    if list_index > -1:
-        dynamic_text = getText(edit_details[INSERT_TEXT])[list_index][DYNAMIC_TEXT]
-    else:
-        dynamic_text = getText(edit_details[INSERT_TEXT])[DYNAMIC_TEXT]
-    
-    modify_options = getOptions(edit_details[INSERT_TEXT])
-    random_list = []
-    random_characters = ''
-    smallest_char_list = None
-    
-    if even_weighted_random_char_list:
-        length_numbers, length_leters, length_special, length_other = 999, 999, 999, 999
-        if RANDOM_NUMBERS in modify_options:
-            length_numbers = len(list_numbers)
-        if RANDOM_LETTERS in modify_options:
-            length_letters = len(list_leters)
-        if RANDOM_SPECIALS in modify_options:
-            length_special = len(list_special)
-        if RANDOM_OTHER in modify_options:
-            length_other = len(list_other)
-        smallest_char_list = min(length_numbers, length_leters, length_special, length_other)
-    
-    if RANDOM_NUMBERS in modify_options:
-        random.shuffle(list_numbers)
-        random_list.extend( list_numbers[:smallest_char_list] )
-    if RANDOM_LETTERS in modify_options:
-        if letter_cases == LOWER:
-            random.shuffle(list_leters)
-            random_list.extend( list_leters[:smallest_char_list] )
-        elif letter_cases == UPPER:
-            random.shuffle(list_capital_leters)
-            random_list.extend( list_capital_leters[:smallest_char_list] )
-        elif letter_cases == LOWER_AND_UPPER:
-            list_leters.extend(list_capital_leters)
-            random.shuffle(list_leters)
-            random_list.extend( list_leters[:smallest_char_list] )
-    if RANDOM_SPECIALS in modify_options:
-        random.shuffle(list_special)
-        random_list.extend( list_special[:smallest_char_list] )
-    if RANDOM_OTHER in modify_options:
-        random.shuffle(list_other)
-        random_list.extend( list_other[:smallest_char_list] )
-    
-    if type(dynamic_text) == tuple:
-        random_length = dynamic_text[0]
-    else:
-        random_length = int(dynamic_text)
-    
-    if no_repeat_random_chars:
-        random_characters = random.shuffle(random_list)[:random_length]
-    else:
-        length = 0
-        while length < random_length:
-            random_characters += random.choice(random_list)
-            length += 1
-    
-    # Check if string of random characters has been used already in current group of file renames.
-    used_random_chars = getTrackedData(edit_details, USED_RANDOM_CHARS)
-    if random_characters in used_random_chars:
-        random_characters = getRandomCharacters(edit_details, insert_text_data)
-    
-    return random_characters
 
 
 ### Prepare the text to be inserted into file making any changes or text matches before renaming.
@@ -2659,7 +2731,10 @@ def insertTextIntoFileName(file_path, edit_details):
     search_options = getOptions(match_text)
     ignore_options = getOptions(ignore_text)
     modify_options = getOptions(insert_text_data)
+    search_from_right = SEARCH_FROM_RIGHT in search_options
     no_repeat_text_list = NO_REPEAT_TEXT_LIST in modify_options
+    regex_search = REGEX in search_options
+    regex_modify = REGEX in modify_options
     
     match_index = -1
     match_limit = getOptions(match_text, MATCH_LIMIT, ALL)
@@ -2675,11 +2750,11 @@ def insertTextIntoFileName(file_path, edit_details):
     
     ignore_match = getFileNameIgnoreResults(ignore_text_list, searchable_ignore_file_name, ignore_options)
     if not ignore_match:
-        search_index, edit_extension, str_index_matches = getFileNameSearchResults(match_text_list, searchable_match_file_name, search_options, modify_options)
+        search_index, edit_extension, compiled_match_data = getFileNameSearchResults(match_text_list, searchable_match_file_name, search_options, modify_options)
     else:
         search_index = -1
         edit_extension = False
-        str_index_matches = []
+        compiled_match_data = []
     
     if not ignore_match and search_index > -1 and contents_list_index > -1 and meta_list_index > -1:
         
@@ -2724,6 +2799,19 @@ def insertTextIntoFileName(file_path, edit_details):
         # but could also be the use of an unimplemented feature or an uncaught bug.
         if insert_text:
             
+            # Get regular expression modified text
+            if regex_search and regex_modify:# and edit_details[EDIT_TYPE] != REPLACE:
+                re_insert_text = ''
+                for match in compiled_match_data: # Reversed List
+                    re_insert_text = re.sub(match_text_list[search_index], insert_text, match.group()) + re_insert_text
+                
+                # This combines all matches into text_insert, so if below code doesn't create it's own
+                # text_insert strings then this combined text_insert will be used. Unsure if this is
+                # the right approch but what else could/should be done? Used in ADD(OF_MATCH)/RENAME/EXTENSION
+                text_insert = re_insert_text
+            else:
+                text_insert = insert_text
+            
             if edit_details[EDIT_TYPE] == ADD:
                 
                 placement = getPlacement(insert_text_data)
@@ -2731,47 +2819,64 @@ def insertTextIntoFileName(file_path, edit_details):
                 # Add extension if...
                 if edit_extension:
                     if EXTENSION in modify_options and EXTENSION in search_options:
-                        new_file_name = file_path.name + insert_text # Only to the end, placement is ignored.
+                        new_file_name = file_path.name + text_insert # Only to the end, placement is ignored.
                     elif EXTENSION in search_options:
-                        new_file_name = addToFileName(file_path, insert_text, placement[0]) # Simple (START or END) placement OF_FILE_NAME only
+                        new_file_name = addToFileName(file_path, text_insert, placement[0]) # Simple (START or END) placement OF_FILE_NAME only
                 
                 # Else use normal placement options...
                 elif placement[1] == OF_MATCH:
-                    for indexes in str_index_matches:
-                        
-                        start_of_match = indexes[STARTING_INDEX]
-                        end_of_match = indexes[ENDING_INDEX]
+                    for match in compiled_match_data:
+                        print(match)
+                        if regex_search:
+                            start_of_match = match.start()
+                            end_of_match = match.end()
+                            if regex_modify:
+                                text_insert = re.sub(match_text_list[search_index], insert_text, match.group())
+                            else:
+                                text_insert = insert_text
+                        else:
+                            start_of_match = match[STARTING_INDEX]
+                            end_of_match = match[ENDING_INDEX]
+                            text_insert = insert_text
                         
                         if placement[0] == START: # or LEFT
-                            new_file_name = new_file_name[:start_of_match] + insert_text + new_file_name[start_of_match:]
+                            new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[start_of_match:]
                         
                         elif placement[0] == END: # or RIGHT
-                            new_file_name = new_file_name[:end_of_match] + insert_text + new_file_name[end_of_match:]
+                            new_file_name = new_file_name[:end_of_match] + text_insert + new_file_name[end_of_match:]
                         
                         elif placement[0] == BOTH:
-                            new_file_name = new_file_name[:start_of_match] + insert_text + new_file_name[start_of_match:end_of_match] + insert_text + new_file_name[end_of_match:]
+                            new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[start_of_match:end_of_match] + text_insert + new_file_name[end_of_match:]
                 
                 else: # placement[1] == OF_FILE_NAME: # Default
-                    new_file_name = addToFileName(file_path, insert_text, placement[0])
+                    new_file_name = addToFileName(file_path, text_insert, placement[0])
             
             elif edit_details[EDIT_TYPE] == REPLACE:
                 
                 # Replace extension only if...
                 if edit_extension:
-                    new_file_name = file_path.stem + insert_text
+                    new_file_name = file_path.stem + text_insert
                 else:
-                    for indexes in str_index_matches:
-                        start_of_match = indexes[STARTING_INDEX]
-                        end_of_match = indexes[ENDING_INDEX]
-                        new_file_name = new_file_name[:start_of_match] + insert_text + new_file_name[end_of_match:]
+                    for match in compiled_match_data:
+                        if regex_search:
+                            start_of_match = match.start()
+                            end_of_match = match.end()
+                            if regex_modify:
+                                text_insert = re.sub(match_text_list[search_index], insert_text, match.group())
+                            else:
+                                text_insert = insert_text
+                        else:
+                            start_of_match = match[STARTING_INDEX]
+                            end_of_match = match[ENDING_INDEX]
+                        new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[end_of_match:]
             
             elif edit_details[EDIT_TYPE] == RENAME:
                 
                 # Rename entire file name plus extension if...
-                if edit_extension and insert_text.find('.') > -1: # An .extension is included
-                    new_file_name = insert_text
+                if edit_extension and text_insert.find('.') > -1: # An .extension is included
+                    new_file_name = text_insert
                 else:
-                    new_file_name = insert_text + file_path.suffix
+                    new_file_name = text_insert + file_path.suffix
     
     '''
     i = -1
@@ -3585,8 +3690,6 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                         text += new_line + 'Insert Random Special Characters' if formatted_text else 'RANDOM_SPECIALS, '
                     if RANDOM_OTHER in value:
                         text += new_line + 'Insert Random Other Characters' if formatted_text else 'RANDOM_OTHER, '
-                    if REGEX in value:
-                        text += new_line + 'Regular Expressions' if formatted_text else 'REGEX, '
                     if SAME_MATCH_INDEX in value:
                         text += new_line + 'Use Same Index For Match and Insert Text Lists' if formatted_text else 'SAME_MATCH_INDEX, '
                     if NO_REPEAT_TEXT_LIST in value:
