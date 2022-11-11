@@ -383,7 +383,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 27
+selected_preset = 28
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -596,10 +596,17 @@ preset27 = {
                             OPTIONS     : [ REGEX ],
                             PLACEMENT   : ( END, OF_FILE_NAME ) }
 }
+preset28 = {
+  EDIT_TYPE             : REPLACE,
+  MATCH_TEXT            : { TEXT        : [ r'(\.[R|r])([a-zA-Z]*)', '.zip' ],
+                            OPTIONS     : [ REGEX, EXTENSION, SAME_MATCH_INDEX ] },
+  INSERT_TEXT           : { TEXT        : [ (r'\1',0,''), '.zippy' ],
+                            OPTIONS     : [ REGEX, COUNT, (MINIMUM_DIGITS, 2), EXTENSION ] }
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23,preset24,preset25,preset26,preset27]
+                  preset21,preset22,preset23,preset24,preset25,preset26,preset27,preset28]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -1653,6 +1660,8 @@ def getDynamicText(dynamic_text_data, the_dynamic_text, modify_options = None):
         min_digits -= 1
     
     middle_text += str(the_dynamic_text)
+    if REGEX in modify_options: # ':' used to separate plain text from the RE used. (Could a ':' cause problems with RE?)
+        middle_text = ':'+middle_text+':' # ':' will be removed later
     ending_text = dynamic_text_data[ENDING_TEXT] if len(dynamic_text_data) > 2 else ''
     dynamic_text = starting_text + middle_text + ending_text
     
@@ -1679,7 +1688,6 @@ def getSearchData(search_data, ignore_data, file_path):
     for data in data_loop:
         #if REGEX in data[1]: ## TODO
         #    print('TODO REGEX')
-        #else: ## this should override every other option, when added.
         
         # Default MATCH_CASE
         if NO_MATCH_CASE in data[1]:
@@ -1696,7 +1704,7 @@ def getSearchData(search_data, ignore_data, file_path):
             
             i = 0
             while i < len(data[0]):
-                if data[0][i] != '' and data[0][i].find('.') != 0 :
+                if REGEX not in search_options and data[0][i] != '' and data[0][i].find('.') != 0:
                     text = data[0].pop(i)
                     data[0].insert(i, '.'+text) # Add a '.' if missing
                 i += 1
@@ -1736,8 +1744,11 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
         if regex:
             # Make a regular expression match.
             re_pattern = re.compile(match_text)
-            re_matches = re_pattern.search(searchable_match_file_name)
-            ##TODO pefrect match if match_extension?  re_matches = re_pattern.fullmatch(searchable_match_file_name)
+            if match_extension:
+                re_matches = re_pattern.fullmatch(searchable_match_file_name) # A perfect match
+                edit_extension = True
+            else:
+                re_matches = re_pattern.search(searchable_match_file_name) # Any match
             
             if re_matches:
                 search_index = i
@@ -1745,11 +1756,11 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
                 search_index = -1
                 break # skip rename
             else:
+                edit_extension = False
                 continue # next, try again if more text in list
             
-            ##TODO: EXTENSION Test
             # Edit extension only?
-            if match_extension:
+            '''if match_extension:
                 #if match_text == searchable_match_file_name: # A perfect match is made
                 if re_matches.group() == searchable_match_file_name: # A perfect match is made
                     edit_extension = True
@@ -1758,6 +1769,7 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
                 edit_extension = True
                 if not match_all: break
                 else: continue
+            '''
             
             # Get all the other RE matches made within a string if any.
             compiled_match_data = []
@@ -1776,7 +1788,10 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
                     else:
                         compiled_match_data.pop(0)
                     ignore -= 1
-        
+            
+            if match_extension:
+                break # MATCH_ALL_INDEXES ignored because there's only one extention to match
+            
         else:
             # Make a simple match.
             str_index_match = searchable_match_file_name.rfind(match_text)
@@ -1815,6 +1830,7 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
                 else:
                     compiled_match_data.pop(0)
                 ignore -= 1
+        
         #compiled_match_data.append(index_matches)## TODO: do I want to handle multiple adds/replaces?
         #compiled_match_data = compiled_match_data ## TODO: or just the first match made (or last if match_all)?
         #if debug: print(compiled_match_data)
@@ -1825,6 +1841,7 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
     #print(search_index)
     #print(edit_extension)
     #print(compiled_match_data)
+    #input('getFileNameSearchResults')
     
     return search_index, edit_extension, compiled_match_data
 
@@ -2616,11 +2633,11 @@ def getInsertText(edit_details, list_index = -1):
     
     if list_index > -1 and list_index < insert_text_list_size:
         
-        if REGEX in search_options and REGEX in modify_options: # Regular Expression Text
+        #if REGEX in search_options and REGEX in modify_options: # Regular Expression Text
             ## TODO: what about other search options? IGNORE_TEXT, MATCH_FILE_CONTENTS, MATCH_FILE_META
-            insert_text = insert_text_list[list_index]
+        #    insert_text = insert_text_list[list_index]
         
-        elif type(insert_text_list[list_index]) == tuple: # Dynamic Text
+        if type(insert_text_list[list_index]) == tuple: # Dynamic Text
             
             if COUNT in modify_options or COUNT_TO in modify_options:
                 
@@ -2667,13 +2684,13 @@ def getInsertText(edit_details, list_index = -1):
                 print('\nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
                 insert_text = ''
         
-        else: # Plain Text
+        else: # Plain or Regex Text
             insert_text = insert_text_list[list_index]
     
     else: ## TODO Index Out Of Bounds, Warn User?
         insert_text = ''
     
-    if EXTENSION in modify_options and edit_type != RENAME:# and type(insert_text) != bool:
+    if EXTENSION in modify_options and REGEX not in modify_options and edit_type != RENAME:
         if insert_text != '' and insert_text.find('.') != 0:
             insert_text = '.'+insert_text # Add a '.' if missing
     
@@ -2809,6 +2826,7 @@ def insertTextIntoFileName(file_path, edit_details):
                 # text_insert strings then this combined text_insert will be used. Unsure if this is
                 # the right approch but what else could/should be done? Used in ADD(OF_MATCH)/RENAME/EXTENSION
                 text_insert = re_insert_text
+                
             else:
                 text_insert = insert_text
             
@@ -2826,7 +2844,7 @@ def insertTextIntoFileName(file_path, edit_details):
                 # Else use normal placement options...
                 elif placement[1] == OF_MATCH:
                     for match in compiled_match_data:
-                        print(match)
+                        
                         if regex_search:
                             start_of_match = match.start()
                             end_of_match = match.end()
@@ -2877,6 +2895,10 @@ def insertTextIntoFileName(file_path, edit_details):
                     new_file_name = text_insert
                 else:
                     new_file_name = text_insert + file_path.suffix
+        
+        if regex_modify:
+            # ':' used to separate plain text from the RE used.
+            new_file_name = new_file_name.replace(':', '') # ':' removed
     
     '''
     i = -1
@@ -3536,16 +3558,30 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 if not formatted_text: text += '[ '
                 for val in value:
                     if type(val) == tuple:
-                        if is_insert_meta_data:
+                        '''if is_insert_meta_data:
                             for v in val:
                                 if type(v) == int:
                                     text += getMetaDataStr(v, formatted_text).strip('By ')+', '
                                 else:
                                     text += '\''+str(v)+'\', '
-                        else:
-                            text += str(val)+', '
+                        else:'''
+                        text += '('
+                        for v in val:
+                            if is_insert_meta_data and type(v) == int:
+                                text += getMetaDataStr(v, formatted_text).strip('By ')+', '
+                            elif type(v) == str and v.find('\\') > -1:
+                                text += 'r\''+str(v)+'\', '
+                            elif type(v) == str:
+                                text += '\''+str(v)+'\', '
+                            else:
+                                text += str(v)+', '
+                        text = text.rstrip(', ')
+                        text += '), '
                     else:
-                        text += '\''+str(val)+'\', '
+                        if val.find('\\') > -1:
+                            text += 'r\''+str(val)+'\', '
+                        else:
+                            text += '\''+str(val)+'\', '
                 text = text.rstrip(', ')
                 if not formatted_text: text += ' ]'
             
