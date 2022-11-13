@@ -71,7 +71,7 @@ TODO:
         [X] Generate random characters that can be added to file names.
         [X] A List of Strings to search for or add to file names.
         [X] Add file meta data to file names.
-        [] Make use of regular expressions.
+        [X] Make use of regular expression.
 '''
 
 try:
@@ -107,6 +107,7 @@ elif sys.platform == "win32":
     print('Windows')
     from ctypes import windll
 import time as delay
+
 
 #CUR_VERSION_STR = ".".join(map(str, sys.version_info[:3]))
 MIN_VERSION = (3,8,0)
@@ -294,6 +295,7 @@ SAME_MATCH_INDEX = 4    # When a match is made from any "MATCH_TEXT List" use th
                         # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
 MATCH_ALL_INDEXES = 5   # Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
 MATCH_ALL_IGNORE_INDEXES = 5# Match all text in ignore list in order to skip a rename.
+REGEX_GROUP = 6         ## TODO: Use matched regex groups from this key's text in INSERT_TEXT. Keys: MATCH_TEXT, MATCH_FILE_CONTENTS, MATCH_FILE_META?
 
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
@@ -301,7 +303,8 @@ EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLA
                         # Using EXTENSION in modify options means only the extension will be replaced or added to (END), unless RENAME where the entire file name may be rewritten.
                         # Note: You don't need to use EXTENSION in all cases where you wish to match or modify the extension.
 REGEX = 11              # Use regular expression to search and/or replace text. Use raw (r) strings, example: r'[R]\s*[E]'
-                        # Note: Currently for use in MATCH_TEXT and INSERT_TEXT only.
+                        # Note: Currently only MATCH_TEXT regex groups can be used in INSERT_TEXT, example: r'(group1)(group2)' --> r'\1\2'.
+                        ## TODO: Regex in MATCH_FILE_META?
 
 ### Modify Options
 COUNT = 20              # Iterate a number that is added to a file name.  {TEXT: ('Text', (Starting Number, Ending Number), 'Text')} "Ending number is optional."
@@ -383,7 +386,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 28
+selected_preset = 27
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -582,7 +585,7 @@ preset25 = {
 }
 preset26 = {
   EDIT_TYPE             : ADD,
-  MATCH_FILE_CONTENTS   : { TEXT        : [ 'Somthing: True', 'SomthingElse: False' ],
+  MATCH_FILE_CONTENTS   : { TEXT        : [ 'Something: True', 'SomethingElse: False' ],
                             OPTIONS     : [ NO_MATCH_CASE, MATCH_ALL_INDEXES ] },
   INSERT_TEXT           : { TEXT        : ' [Verified]',
                             OPTIONS     : [ ],
@@ -592,6 +595,8 @@ preset27 = {
   EDIT_TYPE             : ADD,
   MATCH_TEXT            : { TEXT        : [ r'([W|w][I|i][N|n])(\S*)', r'(W|w)(I|i)(N|n).*-' ],
                             OPTIONS     : [ REGEX, (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
+  MATCH_FILE_CONTENTS   : { TEXT        : [ r'Something\:\s*True', 'False1233' ],
+                            OPTIONS     : [ NO_MATCH_CASE, REGEX ] },
   INSERT_TEXT           : { TEXT        : [ r'\1-Flow-\2-Doe', 'PlainText' ],
                             OPTIONS     : [ REGEX ],
                             PLACEMENT   : ( END, OF_FILE_NAME ) }
@@ -1682,38 +1687,38 @@ def getSearchData(search_data, ignore_data, file_path):
     searchable_match_file_name = [file_path.name]
     searchable_ignore_file_name = [file_path.name]
     
+    TEXT_LIST, OPTIONS, SEARCHABLE_NAME = 0,1,2
     data_loop = [[match_text_list, search_options, searchable_match_file_name],
                  [ignore_text_list, ignore_options, searchable_ignore_file_name]]
     
     for data in data_loop:
-        #if REGEX in data[1]: ## TODO
-        #    print('TODO REGEX')
         
         # Default MATCH_CASE
-        if NO_MATCH_CASE in data[1]:
+        if NO_MATCH_CASE in data[OPTIONS]:
             
             i = 0
-            while i < len(data[0]):
-                text = data[0].pop(i)
-                data[0].insert(i, text.casefold())
+            while i < len(data[TEXT_LIST]):
+                text = data[TEXT_LIST].pop(i)
+                data[TEXT_LIST].insert(i, text.casefold())
                 i += 1
             
-            data[2][0] = file_path.name.casefold()
+            data[SEARCHABLE_NAME][0] = file_path.name.casefold()
         
-        if EXTENSION in data[1]:
+        if EXTENSION in data[OPTIONS]:
             
-            i = 0
-            while i < len(data[0]):
-                if REGEX not in search_options and data[0][i] != '' and data[0][i].find('.') != 0:
-                    text = data[0].pop(i)
-                    data[0].insert(i, '.'+text) # Add a '.' if missing
-                i += 1
+            if REGEX not in data[OPTIONS]:
+                i = 0
+                while i < len(data[TEXT_LIST]):
+                    if data[TEXT_LIST][i] != '' and data[TEXT_LIST][i].find('.') != 0:
+                        text = data[TEXT_LIST].pop(i)
+                        data[TEXT_LIST].insert(i, '.'+text) # Add a '.' if missing
+                    i += 1
             
-            if NO_MATCH_CASE in data[1]:
+            if NO_MATCH_CASE in data[OPTIONS]:
                 ext = file_path.suffix
-                data[2][0] = ext.casefold()
+                data[SEARCHABLE_NAME][0] = ext.casefold()
             else:
-                data[2][0] = file_path.suffix
+                data[SEARCHABLE_NAME][0] = file_path.suffix
     
     return match_text_list, searchable_match_file_name[0], ignore_text_list, searchable_ignore_file_name[0]
 
@@ -1758,18 +1763,6 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
             else:
                 edit_extension = False
                 continue # next, try again if more text in list
-            
-            # Edit extension only?
-            '''if match_extension:
-                #if match_text == searchable_match_file_name: # A perfect match is made
-                if re_matches.group() == searchable_match_file_name: # A perfect match is made
-                    edit_extension = True
-                    break # MATCH_ALL_INDEXES ignored because there's only one extention to match
-            elif modify_extension: # Any match is made
-                edit_extension = True
-                if not match_all: break
-                else: continue
-            '''
             
             # Get all the other RE matches made within a string if any.
             compiled_match_data = []
@@ -1831,22 +1824,15 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
                     compiled_match_data.pop(0)
                 ignore -= 1
         
-        #compiled_match_data.append(index_matches)## TODO: do I want to handle multiple adds/replaces?
-        #compiled_match_data = compiled_match_data ## TODO: or just the first match made (or last if match_all)?
-        #if debug: print(compiled_match_data)
-        
         if not match_all:
             break # No need to find more, only one match needed
     
-    #print(search_index)
-    #print(edit_extension)
-    #print(compiled_match_data)
-    #input('getFileNameSearchResults')
+    #if debug: print(compiled_match_data)
     
     return search_index, edit_extension, compiled_match_data
 
 
-### Get all text needed to make a proper search.
+### Search file name for matching text and if found ignore or skip current file rename.
 ###     (ignore_text_list) List of text to ignore.
 ###     (searchable_ignore_file_name) Searchable file name String.
 ###     (ignore_options) The ignore text search options.
@@ -1854,24 +1840,31 @@ def getFileNameSearchResults(match_text_list, searchable_match_file_name, match_
 def getFileNameIgnoreResults(ignore_text_list, searchable_ignore_file_name, ignore_options):
     
     match_all_ignore = MATCH_ALL_IGNORE_INDEXES in ignore_options
+    regex_search = REGEX in ignore_options
     
-    # Look for ignore text in file name and skip this rename if found.
     ignore_match = False
     for ignore_text in ignore_text_list:
+        
         if EXTENSION in ignore_options:
-            if searchable_ignore_file_name == ignore_text:
-                ignore_match = True # Ignore match made, skip this file rename, but only if...
-                if not match_all_ignore: break # Else match all ignore text in list before skipping.
-            else:
-                ignore_match = False # No skipping this rename, but only if...
-                if match_all_ignore: break # Else keep looking for ignore text in list before skipping.
-        else:
-            if searchable_ignore_file_name.find(ignore_text) > -1:
+            if regex_search:
+                if re.fullmatch(ignore_text, searchable_ignore_file_name):
+                    ignore_match = True
+            elif searchable_ignore_file_name == ignore_text:
                 ignore_match = True
-                if not match_all_ignore: break
             else:
                 ignore_match = False
-                if match_all_ignore: break
+        else:
+            if regex_search:
+                if re.search(ignore_text, searchable_ignore_file_name):
+                    ignore_match = True
+            elif searchable_ignore_file_name.find(ignore_text) > -1:
+                ignore_match = True
+            else:
+                ignore_match = False
+        
+        # If match_all_ignore keep going/looping
+        if ignore_match and not match_all_ignore: break
+        if not ignore_match and match_all_ignore: break
     
     return ignore_match
 
@@ -2296,17 +2289,25 @@ def getFileContentsSearchResults(file_path, match_file_contents_list, match_file
     match_all = MATCH_ALL_INDEXES in match_file_contents_options
     regex_search = REGEX in match_file_contents_options
     
+    if no_match_case:
+        file_contents = file_contents.casefold()
+    
     contents_list_index, i = -1, -1
     for match_contents in match_file_contents_list:
         i += 1
         match_failed = False
         match_skipped = False ## TODO: ignore matched contents?
-        #print('Current Contents to Match: %s' % match_contents)
+        if no_match_case:
+            match_contents = match_contents.casefold()
         
         if regex_search:
-            print('TODO REGEX') ## TODO
-            match_failed = True
+            # Make a regular expression match.
+            re_matches = re.search(match_contents, file_contents)
+            if not re_matches:
+                match_failed = True
+            
         else:
+            # Make a simple string match.
             if file_contents.find(match_contents) == -1:
                 match_failed = True
         
@@ -2809,8 +2810,11 @@ def insertTextIntoFileName(file_path, edit_details):
         else:
             match_index = 0
         
-        ## TODO: getCustomText(edit_details, match_index)
-        insert_text, edit_details = getInsertText(edit_details, match_index)
+        if CUSTOM in modify_options:
+            print('TODO: Custom Text')
+            ## TODO: insert_text, edit_details = getCustomText(edit_details, match_index)
+        else:
+            insert_text, edit_details = getInsertText(edit_details, match_index)
         
         # If insert_text is an empty string than getInsertText failed, likely do to a user preset mistake,
         # but could also be the use of an unimplemented feature or an uncaught bug.
@@ -3558,13 +3562,6 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 if not formatted_text: text += '[ '
                 for val in value:
                     if type(val) == tuple:
-                        '''if is_insert_meta_data:
-                            for v in val:
-                                if type(v) == int:
-                                    text += getMetaDataStr(v, formatted_text).strip('By ')+', '
-                                else:
-                                    text += '\''+str(v)+'\', '
-                        else:'''
                         text += '('
                         for v in val:
                             if is_insert_meta_data and type(v) == int:
@@ -4222,6 +4219,19 @@ def drop(files):
 ### Script Starts Here
 if __name__ == '__main__':
     print(sys.version)
+    
+    if not chardet_installed or not ffmpeg_installed or not filetype_installed:
+        not_installed = []
+        if not chardet_installed:
+            not_installed.append('chardet')
+        if not ffmpeg_installed:
+            not_installed.append('ffmpeg')
+        if not filetype_installed:
+            not_installed.append('filetype')
+        not_installed_str = ", ".join(map(str, not_installed))
+        print('\nMissing packages required for certain features of this script to work: %s' % not_installed_str)
+        print('Check the "Requirements" section of this script for more details.')
+    
     print('\n==============================')
     print('Batch File Renamer by JDHatten')
     print('==============================')
