@@ -633,10 +633,68 @@ show_log_data = False
 ##############################
 
 
+### Check preset for missing required keys or empty required strings and inform user of preset mistakes.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [Boolean]
+def requiredPresetKeysCheck(edit_details):
+    
+    preset_error = False
+    missing_required_key = False
+    missing_match_text = False
+    #incorrect_format = False
+    of_match = False
+    
+    edit_type = edit_details.get(EDIT_TYPE)
+    match_text_data = edit_details.get(MATCH_TEXT)
+    insert_text_data = edit_details.get(INSERT_TEXT)
+    
+    if not edit_type or not insert_text_data:
+        missing_required_key = True
+    
+    elif edit_type < ADD or edit_type > RENAME:
+        missing_required_key = True
+    
+    elif insert_text_data:
+        insert_text = getText(insert_text_data)
+        if type(insert_text) == list:
+            for text in insert_text:
+                if not text:
+                    missing_required_key = True
+    
+    if edit_type == ADD:
+        placement = insert_text_data.get(PLACEMENT)
+        if type(placement) == tuple and len(placement) == 2:
+            if placement[1] == OF_MATCH:
+                of_match = True
+    
+    if edit_type == REPLACE or of_match:
+        if match_text_data:
+            match_text = getText(match_text_data)
+            if match_text:
+                if type(match_text) == list:
+                    for text in match_text:
+                        if not text:
+                            missing_match_text = True
+            else:
+                missing_match_text = True
+        else:
+            missing_match_text = True
+    
+    if missing_required_key:
+        print('\nERROR: Missing, empty or incorrectly used EDIT_TYPE or INSERT_TEXT which is required for this script to run.')
+        preset_error = missing_required_key
+    
+    if missing_match_text:
+        print('\nERROR: Missing or empty MATCH_TEXT which is required when using EDIT_TYPE : REPLACE or ADD when PLACEMENT has OF_MATCH.')
+        preset_error = missing_match_text
+    
+    return preset_error
+
+
 ### Check for any use of excluded or illegal file name characters.
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     (file_name) Add a file name string to check, but only that string is checked for illegal characters.
-###     --> Returns a [Boolean] 
+###     --> Returns a [Boolean]
 def illegalCharacterCheck(edit_details, file_name = None):
     
     illegal_characters_found = False
@@ -724,7 +782,7 @@ def illegalCharacterCheck(edit_details, file_name = None):
                         illegal_characters_found = True
     
     if illegal_characters_found:
-        print('\nWARNING: Excluded or illegal file name characters were found in [ Preset #%s ].' % selected_preset)
+        print('\nERROR: Excluded or illegal file name characters were found in [ Preset #%s ].' % selected_preset)
         print('These characters can not be used in file names and need to be removed before this preset can be used.')
     
     return illegal_characters_found
@@ -755,7 +813,7 @@ def linkedFilesCheck(linked_files):
         
         else:
             if not broken_link: print('')
-            print('Linked file does not exist: [ %s ]' % linked_file)
+            print('\nWARNING: Linked file does not exist: [ %s ]' % linked_file)
             broken_link = True
             linked_file_encodings.append(None)
             
@@ -861,6 +919,9 @@ def displayPreset(presets, formatted_text = True, number = -1, log_preset = Fals
 ###     --> Returns a [Dictionary] edit_details
 def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs = False):
     
+    if requiredPresetKeysCheck(edit_details):
+        return edit_details # Full Stop
+    
     if illegalCharacterCheck(edit_details):
         return edit_details # Full Stop
     
@@ -868,8 +929,6 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
     continue_renaming, linked_file_encodings = linkedFilesCheck(linked_files)
     if not continue_renaming:
         return edit_details # Full Stop
-    
-    ## TODO: check if REPLACE or ADD with OF_MATCH is used without MATCH_TEXT
     
     edit_details_copy = edit_details
     
@@ -2540,9 +2599,10 @@ def getLinkedFiles(edit_details):
 def getText(data, default = [''], key = TEXT):
     if type(data) == dict:
         text = data.get(key, default)
+        # I may have had this for a reason but I forgot, either way I'm removing it.
         # If no key but there's still data, just return the data assuming it's a single item with no options or placement.
-        if text == default and data:
-            text = data
+        #if text == default and data:
+            #text = data
         text = makeList(text)
     elif data == None or data == '':
         text = default
@@ -2784,10 +2844,13 @@ def insertTextIntoFileName(file_path, edit_details):
     ignore_options = getOptions(ignore_text)
     modify_options = getOptions(insert_text_data)
     
+    # Search Data
     match_text_list, searchable_match_file_name, ignore_text_list, searchable_ignore_file_name = getSearchData(match_text, ignore_text, file_path)
     
+    # File Name Serach
     search_index, edit_extension, compiled_match_data = getFileNameSearchResults(match_text_list, searchable_match_file_name, match_file_name_options, modify_options)
     
+    # Ignore File Name Search
     if ignore_text_list and search_index > -1:
         ignore_match = getFileNameIgnoreResults(ignore_text_list, searchable_ignore_file_name, ignore_options)
     else:
@@ -2802,12 +2865,14 @@ def insertTextIntoFileName(file_path, edit_details):
         compiled_match_data = []
     '''
     
+    # File Contents Search
     if match_file_contents_data and search_index > -1 and not ignore_match:
         contents_list_index, compiled_match_contents_data = getFileContentsSearchResults(file_path, match_file_contents_list, match_file_contents_options, modify_options)
     else:
         contents_list_index = 0
         compiled_match_contents_data = []
     
+    # File Meta Search
     if match_file_meta_data and contents_list_index > -1 and search_index > -1 and not ignore_match:
         meta_list_index = getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_options)
     else:
@@ -2895,7 +2960,6 @@ def insertTextIntoFileName(file_path, edit_details):
                 cmdi = len(compiled_match_data) - 1
                 if match_limit_index < cmdi:
                     cmdi = match_limit_index
-                #print(compiled_match_data[cmdi])
                 
                 text_insert = re.sub(match_text_list[search_index], insert_text, compiled_match_data[cmdi].group())
                 
@@ -2916,7 +2980,6 @@ def insertTextIntoFileName(file_path, edit_details):
                     cmcdi = 0
                 elif file_contents_match_limit_index < cmcdi:
                     cmcdi = file_contents_match_limit_index
-                #print(compiled_match_contents_data[cmcdi])
                 
                 group_number = -1
                 group_found = text_insert.find('\\')
@@ -3294,7 +3357,7 @@ def updateLogFile(edit_details, log_revert = False):
     if files_renamed > 0:
         file_updated = True
     else:
-        print('Log File Not Created. Files Renamed: 0')
+        print('\nLog File Not Created. Files Renamed: 0')
         return False
     
     linked_files = getLinkedFiles(edit_details)
