@@ -8,25 +8,39 @@ This script will rename one or more files either by adding new text or replacing
 - Update any text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
 - Revert any file name changes by dropping the generated log file back into the script.
 - Sort groups of files before renaming using file meta data.
+- Insert file meta data into file names.
 
 <br>
 
 ## How To Use:
-> Simply drag and drop one or more files or directories onto the script.<br>
-> Create *custom presets* for more complex renaming methods.<br>
+- To Rename Files: Simply drag and drop one or more files or directories onto the script. Create your own custom presets for more complex renaming tasks.<br>
+- To Revert File Renames: Drag and drop one or more of the generated log files back into the script.<br>
+- To Update Links Only: Drag and drop a file fitting the criteria below.<br>
+
+> File Name (Exactly): `'x:\same\path\as\this\script\find-replace-links.txt'`<br>
+> File Contents (Example):<br>
+>> `find = ['x:\path\to\old\file\link.jpg', ...]`<br>
+>> `replace = ['x:\path\to\new\file\link-01.jpg', ...]`<br>
+>> `links = ['x:\path\to\file\with\links.xml', ...]`<br>
+Note: Use either single or double quotes (stick with one set of quotes) and there is no need to escape characters (double slashes not necessary)
 
 <br>
 
 ## Requirements:
-> Matching and inserting meta data from files requires ffmpeg-python and filetype packages. This is an optional feature. *Install Via Pip*:
+> Matching and inserting meta data from files requires the ffmpeg-python and filetype packages. Also in order to read and write a larger variety of linked files, chardet is required to detect file encodings. These are optional features.
+- https://github.com/kkroening/ffmpeg-python
+- https://github.com/h2non/filetype.py
+- https://github.com/chardet/chardet
+- *Install Via Pip*:
 ```
 pip install ffmpeg-python
 ```
 ```
 pip install filetype
 ```
-- https://github.com/kkroening/ffmpeg-python
-- https://github.com/h2non/filetype.py
+```
+pip install chardet
+```
 
 <br>
 
@@ -40,9 +54,9 @@ pip install filetype
 
 <br>
 
-`MATCH_TEXT : "Text"`<br>
+`MATCH_FILE_NAME : "Text"`<br>
 *-or-*<br>
-`MATCH_TEXT : { TEXT : "Text", OPTIONS : ["Search Option 1",2,3,...] }`<br>
+`MATCH_FILE_NAME : { TEXT : "Text", OPTIONS : ["Search Option 1",2,3,...] }`<br>
 
 > `TEXT` is the text to search for and match before editing a file name. If a match is not made then that file name will not be changed.<br>
 
@@ -51,21 +65,44 @@ pip install filetype
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
 >> `SEARCH_FROM_RIGHT` simply starts searching from right to left opposed from the default left to right.<br>
 >> `MATCH_LIMIT` is used to find and replace a limited number of text matches per file name. The default is ( **MATCH_LIMIT**, **NO_LIMIT** ).<br>
->> `SAME_MATCH_INDEX` is used in combination with the **INSERT_TEXT** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_TEXT** List, the same index from the **INSERT_TEXT** List will be chosen. Useful when making a long lists of specific files to find and rename.<br>
+>> `SAME_MATCH_INDEX` is used in combination with the **INSERT_FILE_NAME** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_NAME** List, the same index from the **INSERT_FILE_NAME** List will be chosen. Useful when making a long lists of specific files to find and rename.<br>
+>> `MATCH_ALL_INDEXES` is used to match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.<br>
+>> `REGEX` will allow the use of regular expression to search text. Use raw (r) strings, example: r'[R]\s*[E]'<br>
+>> `REGEX_GROUP` is an option to be used together with REGEX to make sure the matched (groups) are sourced from "this" matched list. [*Default*] Example Regex: r'(group1)(group2)'  -->  r'\1\2'. Note: Group text will be taken from the last match made. Use MATCH_LIMIT and/or SEARCH_FROM_RIGHT to select which match to use.<br>
 >> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
 
 <br>
 
-`IGNORE_TEXT : "Text"`<br>
+`IGNORE_FILE_NAME : "Text"`<br>
 *-or-*<br>
-`IGNORE_TEXT : { TEXT : "Text", OPTIONS : ["Search Option 1",2,3,...] }`<br>
+`IGNORE_FILE_NAME : { TEXT : "Text", OPTIONS : ["Search Option 1",2,3,...] }`<br>
 
 > `TEXT` to search for and if found in a file name skip that file renaming, effectively renaming every other file not matched.<br>
 
 > `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
 >> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
+>> `MATCH_ALL_IGNORE_INDEXES` is used to match all text in ignore list in order to skip a rename.<br>
+>> `REGEX` will allow the use of regular expression to search text. Use raw (r) strings, example: r'[R]\s*[E]'<br>
 >> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
+
+<br>
+
+`MATCH_FILE_CONTENTS : "Text"`<br>
+*-or-*<br>
+`MATCH_FILE_CONTENTS : { TEXT : "Text", OPTIONS : ["Search Option 1",2,3,...] }`<br>
+
+> `TEXT` is the text in a file's contents to search for and match before editing a file name. If a match is not made then that file name will not be changed. Note: Only text files can be opened and searched. Other files will be ignored.<br>
+
+> `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
+>> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
+>> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
+>> `SEARCH_FROM_RIGHT` simply starts searching from right to left opposed from the default left to right.<br>
+>> `MATCH_LIMIT` is used to find and replace a limited number of text matches per file name. The default is ( **MATCH_LIMIT**, **NO_LIMIT** ).<br>
+>> `SAME_MATCH_INDEX` is used in combination with the **INSERT_FILE_NAME** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_CONTENTS** List, the same index from the **INSERT_FILE_NAME** List will be chosen. Useful when making a long lists of specific files to find and rename.<br>
+>> `MATCH_ALL_INDEXES` is used to match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.<br>
+>> `REGEX` will allow the use of regular expression to search text. Use raw (r) strings, example: r'[R]\s*[E]'<br>
+>> `REGEX_GROUP` is an option to be used together with REGEX to make sure the matched groups are sourced from "this" matched list. Example Regex: r'(group1)(group2)'  -->  r'\1\2'. Note: Group text will be taken from the last match made. Use MATCH_LIMIT and/or SEARCH_FROM_RIGHT to select which match to use.<br>
 
 <br>
 
@@ -82,13 +119,13 @@ pip install filetype
 > `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
 >> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
->> `SAME_MATCH_INDEX` is used in combination with the **INSERT_TEXT** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_META** List, the same index from the **INSERT_TEXT** List will be chosen.
+>> `SAME_MATCH_INDEX` is used in combination with the **INSERT_FILE_NAME** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_META** List, the same index from the **INSERT_FILE_NAME** List will be chosen.
 
 <br>
 
 `INSERT_TEXT : "Text"` [*Required*]<br>
 *-or-*<br>
-`INSERT_TEXT : { TEXT : "Text", OPTIONS : ["Modify Options 1",2,3,...], PLACEMENT : (PLACE, OF_) }`<br>
+`INSERT_FILE_NAME : { TEXT : "Text", OPTIONS : ["Modify Options 1",2,3,...], PLACEMENT : (PLACE, OF_) }`<br>
 
 > `TEXT` is the text to insert into file names.<br>
 
@@ -104,7 +141,7 @@ pip install filetype
 >> `REPEAT_TEXT_LIST` will repeat a text list once the end of a text list is reached. The length of a text list is treated as a soft rename limit unless this option is used. **TEXT** must be dynamic if used, [**COUNT**, **RANDOM**, etc.].<br>
 >> `EXTENSION` if used in modify options and **EDIT_TYPE : ADD or REPLACE** only the extension will be replaced or added on to the **END**. If used with **EDIT_TYPE : RENAME** the entire file name may be rewritten including the extension, but only if a "." is in **TEXT**. Note: You don't need to use **EXTENSION** in all cases where you wish to match or modify the extension.<br>
 >> `INSERT_META_DATA` will retrieve specific meta data from a file and add it to the file name.  ('Text', *File Meta Data*, 'Text', *File Meta Data*, 'Text', ...)<br>
-
+>> `REGEX` will allow the use of regular expression to insert matched groups into text. See REGEX_GROUP above.<br>
 
 > `PLACEMENT` when using **EDIT_TYPE : ADD** this signifies where to place text. For example, **( START, OF_FILE_NAME )**. All current placement options are listed below:<br>
 >> `START` to place at the start of...<br>
@@ -164,9 +201,9 @@ pip install filetype
 ```
 preset13 = {
   EDIT_TYPE        : REPLACE,
-  MATCH_TEXT       : { TEXT    : " (U)",
+  MATCH_FILE_NAME  : { TEXT    : " (U)",
                        OPTIONS : [ (MATCH_LIMIT, 1), SEARCH_FROM_RIGHT ] },
-  INSERT_TEXT      : { TEXT    : "" },
+  INSERT_FILE_NAME : { TEXT    : "" },
   LINKED_FILES     : [ "X:\\Path\\To\\File_With_Links.xml" ],
   INCLUDE_SUB_DIRS : True
 }
@@ -181,12 +218,12 @@ This preset searches for file names with a " (U)" and match the first one found 
 
 ```
 preset19 = {
-  EDIT_TYPE    : ADD,
-  MATCH_TEXT   : { TEXT      : [ ".jpg", ".png" ],
-                   OPTIONS   : [ NO_MATCH_CASE, EXTENSION, SAME_MATCH_INDEX ] },
-  INSERT_TEXT  : { TEXT      : [ ("-", (1,200), ""), ("-", (1001,2200), "") ],
-                   OPTIONS   : [ COUNT, (MINIMUM_DIGITS, 4) ],
-                   PLACEMENT : ( END, OF_FILE_NAME ) }
+  EDIT_TYPE        : ADD,
+  MATCH_FILE_NAME  : { TEXT      : [ ".jpg", ".png" ],
+                       OPTIONS   : [ NO_MATCH_CASE, EXTENSION, SAME_MATCH_INDEX ] },
+  INSERT_FILE_NAME : { TEXT      : [ ("-", (1,200), ""), ("-", (1001,2200), "") ],
+                       OPTIONS   : [ COUNT, (MINIMUM_DIGITS, 4) ],
+                       PLACEMENT : ( END, OF_FILE_NAME ) }
 }
 ```
 
@@ -200,11 +237,11 @@ This preset searches for image files with the extension ".jpg" or ".png" ignorin
 
 ```
 preset23 = {
-  EDIT_TYPE         : RENAME,
-  IGNORE_TEXT       : { TEXT        : [ 'skip' ],
-                        OPTIONS     : [ NO_MATCH_CASE ] },
-  INSERT_TEXT       : { TEXT        : [ ('RandomS-(', 4, ')'), ('RandomL-[', (7), ']') ],
-                        OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), REPEAT_TEXT_LIST ] }
+  EDIT_TYPE        : RENAME,
+  IGNORE_FILE_NAME : { TEXT     : [ 'skip' ],
+                       OPTIONS  : [ NO_MATCH_CASE ] },
+  INSERT_FILE_NAME : { TEXT     : [ ('RandomS-(', 4, ')'), ('RandomL-[', (7), ']') ],
+                       OPTIONS  : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, 167), REPEAT_TEXT_LIST ] }
 }
 ```
 
