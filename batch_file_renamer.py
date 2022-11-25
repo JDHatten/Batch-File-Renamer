@@ -14,7 +14,7 @@ Batch File Renamer by JDHatten
       that use the those files.
     - Revert any file name changes by dropping the generated log file back into the script.
     - Sort groups of files before renaming using file meta data.
-    - Insert meta data into file names.
+    - Insert file meta data into file names.
 
 Usage:
     - To Rename Files: Simply drag and drop one or more files or directories onto the script. Create your own custom
@@ -58,7 +58,7 @@ TODO:
     [DONE] Match file meta data.
     [DONE] Backup link files before overwriting them.
     [] Update links in files only, no renaming. Also add a log and revert feature for this.
-    [] Option NO_ADD_DUPES that won't "re-add" the same string of text to a file name in the same spot/placement.
+    [DONE] Option NO_ADD_DUPES that won't "re-add" the same string of text to a file name in the same spot/placement.
     [] Custom file renaming procedures via the CUSTOM option.
     [] Import separate settings and/or preset files.
     [] GUI
@@ -298,9 +298,11 @@ SAME_MATCH_INDEX = 4    # When a match is made from any MATCH_ List use the same
                         # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
 MATCH_ALL_INDEXES = 5   # Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
 MATCH_ALL_IGNORE_INDEXES = 5# Match all text in ignore list in order to skip a rename.
-REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. Keys: MATCH_FILE_NAME [Default], MATCH_FILE_CONTENTS, MATCH_FILE_META?
+REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] MATCH_FILE_NAME
+                        # Used together with REGEX to make sure the matched (groups) are sourced from "this" matched list.
                         # Note: Group text will be taken from the last match made. Use MATCH_LIMIT and/or SEARCH_FROM_RIGHT to select which match to use.
                         # Example Regex: r'(group1)(group2)'  -->  r'\1\2'.
+
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
                         # Use EXTENSION in search options for matching "only" the exact file extension (.doc != .docx).
@@ -321,7 +323,8 @@ RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) c
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
 NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
 INSERT_META_DATA = 30   # Get specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
-CUSTOM = 31             ## TODO: For when you need to write/code your own unique custom file renaming procedure. (Search: def getCustomText)
+NO_ADD_DUPES = 31       # Avoid adding duplicate text in the same placement/location.
+CUSTOM = 32             ## TODO: For when you need to write/code your own unique custom file renaming procedure. (Search: def getCustomText)
 
 ### Placement Options
 START = 40              # Place at the start of...
@@ -389,7 +392,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 29
+selected_preset = 12
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -470,11 +473,15 @@ preset11 = {
 }
 preset12 = {
   EDIT_TYPE         : ADD,
-  INSERT_FILE_NAME  : { TEXT : ' (U)', PLACEMENT : (END, OF_MATCH) },
+  MATCH_FILE_NAME   : { TEXT        : ' win',
+                        OPTIONS : NO_MATCH_CASE },
+  INSERT_FILE_NAME  : { TEXT        : '-X-',
+                        OPTIONS     : [ NO_ADD_DUPES ],
+                        PLACEMENT   : (BOTH_ENDS, OF_MATCH) },
   SOFT_RENAME_LIMIT : 3,
-  HARD_RENAME_LIMIT : 5,
+  HARD_RENAME_LIMIT : 1,
   LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\file_with_links.txt' ],
-  INCLUDE_SUB_DIRS  : True
+  #INCLUDE_SUB_DIRS  : True
 }
 preset13 = {
   EDIT_TYPE         : REPLACE,
@@ -651,7 +658,7 @@ def requiredPresetKeysCheck(edit_details):
     match_file_name_data = edit_details.get(MATCH_FILE_NAME)
     insert_file_name_data = edit_details.get(INSERT_FILE_NAME)
     
-    if not edit_type or not insert_file_name_data:
+    if edit_type == None or not insert_file_name_data:
         missing_required_key = True
     
     elif edit_type < ADD or edit_type > RENAME:
@@ -724,7 +731,7 @@ def illegalCharacterCheck(edit_details, file_name = None):
         if file_name:
             if char in file_name:
                 if not illegal_characters_found: print('')
-                print('Found [ %s ] in [ %s ] that was created from using REGEX' % (char, file_name))
+                print(f'--Found [ {char} ] in [ {file_name} ] that was created from using REGEX')
                 illegal_characters_found = True
             continue # Only checking file_name
         
@@ -738,7 +745,7 @@ def illegalCharacterCheck(edit_details, file_name = None):
                     text_mistake = '\'' + str(text) + '\''
                     if i > 0: text_mistake = after + text_mistake
                     if i < len(match_file_name_list): text_mistake += before
-                    print('Found  %s  in  MATCH_FILE_NAME  : [ %s ]' % (char, text_mistake))
+                    print(f'--Found  {char}  in  MATCH_FILE_NAME  : [ {text_mistake} ]')
                     illegal_characters_found = True
         
         if not regex_ignore:
@@ -751,7 +758,7 @@ def illegalCharacterCheck(edit_details, file_name = None):
                     text_mistake = '\'' + str(text) + '\''
                     if i > 0: text_mistake = after + text_mistake
                     if i < len(ignore_file_name_list): text_mistake += before
-                    print('Found  %s  in  IGNORE_FILE_NAME : [ %s ]' % (char, text_mistake))
+                    print(f'--Found  {char}  in  IGNORE_FILE_NAME : [ {text_mistake} ]')
                     illegal_characters_found = True
         
         if not regex_modify:
@@ -767,12 +774,12 @@ def illegalCharacterCheck(edit_details, file_name = None):
                     
                     if char in text[STARTING_TEXT]:
                         if not illegal_characters_found: print('')
-                        print('Found  %s  in  INSERT_FILE_NAME : [ %s ]' % (char, text_mistake))
+                        print(f'--Found  {char}  in  INSERT_FILE_NAME : [ {text_mistake} ]')
                         illegal_characters_found = True
                     
                     if len(text) > 2 and char in text[ENDING_TEXT]:
                         if not illegal_characters_found: print('')
-                        print('Found  %s  in  INSERT_FILE_NAME : [ %s ]' % (char, text_mistake))
+                        print(f'--Found  {char}  in  INSERT_FILE_NAME : [ {text_mistake} ]')
                         illegal_characters_found = True
                 
                 else:
@@ -781,11 +788,11 @@ def illegalCharacterCheck(edit_details, file_name = None):
                         text_mistake = '\'' + str(text) + '\''
                         if i > 0: text_mistake = after + text_mistake
                         if i < len(insert_file_name_list): text_mistake += before
-                        print('Found  %s  in  INSERT_FILE_NAME : [ %s ]' % (char, text_mistake))
+                        print(f'--Found  {char}  in  INSERT_FILE_NAME : [ {text_mistake} ]')
                         illegal_characters_found = True
     
     if illegal_characters_found:
-        print('\nERROR: Excluded or illegal file name characters were found in [ Preset #%s ].' % selected_preset)
+        print(f'\nERROR: Excluded or illegal file name characters were found in [ Preset #{selected_preset} ].')
         print('These characters can not be used in file names and need to be removed before this preset can be used.')
     
     return illegal_characters_found
@@ -816,7 +823,7 @@ def linkedFilesCheck(linked_files):
         
         else:
             if not broken_link: print('')
-            print('\nWARNING: Linked file does not exist: [ %s ]' % linked_file)
+            print(f'\nWARNING: Linked file does not exist: [ {linked_file} ]')
             broken_link = True
             linked_file_encodings.append(None)
             
@@ -959,7 +966,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
             
             for root, dirs, files in os.walk(dir_path):
                 
-                print('\n-Root: %s\n' % (root))
+                print(f'\n-Root: {root}\n')
                 
                 #for dir in dirs:
                     #print('--Directory: [ %s ]' % (dir))
@@ -1290,7 +1297,7 @@ def getTrackedData(edit_details, specific_data = None, key_index = []):
 def updateTrackedData(edit_details, update_data, append_values = True):
     
     if edit_details.get(TRACKED_DATA, None) == None:
-        print('Tracker Not Found. Something likely went wrong.')
+        print('\nERROR: Tracker Not Found. Something likely went wrong.')
         return edit_details
     
     if FILES_REVIEWED in update_data:
@@ -2365,7 +2372,7 @@ def getFileContentsSearchResults(file_path, match_file_contents_list, match_file
         file_contents, text_encoding = readFile(file_path)
         if not file_contents: return -1, [] # Can't open file, not a text file.
     else:
-        print('File Not Found: [ %s ]' % file_path)
+        print(f'\nERROR: File Not Found: [ {file_path} ]')
         return -1, []
     
     contents_list_index, i = -1, -1
@@ -2751,10 +2758,6 @@ def getInsertText(edit_details, list_index = -1):
     
     if list_index > -1 and list_index < insert_file_name_list_size:
         
-        #if REGEX in match_file_name_options and REGEX in insert_file_name_options: # Regular Expression Text
-            ## TODO: what about other search options? IGNORE_FILE_NAME, MATCH_FILE_CONTENTS, MATCH_FILE_META
-        #    file_name_text_insert = insert_file_name_list[list_index]
-        
         if type(insert_file_name_list[list_index]) == tuple: # Dynamic Text
             
             if COUNT in insert_file_name_options or COUNT_TO in insert_file_name_options:
@@ -2800,7 +2803,7 @@ def getInsertText(edit_details, list_index = -1):
                 file_name_text_insert = text
             
             else:
-                print('\nYour using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
+                print('\nWARNING: Your using dynamic text "(text,1,text)" without using an OPTION informing how to handle it.')
                 file_name_text_insert = ''
         
         else: # Plain or Regex Text
@@ -2898,12 +2901,13 @@ def insertTextIntoFileName(file_path, edit_details):
     match_limit_index = getSpecificOption(match_file_name_options, MATCH_LIMIT, NO_LIMIT)
     match_limit = ALL if match_limit_index <= NO_LIMIT else match_limit_index
     regex_search = REGEX in match_file_name_options
-    no_repeat_text_list = NO_REPEAT_TEXT_LIST in insert_file_name_options
-    regex_modify = REGEX in insert_file_name_options
     file_contents_match_limit_index = getSpecificOption(match_file_contents_options, MATCH_LIMIT, NO_LIMIT)
     search_from_right_file_contents = SEARCH_FROM_RIGHT in match_file_contents_options
     same_match_contents_index = SAME_MATCH_INDEX in match_file_contents_options
     same_match_meta_index = SAME_MATCH_INDEX in match_file_meta_options
+    no_repeat_text_list = NO_REPEAT_TEXT_LIST in insert_file_name_options
+    regex_modify = REGEX in insert_file_name_options
+    no_add_dupes = NO_ADD_DUPES in insert_file_name_options
     
     match_index = -1
     
@@ -2933,10 +2937,9 @@ def insertTextIntoFileName(file_path, edit_details):
             #if match_list_size != text_list_size and not repeat_text_list and not skip_warning_smi:
             if match_list_size != text_list_size and not skip_warning_smi:
                 ## TODO: use a windows message box?
-                print('\nYour using the SAME_MATCH_INDEX option, but your MATCH_ list is larger or smaller than your INSERT_FILE_NAME list.')
+                print('\nWARNING: Your using the SAME_MATCH_INDEX option, but your MATCH_ list is larger or smaller than your INSERT_FILE_NAME list.')
                 print('This may lead to undesirable results if you\'re trying to line up your matches and text insert lists.')
-                #print('Try using the REPEAT_TEXT_LIST (INSERT_FILE_NAME) option next time if your using dynamic text like COUNT, RANDOM, etc.')
-                input('If you wish to continue anyways press [ Enter ]...')
+                input('--If you wish to continue anyways press [ Enter ]...')
                 skip_warning_smi = True
         
         elif is_text_list:
@@ -2995,13 +2998,15 @@ def insertTextIntoFileName(file_path, edit_details):
                 # Add extension if...
                 if edit_extension:
                     if EXTENSION in insert_file_name_options and EXTENSION in match_file_name_options:
-                        new_file_name = file_path.name + text_insert # Only to the end, placement is ignored.
+                        #new_file_name = file_path.name + text_insert # Only to the end, placement is ignored.
+                        new_file_name = addToFileName(file_path, text_insert, EXTENSION, no_add_dupes) # Only to the END, placement is ignored.
                     elif EXTENSION in match_file_name_options:
-                        new_file_name = addToFileName(file_path, text_insert, placement[0]) # Simple (START or END) placement OF_FILE_NAME only
+                        new_file_name = addToFileName(file_path, text_insert, placement[0], no_add_dupes) # START and/or END OF_FILE_NAME only.
                 
                 # Else use normal placement options...
                 elif placement[1] == OF_MATCH:
                     
+                    match_num = len(compiled_match_data)
                     for match in compiled_match_data:
                         
                         if regex_search:
@@ -3017,6 +3022,10 @@ def insertTextIntoFileName(file_path, edit_details):
                             end_of_match = match[ENDING_INDEX]
                             text_insert = insert_file_name_text
                         
+                        new_file_name = addToFileName(file_path, text_insert, placement[0], no_add_dupes, placement[1],
+                                                      new_file_name, start_of_match, end_of_match, match_num)
+                        match_num -= 1
+                        '''
                         if placement[0] == START: # or LEFT
                             new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[start_of_match:]
                         
@@ -3025,9 +3034,10 @@ def insertTextIntoFileName(file_path, edit_details):
                         
                         elif placement[0] == BOTH:
                             new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[start_of_match:end_of_match] + text_insert + new_file_name[end_of_match:]
+                        '''
                 
                 else: # placement[1] == OF_FILE_NAME: # Default
-                    new_file_name = addToFileName(file_path, text_insert, placement[0])
+                    new_file_name = addToFileName(file_path, text_insert, placement[0], no_add_dupes)
             
             elif edit_details[EDIT_TYPE] == REPLACE:
                 
@@ -3066,11 +3076,8 @@ def insertTextIntoFileName(file_path, edit_details):
             illegal_characters_found = illegalCharacterCheck(edit_details, new_file_name)
             if illegal_characters_found:
                 new_file_name = file_path.name # Reset back to orginal file name
-                input('Skipping this file rename, do you wish to continue? [ Enter ]')
+                input('--Skipping this file rename, do you wish to continue? [ Enter ]')
                 print()
-        
-        #print(new_file_name)
-        #input('stop')
     
     edit_details = updateTrackedData(edit_details, { CURRENT_LIST_INDEX : match_index, CURRENT_FILE_RENAME : new_file_name, ONE_TIME_FLAGS : [SMI_WARNING, skip_warning_smi] })
     
@@ -3079,22 +3086,93 @@ def insertTextIntoFileName(file_path, edit_details):
     return edit_details
 
 
-### Add text to file name using a simple placement.
+### Add text to a file name using placements.
 ###     (file_path) The full path to a file.
 ###     (add_text) The text to add to the file name.
-###     (placement) Where to place the added text.
-###     --> Returns a [String] 
-def addToFileName(file_path, add_text, placement):
-    if placement == START: # or LEFT
-        new_file_name = f'{add_text}{file_path.stem}{file_path.suffix}'
-    elif placement == END: # or RIGHT
-        new_file_name = f'{file_path.stem}{add_text}{file_path.suffix}'
-    elif placement == BOTH:
-        new_file_name = f'{add_text}{file_path.stem}{add_text}{file_path.suffix}'
-    elif placement == EXTENSION:
-        new_file_name = f'{file_path.name}{add_text}'
+###     (placement) What side to place the added text on.
+###     (no_add_dupes) Avoid adding duplicate text in the same location.
+###     (location) The location to place the added text.
+###     (modded_file_name) When multiple matches are made the new modded file name can be updated multiple times.
+###     (start_of_fn_match) The starting index of the match made.
+###     (end_of_fn_match) The ending index of the match made.
+###     (match_num) The match number made (in reverse).
+###     --> Returns a [String]
+def addToFileName(file_path, add_text, placement, no_add_dupes, location = OF_FILE_NAME, modded_file_name = '',
+                  start_of_fn_match = None, end_of_fn_match = None, match_num = 0):
+    
+    add_text_length = len(add_text)
+    if location == OF_MATCH:
+        left_of_location = file_path.name[start_of_fn_match-add_text_length:start_of_fn_match]
+        right_of_location = file_path.name[end_of_fn_match:end_of_fn_match+add_text_length]
+        new_file_name = modded_file_name
     else:
+        left_of_location = file_path.stem[:add_text_length]
+        right_of_location = file_path.stem[-add_text_length:]
         new_file_name = file_path.name
+    
+    skip_start = False
+    skip_end = False
+    match_num_str = f'({match_num})' if match_num else ''
+    
+    if placement == START: # or LEFT
+        
+        if no_add_dupes and left_of_location == add_text:
+            print(f'--Duplicate ADD string found in the START location. {match_num_str}')
+        else:
+            if location == OF_MATCH:
+                new_file_name = f'{new_file_name[:start_of_fn_match]}{add_text}{new_file_name[start_of_fn_match:]}'
+            else:
+                new_file_name = f'{add_text}{file_path.stem}{file_path.suffix}'
+    
+    elif placement == END: # or RIGHT
+        
+        if no_add_dupes and right_of_location == add_text:
+            print(f'--Duplicate ADD string found in the END location. {match_num_str}')
+        else:
+            if location == OF_MATCH:
+                new_file_name = f'{new_file_name[:end_of_fn_match]}{add_text}{new_file_name[end_of_fn_match:]}'
+            else:
+                new_file_name = f'{file_path.stem}{add_text}{file_path.suffix}'
+    
+    elif placement == BOTH: # or BOTH_ENDS
+        
+        if no_add_dupes and left_of_location == add_text:
+            skip_start = True
+        if no_add_dupes and right_of_location == add_text:
+            skip_end = True
+        
+        if not skip_start and not skip_end:
+            if location == OF_MATCH:
+                new_file_name = f'{new_file_name[:start_of_fn_match]}{add_text}' \
+                                f'{new_file_name[start_of_fn_match:end_of_fn_match]}' \
+                                f'{add_text}{new_file_name[end_of_fn_match:]}'
+            else:
+                new_file_name = f'{add_text}{file_path.stem}{add_text}{file_path.suffix}'
+        
+        elif not skip_start:
+            print(f'--Duplicate ADD string found in the START location, END text still added. {match_num_str}')
+            if location == OF_MATCH:
+                new_file_name = f'{new_file_name[:start_of_fn_match]}{add_text}{new_file_name[start_of_fn_match:]}'
+            else:
+                new_file_name = f'{add_text}{file_path.stem}{file_path.suffix}'
+        
+        elif not skip_end:
+            print(f'--Duplicate ADD string found in the END location, START text still added. {match_num_str}')
+            if location == OF_MATCH:
+                new_file_name = f'{new_file_name[:end_of_fn_match]}{add_text}{new_file_name[end_of_fn_match:]}'
+            else:
+                new_file_name = f'{file_path.stem}{add_text}{file_path.suffix}'
+        
+        else:
+            print(f'--Duplicate ADD strings found in BOTH locations. {match_num_str}')
+        
+    elif placement == EXTENSION:
+        
+        if no_add_dupes and file_path.suffix == add_text:
+            print(f'--Duplicate ADD string found in the EXTENSION location.')
+        else:
+            new_file_name = f'{file_path.name}{add_text}'
+    
     return new_file_name
 
 
@@ -3192,7 +3270,7 @@ def readFile(file_path, file_encoding = None):
             encoding_str = 'utf-8'
             file_contents = file_path.read_text(encoding=encoding_str)
         except:
-            print('Failed to open file: [ %s ]' % file_path)
+            print(f'\nWARNING: Failed to open file: [ {file_path} ]')
             print('Posible text encoding issue. Script only supports ascii and utf-8 text encoding.')
             file_contents = False
     
@@ -4250,14 +4328,14 @@ if __name__ == '__main__':
             not_installed.append('ffmpeg')
         if not filetype_installed:
             not_installed.append('filetype')
-        not_installed_str = ", ".join(map(str, not_installed))
-        print('\nMissing packages required for certain features of this script to work: %s' % not_installed_str)
+        not_installed_str = ', '.join(map(str, not_installed))
+        print(f'\nWARNING: Missing packages required for certain features of this script to work: {not_installed_str}')
         print('Check the "Requirements" section of this script for more details.')
     
     print('\n==============================')
     print('Batch File Renamer by JDHatten')
     print('==============================')
-    assert sys.version_info >= MIN_VERSION, f"This Script Requires Python v{MIN_VERSION_STR} or Newer"
+    assert sys.version_info >= MIN_VERSION, f'This Script Requires Python v{MIN_VERSION_STR} or Newer'
     
     # Testing: Simulating File Drops
     #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
