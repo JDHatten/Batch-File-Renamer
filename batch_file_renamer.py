@@ -235,32 +235,32 @@ FILE_META_AUDIO_PUBLISHER = 24      # DATA : 'Text'
 FILE_META_AUDIO_TRACK = 25          # DATA : Number
 
 ### META_MATCH
-EXACT_MATCH = 50       # An exact perfect match of a entire piece of text or number.
-LOOSE_MATCH = 51       # A close but not exact match. This will match any part of a larger piece of text or if a number, match within a 5% range.
-SKIP_EXACT_MATCH = 52  # Skip renaming files that exactly match the meta data.
-SKIP_LOOSE_MATCH = 53  # Skip renaming files that loosely match the meta data.
-                       # Note: If using a list and SAME_MATCH_INDEX take note of the order of skipped data. For example if you always want to skip matched data, then make sure its added first.
-LESS_THAN = 54         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
-MORE_THAN = 55         # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
-BEFORE = 54            # A Date (Same as LESS_THAN)
-AFTER = 55             # A Date (Same as MORE_THAN)
-WITHIN_THE_PAST = 56   # A Length of Time
-OLDER_THAN = 57        # A Length of Time
+EXACT_MATCH = 50        # An exact perfect match of a entire piece of text or number.
+LOOSE_MATCH = 51        # A close but not exact match. This will match any part of a larger piece of text or if a number, match within a 5% range.
+SKIP_EXACT_MATCH = 52   # Skip renaming files that exactly match the meta data.
+SKIP_LOOSE_MATCH = 53   # Skip renaming files that loosely match the meta data.
+                        # Note: If using a list and SAME_MATCH_INDEX take note of the order of skipped data. For example if you always want to skip matched data, then make sure its added first.
+LESS_THAN = 54          # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
+MORE_THAN = 55          # A Number (Add two entries with both LESS_THAN and MORE_THAN to create a range)
+BEFORE = 54             # A Date (Same as LESS_THAN)
+AFTER = 55              # A Date (Same as MORE_THAN)
+WITHIN_THE_PAST = 56    # A Length of Time
+OLDER_THAN = 57         # A Length of Time
 
 ### File Types (MIME)
-TYPE_APPLICATION = 100   # This is basically everything not categorized below.
-TYPE_AUDIO = 102         # Some examples files: .aac .mp3 .ogg
-TYPE_FONT = 104          # Some examples files: .otf .ttf .woff
-TYPE_IMAGE = 105         # Some examples files: .bmp .jpg .png
-TYPE_MESSAGE = 106       # Some examples files: .cl .u8hdr .wsc  (Uncommon)
-TYPE_MODEL = 107         # Some examples files: .obj .usd .x3dv  (Uncommon)
-TYPE_MULTIPART = 108     # Some examples files: .vpm .bmed       (Uncommon)
-TYPE_TEXT = 109          # Some examples files: .cvs .html .txt
-TYPE_VIDEO = 110         # Some examples files: .flv .mp4 .mpeg
+TYPE_APPLICATION = 100  # This is basically everything not categorized below.
+TYPE_AUDIO = 102        # Some examples files: .aac .mp3 .ogg
+TYPE_FONT = 104         # Some examples files: .otf .ttf .woff
+TYPE_IMAGE = 105        # Some examples files: .bmp .jpg .png
+TYPE_MESSAGE = 106      # Some examples files: .cl .u8hdr .wsc  (Uncommon)
+TYPE_MODEL = 107        # Some examples files: .obj .usd .x3dv  (Uncommon)
+TYPE_MULTIPART = 108    # Some examples files: .vpm .bmed       (Uncommon)
+TYPE_TEXT = 109         # Some examples files: .cvs .html .txt
+TYPE_VIDEO = 110        # Some examples files: .flv .mp4 .mpeg
 
 ### Categorized Application Types (MIME) (not a complete list)
-TYPE_ARCHIVE = 101       # Some examples files: .7z .rar .zip
-TYPE_DOCUMENT = 103      # Some examples files: .doc .potx .xlsx
+TYPE_ARCHIVE = 101      # Some examples files: .7z .rar .zip
+TYPE_DOCUMENT = 103     # Some examples files: .doc .potx .xlsx
 
 ### Date and Time
 YEAR = 200
@@ -298,10 +298,10 @@ SAME_MATCH_INDEX = 4    # When a match is made from any MATCH_ List use the same
                         # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
 MATCH_ALL_INDEXES = 5   # Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
 MATCH_ALL_IGNORE_INDEXES = 5# Match all text in ignore list in order to skip a rename.
-REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] MATCH_FILE_NAME
+REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] in MATCH_FILE_NAME
                         # Used together with REGEX to make sure the matched (groups) are sourced from "this" matched list.
                         # Note: Group text will be taken from the last match made. Use MATCH_LIMIT and/or SEARCH_FROM_RIGHT to select which match to use.
-                        # Example Regex: r'(group1)(group2)'  -->  r'\1\2'.
+                        # Example Regex:  match = r'(group1)nogroup(group2)'  insert = r'\1\2'.
 
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
@@ -342,11 +342,6 @@ ASCENDING = 60          # 0-9, A-Z [Default]
 DESCENDING = 61         # 9-0, Z-A
 ALPHABETICALLY = 0      # File name [Default]
 FILE_NAME = 0           # File name [Default]
-#FILE_SIZE = 63          # File size in bytes
-#DATE_ACCESSED = 64      # Date file last opened.
-#DATE_MODIFIED = 65      # Date file last changed.
-#DATE_CREATED = 66       # Date file created. (Windows Only)
-#DATE_META_MODIFIED = 66 # Date file's meta data last updated. (UNIX)
 
 
 ##############################
@@ -997,10 +992,10 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     if allCountLimitsHitCheck(getTrackedData(edit_details_copy)):
                         break # File count limit hit, stop and move on to next directory.
                     
-                    file_path = Path(file[FILE_META_PATH])
+                    #file_path = Path(file[FILE_META_PATH])
                     edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META : file, CURRENT_FILE_RENAME : file[FILE_META_PATH].name })
                     
-                    edit_details_copy = createNewFileName(file_path, edit_details_copy)
+                    edit_details_copy = createNewFileName(edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
                     if debug: displayPreset(edit_details_copy, readable_preset_text)
                 
@@ -1025,7 +1020,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
             
             for file in meta:
             
-                file_path = file[FILE_META_PATH]
+                #file_path = file[FILE_META_PATH]
                 edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META : file, CURRENT_FILE_RENAME : file[FILE_META_PATH].name })
                 
                 individual_files_renamed = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [AMOUNT])
@@ -1033,13 +1028,13 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                 
                 if hard_rename_limit != NO_LIMIT and all_files_renamed >= hard_rename_limit:
                     limit_reached = True # Hard or soft rename limit hit (whichever is first for groups of individual files)
-                if soft_rename_limit != NO_LIMIT and individual_files_renamed >= soft_rename_limit:
+                elif soft_rename_limit != NO_LIMIT and individual_files_renamed >= soft_rename_limit:
                     limit_reached = True # Hard or soft rename limit hit (whichever is first for groups of individual files)
-                if allCountLimitsHitCheck(getTrackedData(edit_details_copy)):
+                elif allCountLimitsHitCheck(getTrackedData(edit_details_copy)):
                     limit_reached = True # File count limit hit
                 
                 if not limit_reached:
-                    edit_details_copy = createNewFileName(file_path, edit_details_copy)
+                    edit_details_copy = createNewFileName(edit_details_copy)
                     edit_details_copy = updateTrackedData(edit_details_copy, { FILES_REVIEWED : +1 })
                 
                 if debug: displayPreset(edit_details_copy, readable_preset_text)
@@ -1454,8 +1449,8 @@ def getFileMetaData(files, sort_option = None, root = '', get_extra_meta = False
                 mime_type = mimetypes.guess_type(file_path)
                 
                 if debug:
-                    print('file_type: %s' % file_type)
-                    print('mime_type: (%s, %s)' % (mime_type[0], mime_type[1]))
+                    print(f'file_type: {file_type}')
+                    print(f'mime_type: ({mime_type[0]}, {mime_type[1]})')
                 
                 archive_mimes = ['application/x-7z-compressed','application/x-unix-archive','application/x-bzip2','application/vnd.ms-cab-compressed',
                                  'application/x-google-chrome-extension','application/dicom','application/vnd.debian.binary-package','application/x-executable',
@@ -1526,18 +1521,18 @@ def getFileMetaData(files, sort_option = None, root = '', get_extra_meta = False
                         is_archive = file_meta_mime in archive_mimes
                     is_doc = file_meta_mime in document_mimes
                     
-                    print('file_meta_type: %s' % file_meta_type)
-                    print('file_meta_mime: %s' % file_meta_mime)
-                    print('is_app: %s' % is_app)
-                    print('is_archive: %s' % is_archive)
-                    print('is_audio: %s' % is_audio)
-                    print('is_font: %s' % is_font)
-                    print('is_image: %s' % is_image)
-                    print('is_text: %s' % is_text)
-                    print('is_doc: %s' % is_doc)
-                    print('is_spead_sheet: %s' % is_spead_sheet)
-                    print('is_presentation: %s' % is_presentation)
-                    print('is_video: %s' % is_video)
+                    print(f'file_meta_type: {file_meta_type}')
+                    print(f'file_meta_mime: {file_meta_mime}')
+                    print(f'is_app: {is_app}')
+                    print(f'is_archive: {is_archive}')
+                    print(f'is_audio: {is_audio}')
+                    print(f'is_font: {is_font}')
+                    print(f'is_image: {is_image}')
+                    print(f'is_text: {is_text}')
+                    print(f'is_doc: {is_doc}')
+                    print(f'is_spead_sheet: {is_spead_sheet}')
+                    print(f'is_presentation: {is_presentation}')
+                    print(f'is_video: {is_video}')
                 
                 probe = None
                 try:
@@ -1603,25 +1598,25 @@ def getFileMetaData(files, sort_option = None, root = '', get_extra_meta = False
                         if track_number: track_number = int(track_number)
                 
                 if debug:
-                    print('format_short: %s' % format_short)
-                    print('format_long: %s' % format_long)
-                    print('height: %s' % height)
-                    print('width: %s' % width)
-                    print('duration: %s' % duration)
-                    print('bit_depth: %s' % bit_depth)
-                    print('video_bit_rate: %s' % video_bit_rate)
-                    print('frame_rate: %s' % frame_rate)
-                    print('audio_bit_rate: %s' % audio_bit_rate)
-                    print('sample_rate: %s' % sample_rate)
-                    print('channels: %s' % channels)
-                    print('channel_layout: %s' % channel_layout)
-                    print('title: %s' % title)
-                    print('album: %s' % album)
-                    print('artist: %s' % artist)
-                    print('date: %s' % date)
-                    print('genre: %s' % genre)
-                    print('publisher: %s' % publisher)
-                    print('track_number: %s' % track_number)
+                    print(f'format_short: {format_short}')
+                    print(f'format_long: {format_long}')
+                    print(f'height: {height}')
+                    print(f'width: {width}')
+                    print(f'duration: {duration}')
+                    print(f'bit_depth: {bit_depth}')
+                    print(f'video_bit_rate: {video_bit_rate}')
+                    print(f'frame_rate: {frame_rate}')
+                    print(f'audio_bit_rate: {audio_bit_rate}')
+                    print(f'sample_rate: {sample_rate}')
+                    print(f'channels: {channels}')
+                    print(f'channel_layout: {channel_layout}')
+                    print(f'title: {title}')
+                    print(f'album: {album}')
+                    print(f'artist: {artist}')
+                    print(f'date: {date}')
+                    print(f'genre: {genre}')
+                    print(f'publisher: {publisher}')
+                    print(f'track_number: {track_number}')
             
             #if debug: input('...')
             
@@ -1633,8 +1628,8 @@ def getFileMetaData(files, sort_option = None, root = '', get_extra_meta = False
             elif Path.is_dir(file_path):
                 directory_list.append( (file_path, file_meta.st_size, file_meta.st_atime, file_meta.st_mtime, file_meta.st_ctime) )
             else:
-                print("\nSkipping This: [ %s ]" % file_path)
-                print("\nThis is not a normal file or directory.")
+                print(f'\nSkipping This: [ {file_path} ]')
+                print('This is not a normal file or directory.')
     
     if type(sort_option) == dict:
         meta_data = next(iter(sort_option))
@@ -1667,13 +1662,11 @@ def sortFilesByMetaData(file, index):
 
 
 ### Using the edit details create a new file name and try renaming file and updating any linked files.
-###     (some_file) The full path to a file.
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [Dictionary]
-def createNewFileName(some_file, edit_details):
+def createNewFileName(edit_details):
     
-    ## TODO: get file_path from edit_details moving forward
-    file_path = Path(some_file)
+    file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
     assert Path.is_file(file_path) # Error if not a file or doen't exist
     file_name_changed = False
     
@@ -1681,14 +1674,14 @@ def createNewFileName(some_file, edit_details):
     
     # Create The New File Name
     if not skip_file:
-        edit_details = insertTextIntoFileName(file_path, edit_details)
+        edit_details = insertTextIntoFileName(edit_details)
         new_file_name = getTrackedData(edit_details, CURRENT_FILE_RENAME)
         file_name_changed = False if new_file_name == file_path.name else True
     
     # Now Rename The File
     if file_name_changed:
         new_file_path = Path(file_path.parent, new_file_name)
-        edit_details = renameFile(file_path, new_file_path, edit_details)
+        edit_details = renameFileTo(new_file_path, edit_details)
         
         skip_file = checkForSkippedFiles(new_file_path, getTrackedData(edit_details, SKIPPED_FILES))
         
@@ -2823,14 +2816,12 @@ def getInsertText(edit_details, list_index = -1):
 
 ### Prepare the text to be inserted into file making any changes or text matches before renaming.
 ### If the same file name is returned then the original file did not match the criteria in the edit details.
-###     (file_path) The full path to a file.
 ###     (edit_details) All the details on how to proceed with the file name edits.
 ###     --> Returns a [String] 
-def insertTextIntoFileName(file_path, edit_details):
+def insertTextIntoFileName(edit_details):
     
-    #file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
-    
-    new_file_name = file_path.name # Start with orginal current file name
+    file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
+    new_file_name = file_path.name # Start with orginal file name
     
     match_file_name_data = edit_details.get(MATCH_FILE_NAME, '') # '' will always match
     ignore_file_name_data = edit_details.get(IGNORE_FILE_NAME, None)
@@ -2854,6 +2845,8 @@ def insertTextIntoFileName(file_path, edit_details):
     match_file_name_list, searchable_match_file_name, ignore_file_name_list, searchable_ignore_file_name = getSearchData(match_file_name_data, ignore_file_name_data, file_path)
     
     # File Name Serach
+    # Note: The search data match_file_name_list is never empty and will hold at least one empty string [""].
+    #       So unless there is one or more non-empty strings to match (or not match -1), search_index will always be 0.
     search_index, edit_extension, compiled_match_data = getFileNameSearchResults(match_file_name_list, searchable_match_file_name, match_file_name_options, insert_file_name_options)
     
     # Ignore File Name Search
@@ -2861,15 +2854,6 @@ def insertTextIntoFileName(file_path, edit_details):
         ignore_match = getFileNameIgnoreResults(ignore_file_name_list, searchable_ignore_file_name, ignore_file_name_options)
     else:
         ignore_match = False
-    
-    '''
-    if match_file_name_list and not ignore_match:
-        search_index, edit_extension, compiled_match_data = getFileNameSearchResults(match_file_name_list, searchable_match_file_name, match_file_name_options, insert_file_name_options)
-    else:
-        search_index = 0
-        edit_extension = False
-        compiled_match_data = []
-    '''
     
     # File Contents Search
     if match_file_contents_data and search_index > -1 and not ignore_match:
@@ -3025,16 +3009,6 @@ def insertTextIntoFileName(file_path, edit_details):
                         new_file_name = addToFileName(file_path, text_insert, placement[0], no_add_dupes, placement[1],
                                                       new_file_name, start_of_match, end_of_match, match_num)
                         match_num -= 1
-                        '''
-                        if placement[0] == START: # or LEFT
-                            new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[start_of_match:]
-                        
-                        elif placement[0] == END: # or RIGHT
-                            new_file_name = new_file_name[:end_of_match] + text_insert + new_file_name[end_of_match:]
-                        
-                        elif placement[0] == BOTH:
-                            new_file_name = new_file_name[:start_of_match] + text_insert + new_file_name[start_of_match:end_of_match] + text_insert + new_file_name[end_of_match:]
-                        '''
                 
                 else: # placement[1] == OF_FILE_NAME: # Default
                     new_file_name = addToFileName(file_path, text_insert, placement[0], no_add_dupes)
@@ -3091,7 +3065,7 @@ def insertTextIntoFileName(file_path, edit_details):
 ###     (add_text) The text to add to the file name.
 ###     (placement) What side to place the added text on.
 ###     (no_add_dupes) Avoid adding duplicate text in the same location.
-###     (location) The location to place the added text.
+###     (location) The location (whole file name or matched string) to place the added text.
 ###     (modded_file_name) When multiple matches are made the new modded file name can be updated multiple times.
 ###     (start_of_fn_match) The starting index of the match made.
 ###     (end_of_fn_match) The ending index of the match made.
@@ -3209,30 +3183,30 @@ def checkIfFileExist(file_path, org_file_path = None):
 
 
 ### Rename a file...
-###     (file_path) The full path to file.
 ###     (new_file_path) The full path to file.
 ###     (edit_details) All the details on how to proceed with the file name edits. 
 ###     --> Returns a [Dictionary] 
-def renameFile(file_path, new_file_path, edit_details):
+def renameFileTo(new_file_path, edit_details):
     
+    old_file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
     current_list_index = getTrackedData(edit_details, CURRENT_LIST_INDEX)
     
-    does_file_exist = checkIfFileExist(new_file_path, file_path)
+    does_file_exist = checkIfFileExist(new_file_path, old_file_path)
     
     if does_file_exist == CANCEL: # Will throw error, but will stop any further renaming.
         print('Canceling any further renaming and closing...')
-        new_file_path = file_path.rename(new_file_path) # Error
+        new_file_path = old_file_path.rename(new_file_path) # Error
     
     elif does_file_exist == NO: # Actually renaming file
-        new_file_path = file_path.rename(new_file_path)
-        edit_details = updateTrackedData(edit_details, { FILES_RENAMED : +1, ORG_FILE_PATHS : file_path, NEW_FILE_PATHS : new_file_path })
+        new_file_path = old_file_path.rename(new_file_path)
+        edit_details = updateTrackedData(edit_details, { FILES_RENAMED : +1, ORG_FILE_PATHS : old_file_path, NEW_FILE_PATHS : new_file_path })
         file_renamed = True
     
     elif does_file_exist == CONTINUE: # Skip this count (+1) and try renaming file again (recursively).
         file_renamed = False
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1], SKIPPED_FILES : new_file_path })
         
-        edit_details = createNewFileName(file_path, edit_details)
+        edit_details = createNewFileName(edit_details)
         
         does_file_exist = NO
     
@@ -3246,12 +3220,12 @@ def renameFile(file_path, new_file_path, edit_details):
             print('--File Already Renamed: %s\\ [ %s ]' % (new_file_path.parent, new_file_path.name))
             print('--You may have ran this script twice in a row.')
         else:
-            print('--File Renamed From: %s\\%s to [ %s ]' % (new_file_path.parent, file_path.name, new_file_path.name))
+            print('--File Renamed From: %s\\%s to [ %s ]' % (new_file_path.parent, old_file_path.name, new_file_path.name))
         
         edit_details = updateTrackedData(edit_details, { FILE_NAME_COUNT : [current_list_index, +1] })
     
     elif does_file_exist != NO:
-        print('--File Not Renamed: %s' % (file_path))
+        print('--File Not Renamed: %s' % (old_file_path))
     
     return edit_details
 
