@@ -141,6 +141,7 @@ pip install chardet
 >> `REPEAT_TEXT_LIST` will repeat a text list once the end of a text list is reached. The length of a text list is treated as a soft rename limit unless this option is used. **TEXT** must be dynamic if used, [**COUNT**, **RANDOM**, etc.].<br>
 >> `EXTENSION` if used in modify options and **EDIT_TYPE : ADD or REPLACE** only the extension will be replaced or added on to the **END**. If used with **EDIT_TYPE : RENAME** the entire file name may be rewritten including the extension, but only if a "." is in **TEXT**. Note: You don't need to use **EXTENSION** in all cases where you wish to match or modify the extension.<br>
 >> `INSERT_META_DATA` will retrieve specific meta data from a file and add it to the file name.  ('Text', *File Meta Data*, 'Text', *File Meta Data*, 'Text', ...)<br>
+>> `NO_ADD_DUPES` will avoid adding duplicate text in the same **PLACEMENT** (only when using ADD).<br>
 >> `REGEX` will allow the use of regular expression to insert matched groups into text. See REGEX_GROUP above.<br>
 
 > `PLACEMENT` when using **EDIT_TYPE : ADD** this signifies where to place text. For example, **( START, OF_FILE_NAME )**. All current placement options are listed below:<br>
