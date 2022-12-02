@@ -59,7 +59,8 @@ TODO:
     [DONE] Backup link files before overwriting them.
     [] Update links in files only, no renaming. Also add a log and revert feature for this.
     [DONE] Option NO_ADD_DUPES that won't "re-add" the same string of text to a file name in the same spot/placement.
-    [] Custom file renaming procedures via the CUSTOM option.
+    [DONE] Custom file renaming procedures via the CUSTOM option.
+    [] Find matching files names in a different directory and rename those files with the same new name change.
     [] Import separate settings and/or preset files.
     [] GUI
     [] Special search and edits. Examples:
@@ -91,6 +92,7 @@ try:
     filetype_installed = True
 except ModuleNotFoundError:
     filetype_installed = False
+import json
 import math
 import mimetypes
 from pathlib import Path, PurePath
@@ -323,8 +325,8 @@ RANDOM_OTHER = 27       # Generate random other (uncommon, unique, or foreign) c
 RANDOM_SEED = 28        # Starting seed number to use in random generators. Default: (RANDOM_SEED, None)
 NO_REPEAT_TEXT_LIST = 29# Once the end of a text list is reached, do not repeat it. List size will become a soft rename limit. Note: SAME_MATCH_INDEX takes precedent.
 INSERT_META_DATA = 30   # Get specific meta data from a file and add it to a file name.  {TEXT: ('Text', File Meta Data, 'Text', File Meta Data, 'Text', ...)}
-NO_ADD_DUPES = 31       # Avoid adding duplicate text in the same placement/location.
-CUSTOM = 32             ## TODO: For when you need to write/code your own unique custom file renaming procedure. (Search: def getCustomText)
+NO_ADD_DUPES = 31       # Avoid ADDing duplicate text in the same PLACEMENT (only when using ADD).
+CUSTOM = 32             # For when you need to write/code your own unique custom file renaming procedure. (Search: def getCustomText)
 
 ### Placement Options
 START = 40              # Place at the start of...
@@ -387,7 +389,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 12
+selected_preset = 30
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -623,10 +625,16 @@ preset29 = {
                             OPTIONS     : [ REGEX ],
                             PLACEMENT   : ( END, OF_FILE_NAME ) }
 }
+preset30 = {
+  EDIT_TYPE         : RENAME,
+  INSERT_FILE_NAME  : { TEXT        : 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo - Nintendo Entertainment System.lpl',
+                        OPTIONS     : [ CUSTOM ] },
+  LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo - Nintendo Entertainment System.lpl' ],
+}
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23,preset24,preset25,preset26,preset27,preset28,preset29]
+                  preset21,preset22,preset23,preset24,preset25,preset26,preset27,preset28,preset29,preset30]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -717,6 +725,8 @@ def illegalCharacterCheck(edit_details, file_name = None):
         regex_search = getOptions(match_file_name_data, REGEX)
         regex_ignore = getOptions(ignore_file_name_data, REGEX)
         regex_modify = getOptions(insert_file_name_data, REGEX)
+        
+        custom_code = getOptions(insert_file_name_data, CUSTOM)
     
     before = ', ...'
     after = '..., '
@@ -755,6 +765,8 @@ def illegalCharacterCheck(edit_details, file_name = None):
                     if i < len(ignore_file_name_list): text_mistake += before
                     print(f'--Found  {char}  in  IGNORE_FILE_NAME : [ {text_mistake} ]')
                     illegal_characters_found = True
+        
+        if custom_code: continue
         
         if not regex_modify:
             i = -1
@@ -2814,6 +2826,75 @@ def getInsertText(edit_details, list_index = -1):
     return file_name_text_insert, edit_details
 
 
+### Get custom text to use in a new file name. This needs to be customized by an end user who may need unqiue file naming procedures.
+### Use the current preset option keys however you like to retrive data, for example using INSERT_TEXT to obtain a link to a uniquie file that holds file names.
+###     (edit_details) The edit details with the TRACKED_DATA key added.
+###     (list_index) Current index of text list.
+###     --> Returns a [String] and [Dictionary]
+def getCustomText(edit_details, list_index = -1):
+    new_file_name_text = ''
+    current_file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
+    
+    ## Write your custom code below: ##
+    
+    # Here is an example method that extracts unquie text from a json file to rename ROM files.
+    # Note: This is only an example and will only work if you have the exact same JSON file.
+    custom_file_path = Path(getTextList(edit_details.get(INSERT_FILE_NAME))[list_index])
+    custom_file_contents, encoding = readFile(custom_file_path, 'ISO-8859-1')
+    json_file_contents = json.loads(custom_file_contents)
+    
+    for item in json_file_contents['items']:
+        
+        if str(current_file_path) == item['path']:
+            
+            label = item['label']
+            rom_name = re.findall('^\w*[^\(]*', label)[0]
+            new_file_name_text = rom_name.strip()
+            rom_codes = re.findall('\(\w*\,?\s?\w*\,?\s?\w*\)', label)
+            unlicensed = False
+            
+            for code in rom_codes:
+                if code == '(USA)':
+                    new_file_name_text += ' (U)'
+                elif code == '(USA, Europe)':
+                    new_file_name_text += ' (UE)'
+                elif code == '(Japan)':
+                    new_file_name_text += ' (J)'
+                elif code == '(Japan, USA)':
+                    new_file_name_text += ' (JU)'
+                elif code == '(Japan, Europe)':
+                    new_file_name_text += ' (JE)'
+                elif code == '(Europe)':
+                    new_file_name_text += ' (E)'
+                elif code == '(Japan, USA, Europe)':
+                    new_file_name_text += ' (JUE)'
+                elif code == '(World)':
+                    new_file_name_text += ' (W)'
+                elif code == '(Proto)':
+                    new_file_name_text += ' (Prototype)'
+                    unlicensed = True
+                elif code == '(Promo)':
+                    new_file_name_text += ' (Promotion)'
+                elif code == '(Unl)':
+                    new_file_name_text += ' (Unl)'
+                    unlicensed = True
+                elif code == '(Rev A)' or code == '(Rev 0A)':
+                    new_file_name_text += ' (REV01)'
+                elif code == '(Rev B)':
+                    new_file_name_text += ' (REV02)'
+                elif code == '(Rev C)':
+                    new_file_name_text += ' (REV03)'
+                else:
+                    new_file_name_text += f' {code}'
+            
+            if item['crc32'] != '00000000|crc' and not unlicensed:
+                new_file_name_text += ' [!]'
+            
+            break
+    
+    return new_file_name_text, edit_details
+
+
 ### Prepare the text to be inserted into file making any changes or text matches before renaming.
 ### If the same file name is returned then the original file did not match the criteria in the edit details.
 ###     (edit_details) All the details on how to proceed with the file name edits.
@@ -2935,8 +3016,7 @@ def insertTextIntoFileName(edit_details):
             match_index = 0
         
         if CUSTOM in insert_file_name_options:
-            print('TODO: Custom Text')
-            ## TODO: insert_file_name_text, edit_details = getCustomText(edit_details, match_index)
+            insert_file_name_text, edit_details = getCustomText(edit_details, match_index)
         else:
             insert_file_name_text, edit_details = getInsertText(edit_details, match_index)
         
@@ -3638,7 +3718,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                         for v in val:
                             if is_insert_meta_data and type(v) == int:
                                 text += getMetaDataStr(v, formatted_text).strip('By ')+', '
-                            elif type(v) == str and v.find('\\') > -1:
+                            elif type(v) == str and v.find('\\') > -1: ## TODO: better way to detect raw text
                                 text += 'r\''+str(v)+'\', '
                             elif type(v) == str:
                                 text += '\''+str(v)+'\', '
