@@ -143,6 +143,7 @@ pip install chardet
 >> `INSERT_META_DATA` will retrieve specific meta data from a file and add it to the file name.  ('Text', *File Meta Data*, 'Text', *File Meta Data*, 'Text', ...)<br>
 >> `NO_ADD_DUPES` will avoid adding duplicate text in the same **PLACEMENT** (only when using ADD).<br>
 >> `REGEX` will allow the use of regular expression to insert matched groups into text. See REGEX_GROUP above.<br>
+>> `CUSTOM` is when you need to write/code your own unique custom file renaming procedure. Search script for: **def getCustomText**<br>
 
 > `PLACEMENT` when using **EDIT_TYPE : ADD** this signifies where to place text. For example, **( START, OF_FILE_NAME )**. All current placement options are listed below:<br>
 >> `START` to place at the start of...<br>
