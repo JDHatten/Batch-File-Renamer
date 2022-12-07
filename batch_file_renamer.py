@@ -60,7 +60,9 @@ TODO:
     [] Update links in files only, no renaming. Also add a log and revert feature for this.
     [DONE] Option NO_ADD_DUPES that won't "re-add" the same string of text to a file name in the same spot/placement.
     [DONE] Custom file renaming procedures via the CUSTOM option.
-    [] Find matching files names in a different directory and rename those files with the same new name change.
+    [] Find matching files names in a different directory and rename those files too.
+    [] Move files after they're renamed.
+    [] Unix, Linux, Non-Windows symbolic links support.
     [] Import separate settings and/or preset files.
     [] GUI
     [] Special search and edits. Examples:
@@ -128,8 +130,9 @@ INSERT_FILE_NAME = 5    # The text used in renaming files. This can be static te
 SOFT_RENAME_LIMIT = 6   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
 HARD_RENAME_LIMIT = 7   # A hard limit stops renaming files once hit and ends all further renaming tasks.
 LINKED_FILES = 8        # Full file path to text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
-INCLUDE_SUB_DIRS = 9    # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
-PRESORT_FILES = 10      # Before renaming any group of files, sort them using the file's meta data.
+IDENTICAL_FILE_NAMES = 9## TODO: Find identical file names in the provided directory paths and rename them as well.
+INCLUDE_SUB_DIRS = 10   # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
+PRESORT_FILES = 11      # Before renaming any group of files, sort them using the file's meta data.
 TRACKED_DATA = 99       # Internal use only, do not use.
 
 ### EDIT_TYPE Options
@@ -140,8 +143,9 @@ RENAME = 2
 ### Search and Modify Keys
 TEXT = 0
 META = 1
-OPTIONS = 2
-PLACEMENT = 3
+LINKS = 2
+OPTIONS = 3
+PLACEMENT = 4
 
 # TRACKED_DATA
 FILES_REVIEWED = 0
@@ -300,15 +304,16 @@ SAME_MATCH_INDEX = 4    # When a match is made from any MATCH_ List use the same
                         # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
 MATCH_ALL_INDEXES = 5   # Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
 MATCH_ALL_IGNORE_INDEXES = 5# Match all text in ignore list in order to skip a rename.
-REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] in MATCH_FILE_NAME
+REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] MATCH_FILE_NAME groups
                         # Used together with REGEX to make sure the matched (groups) are sourced from "this" matched list.
                         # Note: Group text will be taken from the last match made. Use MATCH_LIMIT and/or SEARCH_FROM_RIGHT to select which match to use.
                         # Example Regex:  match = r'(group1)nogroup(group2)'  insert = r'\1\2'.
 
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
-                        # Use EXTENSION in search options for matching "only" the exact file extension (.doc != .docx).
+                        # Using EXTENSION in search options will match "only" the exact file extension (.doc != .docx).
                         # Using EXTENSION in modify options means only the extension will be replaced or added to (END), unless RENAME where the entire file name may be rewritten.
+                        # Using EXTENSION in IDENTICAL_FILE_NAMES options will include file name + extension when comparing file names, else only the file name will be matched.
                         # Note: You don't need to use EXTENSION in all cases where you wish to match or modify the extension.
 REGEX = 11              # Use regular expression to search and/or replace text. Use raw (r) strings, example: r'[R]\s*[E]'
                         ## TODO: Regex in MATCH_FILE_META?
@@ -401,6 +406,7 @@ preset0 = {           # Defaults
   SOFT_RENAME_LIMIT   : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT   : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
   LINKED_FILES        : None,     # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
+  IDENTICAL_FILE_NAMES: None,     # Directory Paths to search -OR- Dict{ LINKS : 'Paths', OPTIONS : Search Options, INCLUDE_SUB_DIRS : True or False }
   INCLUDE_SUB_DIRS    : False,    # Search Sub-Directories (True or False)
   PRESORT_FILES       : None      # Sort before renaming files.  Dict{ File Meta Data : ASCENDING or DESCENDING }
 }                                 # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
@@ -626,10 +632,13 @@ preset29 = {
                             PLACEMENT   : ( END, OF_FILE_NAME ) }
 }
 preset30 = {
-  EDIT_TYPE         : RENAME,
-  INSERT_FILE_NAME  : { TEXT        : 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo - Nintendo Entertainment System.lpl',
-                        OPTIONS     : [ CUSTOM ] },
-  LINKED_FILES      : [ 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo - Nintendo Entertainment System.lpl' ],
+  EDIT_TYPE             : RENAME,
+  INSERT_FILE_NAME      : { TEXT    : 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo_Test.lpl',
+                            OPTIONS : [ CUSTOM ] },
+  LINKED_FILES          : [ 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo_Test.lpl' ],
+  IDENTICAL_FILE_NAMES  : { LINKS   : [ 'V:\\Apps\\Scripts\\folder with spaces\\sub1\\saves'],
+                            OPTIONS : [ NO_MATCH_CASE ], #posible options - NO_MATCH_CASE, EXTENSION
+                            INCLUDE_SUB_DIRS : True } ## TODO: Make this an option?
 }
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
@@ -1004,7 +1013,6 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
                     if allCountLimitsHitCheck(getTrackedData(edit_details_copy)):
                         break # File count limit hit, stop and move on to next directory.
                     
-                    #file_path = Path(file[FILE_META_PATH])
                     edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META : file, CURRENT_FILE_RENAME : file[FILE_META_PATH].name })
                     
                     edit_details_copy = createNewFileName(edit_details_copy)
@@ -1031,8 +1039,7 @@ def startingFileRenameProcedure(files_meta_data, edit_details, include_sub_dirs 
             soft_rename_limit = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [LIMIT])
             
             for file in meta:
-            
-                #file_path = file[FILE_META_PATH]
+                
                 edit_details_copy = updateTrackedData(edit_details_copy, { CURRENT_FILE_META : file, CURRENT_FILE_RENAME : file[FILE_META_PATH].name })
                 
                 individual_files_renamed = getTrackedData(edit_details_copy, INDIVIDUAL_FILES_RENAMED, [AMOUNT])
@@ -3264,8 +3271,8 @@ def checkIfFileExist(file_path, org_file_path = None):
 
 ### Rename a file...
 ###     (new_file_path) The full path to file.
-###     (edit_details) All the details on how to proceed with the file name edits. 
-###     --> Returns a [Dictionary] 
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [Dictionary]
 def renameFileTo(new_file_path, edit_details):
     
     old_file_path = getTrackedData(edit_details, CURRENT_FILE_META, [FILE_META_PATH])
@@ -3337,7 +3344,7 @@ def readFile(file_path, file_encoding = None):
 ###     (org_file_path) A String of the full path to a file before renaming.
 ###     (new_file_path) A String of the full path to a file after renaming.
 ###     (lf_backed_up) Have linked files been backup yet? Only necessary once.
-###     --> Returns a [Boolean] 
+###     --> Returns a [Boolean]
 def updateLinksInFile(linked_file, linked_file_encoding, org_file_path, new_file_path, lf_backed_up):
     linked_file = Path(linked_file)
     
@@ -3465,6 +3472,72 @@ def updateLinksInFile(linked_file, linked_file_encoding, org_file_path, new_file
         os.remove(linked_file_temp_backup)
     
     return data_changed
+
+
+### Rename specific file names that have identical names to any of the files that were already renamed.
+###     (edit_details) All the details on how to proceed with the file name edits.
+###     --> Returns a [Integer]
+def updateIdenticalFileNames(edit_details):
+    
+    identical_files_renamed = 0
+    identical_file_names_data = edit_details.get(IDENTICAL_FILE_NAMES, {})
+    dirs_to_search = getTextList(identical_file_names_data, [], LINKS)
+    
+    no_match_case = getOptions(identical_file_names_data, NO_MATCH_CASE)
+    match_extension = getOptions(identical_file_names_data, EXTENSION)
+    search_sub_dirs = identical_file_names_data.get(INCLUDE_SUB_DIRS, False)
+    
+    org_file_paths = getTrackedData(edit_details, LOG_DATA, [ORG_FILE_PATHS])
+    new_file_paths = getTrackedData(edit_details, LOG_DATA, [NEW_FILE_PATHS])
+    
+    if not org_file_paths:
+        return identical_files_renamed
+    
+    for dir_path in dirs_to_search:
+    
+        for root, dirs, files in os.walk(dir_path):
+            #print(f'\n-Root: {root}\n')
+            
+            for file_name in files:
+                i = -1
+                for org_file_path in org_file_paths:
+                    i += 1
+                    
+                    identical_file_name_text = str(file_name)
+                    
+                    if match_extension:
+                        org_file_name = str(org_file_path.name)
+                    else:
+                        ext_index = file_name.rfind('.')
+                        identical_file_name_text = file_name[:ext_index]
+                        identical_file_name_ext = file_name[ext_index:]
+                        org_file_name = str(org_file_path.stem)
+                    
+                    if no_match_case:
+                        identical_file_name_text = identical_file_name_text.casefold()
+                        org_file_name = org_file_name.casefold()
+                    
+                    if identical_file_name_text == org_file_name:
+                        org_identical_file_path = Path(PurePath().joinpath(root, str(file_name)))
+                        #print(org_identical_file_path)
+                        if match_extension:
+                            new_file_name = new_file_paths[i].name
+                        else:
+                            new_file_name = f'{new_file_paths[i].stem}{identical_file_name_ext}'
+                        new_file_path = Path(PurePath().joinpath(root, new_file_name))
+                        #print(new_file_path)
+                        new_identical_file_path = org_identical_file_path.rename(new_file_path) ## TODO: does new file name already exist?
+                        identical_files_renamed += 1
+                        ## TODO: update log data - org_identical_file_path and new_identical_file_path
+                        break
+            
+            if not search_sub_dirs: break
+    
+    #input('STOP-end')
+    ## TODO: updateLogFile with identical file logs
+    ## TODO: update getRenameRevertFilesAndEditDetails and allow identical file renames to be reverted as well
+    
+    return identical_files_renamed
 
 
 ### Update log file and record files renamed.
@@ -3680,37 +3753,42 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
         
         if parent_key == None:
             if key == EDIT_TYPE:
-                text = 'Edit Type              ' if formatted_text else 'EDIT_TYPE          '
+                text = 'Edit Type                ' if formatted_text else 'EDIT_TYPE           '
             elif key == MATCH_FILE_NAME:
-                text = 'Text To Match          ' if formatted_text else 'MATCH_FILE_NAME    '
+                text = 'Text To Match            ' if formatted_text else 'MATCH_FILE_NAME     '
             elif key == IGNORE_FILE_NAME:
-                text = 'Text To Ignore         ' if formatted_text else 'IGNORE_FILE_NAME   '
+                text = 'Text To Ignore           ' if formatted_text else 'IGNORE_FILE_NAME    '
             elif key == MATCH_FILE_CONTENTS:
-                text = 'Match Contents of File ' if formatted_text else 'MATCH_FILE_CONTENTS'
+                text = 'Match Contents of File   ' if formatted_text else 'MATCH_FILE_CONTENTS '
             elif key == MATCH_FILE_META:
-                text = 'Match File Meta Data   ' if formatted_text else 'MATCH_FILE_META    '
+                text = 'Match File Meta Data     ' if formatted_text else 'MATCH_FILE_META     '
             elif key == INSERT_FILE_NAME:
-                text = 'Text To Insert         ' if formatted_text else 'INSERT_FILE_NAME   '
+                text = 'Text To Insert           ' if formatted_text else 'INSERT_FILE_NAME    '
             elif key == SOFT_RENAME_LIMIT:
-                text = 'File Rename Soft Limit ' if formatted_text else 'SOFT_RENAME_LIMIT  '
+                text = 'File Rename Soft Limit   ' if formatted_text else 'SOFT_RENAME_LIMIT   '
             elif key == HARD_RENAME_LIMIT:
-                text = 'File Rename Hard Limit ' if formatted_text else 'HARD_RENAME_LIMIT  '
+                text = 'File Rename Hard Limit   ' if formatted_text else 'HARD_RENAME_LIMIT   '
             elif key == LINKED_FILES:
-                text = 'Files With Links       ' if formatted_text else 'LINKED_FILES       '
+                text = 'Files With Links         ' if formatted_text else 'LINKED_FILES        '
+            elif key == IDENTICAL_FILE_NAMES:
+                text = 'Find Identical File Names' if formatted_text else 'IDENTICAL_FILE_NAMES'
             elif key == INCLUDE_SUB_DIRS:
-                text = 'Include Sub Directories' if formatted_text else 'INCLUDE_SUB_DIRS   '
+                text = 'Include Sub Directories  ' if formatted_text else 'INCLUDE_SUB_DIRS    '
             elif key == PRESORT_FILES:
-                text = 'Pre-Sort Files         ' if formatted_text else 'PRESORT_FILES      '
+                text = 'Pre-Sort Files           ' if formatted_text else 'PRESORT_FILES       '
             elif key == TRACKED_DATA:
-                text = 'Data That Is Tracked   ' if formatted_text else 'TRACKED_DATA       '
+                text = 'Data That Is Tracked     ' if formatted_text else 'TRACKED_DATA        '
         
-        if (parent_key == MATCH_FILE_NAME or parent_key == IGNORE_FILE_NAME or parent_key == MATCH_FILE_CONTENTS
-         or parent_key == MATCH_FILE_META or parent_key == INSERT_FILE_NAME):
+        if (parent_key == MATCH_FILE_NAME or parent_key == IGNORE_FILE_NAME or parent_key == MATCH_FILE_CONTENTS or
+            parent_key == MATCH_FILE_META or parent_key == INSERT_FILE_NAME or parent_key == IDENTICAL_FILE_NAMES):
             
             value = makeList(value)
             
-            if key == TEXT:
-                text = 'TEXT      : ' if formatted_text else 'TEXT      : '
+            if key == TEXT or key == LINKS:
+                if key == TEXT:
+                    text = 'TEXT      : ' if formatted_text else 'TEXT      : '
+                else:
+                    text = 'LINKS     : ' if formatted_text else 'LINKS     : '
                 if not formatted_text: text += '[ '
                 for val in value:
                     if type(val) == tuple:
@@ -3718,7 +3796,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                         for v in val:
                             if is_insert_meta_data and type(v) == int:
                                 text += getMetaDataStr(v, formatted_text).strip('By ')+', '
-                            elif type(v) == str and v.find('\\') > -1: ## TODO: better way to detect raw text
+                            elif type(v) == str and v.find('\\') > -1 and key == TEXT: ## TODO: better way to detect raw text
                                 text += 'r\''+str(v)+'\', '
                             elif type(v) == str:
                                 text += '\''+str(v)+'\', '
@@ -3727,7 +3805,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                         text = text.rstrip(', ')
                         text += '), '
                     else:
-                        if val.find('\\') > -1:
+                        if val.find('\\') > -1 and key == TEXT:
                             text += 'r\''+str(val)+'\', '
                         else:
                             text += '\''+str(val)+'\', '
@@ -3828,7 +3906,10 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                                 text += 'Millasecond: ' + str(val) + ' ' if formatted_text else 'MILLISECOND : ' + str(val) + ', '
                             if name == MICROSECOND:
                                 text += 'Microsecond: ' + str(val) + ' ' if formatted_text else 'MICROSECOND : ' + str(val) + ', '
-                        new_line = '\n                                        '
+                        if formatted_text:
+                            new_line = '\n                                          '
+                        else:
+                            new_line = '\n                                         '
                         text = text.rstrip(', ')
                         if not formatted_text: text += ' }, '
                 if not formatted_text:
@@ -3840,7 +3921,7 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 if not value:
                     text += 'None'
                 else:
-                    new_line = '\n                                        '
+                    new_line = '\n                                          '
                     if MATCH_CASE in value:
                         text += new_line + 'Search Case Sensitive' if formatted_text else 'MATCH_CASE, '
                     if NO_MATCH_CASE in value:
@@ -3895,9 +3976,9 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                                 text += new_line + 'Random Seed Used : ' + str(item[1]) if formatted_text else '(RANDOM_SEED : '+str(item[1])+')'
                     text = text.strip('\n, ')
                 if formatted_text:
-                    text = '\n                            OPTIONS   : ' + text
+                    text = '\n                              OPTIONS   : ' + text
                 else:
-                    text = ',\n                          OPTIONS   : ' + text + ' ]'
+                    text = ',\n                           OPTIONS   : ' + text + ' ]'
             
             if key == PLACEMENT:
                 if type(value[0]) == int:
@@ -3907,10 +3988,10 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                     place = value[0][0]
                     of = value[0][1]
                 if formatted_text:
-                    text = '\n                            PLACEMENT : '
+                    text = '\n                              PLACEMENT : '
                 else:
-                    if of: text = ',\n                          PLACEMENT : ('
-                    else: text = ',\n                          PLACEMENT : '
+                    if of: text = ',\n                           PLACEMENT : ('
+                    else: text = ',\n                           PLACEMENT : '
                 if START == place:
                     text += 'Start' if formatted_text else 'START'
                 elif END == place:
@@ -3923,6 +4004,13 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 elif OF_MATCH == of:
                     text += ' of Match' if formatted_text else 'OF_MATCH'
                 if of and not formatted_text: text += ')'
+            
+            if key == INCLUDE_SUB_DIRS:
+                if formatted_text:
+                    text = '\n                              Include Sub Directories : '
+                else:
+                    text = ',\n                           INCLUDE_SUB_DIRS : '
+                text += str(value[0]) if formatted_text else str(value[0]) + ','
         
         elif parent_key == PRESORT_FILES:
             text = '' if formatted_text else ''
@@ -4179,6 +4267,7 @@ def drop(files):
     start_reverting_renames = False
     start_updating_links = False
     files_renamed = 0
+    identical_files_renamed = 0
     
     # If script is ran on it's own then ask for a file to rename.
     if not files:
@@ -4347,7 +4436,7 @@ def drop(files):
                 else:
                     print('That Preset Doesn\'t Exist.')
             
-            print('\nPreset [ #%s ] Selected' % selected_preset)
+            print(f'\nPreset [ #{selected_preset} ] Selected')
             edit_details = preset_options[selected_preset]
             
             # Presort Files
@@ -4360,6 +4449,9 @@ def drop(files):
             edit_details_copy = startingFileRenameProcedure(files_meta, edit_details, include_sub_dirs)
             files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
             
+            ## TODO: Rename files with identical names to those files aready renamed above
+            identical_files_renamed = updateIdenticalFileNames(edit_details_copy)
+            
             # Show and record details of file renames.
             if debug: displayPreset(edit_details_copy, readable_preset_text)
             updateLogFile(edit_details_copy)
@@ -4367,7 +4459,7 @@ def drop(files):
     else:
         print('\nNo Existing Files or Directories Found.')
     
-    return files_renamed
+    return files_renamed, identical_files_renamed
 
 
 ### Script Starts Here
@@ -4401,8 +4493,11 @@ if __name__ == '__main__':
     #sys.argv.append(os.path.join(ROOT_DIR,'Logs of File Renames'))
     #sys.argv.append(os.path.join(ROOT_DIR,'find-replace-links.txt'))
     
-    files_renamed = drop(sys.argv[1:])
-    print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
+    all_files_renamed, all_identical_files_renamed = drop(sys.argv[1:])
+    if all_identical_files_renamed:
+        print(f'\nTotal number of files + identical files renamed: [ {all_files_renamed} ] + [ {all_identical_files_renamed} ]')
+    else:
+        print(f'\nTotal number of files renamed: [ {all_files_renamed} ]')
     
     if loop:
         new_file = 'startloop'
@@ -4410,8 +4505,13 @@ if __name__ == '__main__':
         while new_file != '':
             new_file = input('\nDrop more files or directories here to go again or just press enter to quit: ')
             if new_file != '':
-                files_renamed += drop(new_file)
-            if files_renamed > prev_files_renamed:
-                print('\nTotal number of files renamed: [ %s ]' % (files_renamed))
-                prev_files_renamed = files_renamed
+                files_renamed, identical_files_renamed = drop(new_file)
+                all_files_renamed += files_renamed
+                all_identical_files_renamed += identical_files_renamed
+            if all_files_renamed > prev_files_renamed:
+                if all_identical_files_renamed:
+                    print(f'\nTotal number of files + identical files renamed: [ {all_files_renamed} ] + [ {all_identical_files_renamed} ]')
+                else:
+                    print(f'\nTotal number of files renamed: [ {all_files_renamed} ]')
+                prev_files_renamed = all_files_renamed
     
