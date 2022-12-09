@@ -130,7 +130,8 @@ INSERT_FILE_NAME = 5    # The text used in renaming files. This can be static te
 SOFT_RENAME_LIMIT = 6   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
 HARD_RENAME_LIMIT = 7   # A hard limit stops renaming files once hit and ends all further renaming tasks.
 LINKED_FILES = 8        # Full file path to text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
-IDENTICAL_FILE_NAMES = 9## TODO: Find identical file names in the provided directory paths and rename them as well.
+IDENTICAL_FILE_NAMES = 9# Find identical file names in the provided directory paths and rename them as well.
+                        ## TODO: update linked files for identical files too?
 INCLUDE_SUB_DIRS = 10   # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
 PRESORT_FILES = 11      # Before renaming any group of files, sort them using the file's meta data.
 TRACKED_DATA = 99       # Internal use only, do not use.
@@ -167,8 +168,10 @@ LOG_DATA = 14
 ORG_FILE_PATHS = 20
 NEW_FILE_PATHS = 21
 LINKED_FILES_UPDATED = 22
-START_TIME = 23
-END_TIME = 24
+ORG_IDENTICAL_FILE_PATHS = 23
+NEW_IDENTICAL_FILE_PATHS = 24
+START_TIME = 25
+END_TIME = 26
 
 AMOUNT = 0
 INDEX_POINTER = 0
@@ -176,6 +179,7 @@ LIMIT = 1
 UPDATE_COUNT = 1
 UPDATE_LIMIT = 1
 UPDATE_FLAGS = 1
+UPDATE_VALUE = 1
 FULL_AMOUNT = 2
 
 SMI_WARNING = 0
@@ -579,11 +583,11 @@ preset23 = {
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
-  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO },
+  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO }, ## TODO: DATA : ('data', 'data', ...), OPERATOR: AND/OR
                                         { FILE_META_FORMAT : LOOSE_MATCH, DATA : 'H264' },
                                         { FILE_META_HEIGHT : EXACT_MATCH,  DATA : 720 },
                                         { FILE_META_VIDEO_BITRATE : LOOSE_MATCH, DATA : 1000 } ],
-                        OPTIONS     : [ NO_MATCH_CASE ] },
+                        OPTIONS     : [ NO_MATCH_CASE, MATCH_ALL_INDEXES ] },
   INSERT_FILE_NAME  : { TEXT        : [ ('Video-(', 4, ')'), ('Video-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, NO_REPEAT_TEXT_LIST ] }
 }
@@ -1154,7 +1158,6 @@ def getRenameRevertFilesAndEditDetails(log_file):
 ###     --> Returns a [Dictionary] 
 def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 0, individual_files_renamed = 0,
                     individual_file_group = False, one_time_flags = [], linked_file_encodings = [], log_data = {}):
-    start_time = datetime.now().timestamp()
     
     edit_details_copy = edit_details.copy()
     
@@ -1219,7 +1222,8 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
     if not one_time_flags:
         one_time_flags = [False,False]
     if not log_data:
-        log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], START_TIME : start_time, END_TIME : value_reset }
+        log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], ORG_IDENTICAL_FILE_PATHS : [],
+                     NEW_IDENTICAL_FILE_PATHS : [], START_TIME : datetime.now().timestamp(), END_TIME : value_reset }
     
     edit_details_copy.update( { TRACKED_DATA : { FILES_REVIEWED : [files_reviewed, hard_rename_limit],
                                                  DIRECTORY_FILES_RENAMED : [value_reset, soft_rename_limit, directory_files_renamed],
@@ -1313,7 +1317,7 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     if edit_details.get(TRACKED_DATA, None) == None:
         print('\nERROR: Tracker Not Found. Something likely went wrong.')
         return edit_details
-    
+    '''
     if FILES_REVIEWED in update_data:
         if append_values:
             edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] = edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] + update_data[FILES_REVIEWED]
@@ -1382,6 +1386,57 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     
     if END_TIME in update_data:
         edit_details[TRACKED_DATA][LOG_DATA][END_TIME] = update_data[END_TIME]
+    '''
+    for key, value in update_data.items():
+        
+        if key == FILES_REVIEWED:
+            if append_values:
+                edit_details[TRACKED_DATA][key][AMOUNT] = edit_details[TRACKED_DATA][key][AMOUNT] + value
+            else:
+                edit_details[TRACKED_DATA][key][AMOUNT] = value
+        
+        if key == FILES_RENAMED:
+            if getTrackedData(edit_details, INDIVIDUAL_FILE_GROUP):
+                if append_values:
+                    edit_details[TRACKED_DATA][INDIVIDUAL_FILES_RENAMED][AMOUNT] = edit_details[TRACKED_DATA][INDIVIDUAL_FILES_RENAMED][AMOUNT] + value
+                else:
+                    edit_details[TRACKED_DATA][INDIVIDUAL_FILES_RENAMED][AMOUNT] = value
+            else: # Directory File Group
+                if append_values:
+                    edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][AMOUNT] = edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][AMOUNT] + value
+                    edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][FULL_AMOUNT] = edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][FULL_AMOUNT] + value
+                else:
+                    edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][AMOUNT] = value
+                    edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][FULL_AMOUNT] = value
+        
+        if key == FILE_NAME_COUNT or key == FILE_NAME_COUNT_LIMIT or key == ONE_TIME_FLAGS:
+            index = value[INDEX_POINTER]
+            if index < len(edit_details[TRACKED_DATA][key]):
+                edit_details[TRACKED_DATA][key][index] = edit_details[TRACKED_DATA][key][index] + value[UPDATE_VALUE]
+        
+        if key == CURRENT_LIST_INDEX or key == CURRENT_FILE_META or key == CURRENT_FILE_RENAME:
+            edit_details[TRACKED_DATA][key] = value
+        
+        if key == SKIPPED_FILES:
+            edit_details[TRACKED_DATA][key].append(value)
+        
+        if key == USED_RANDOM_CHARS:
+            if append_values:
+                edit_details[TRACKED_DATA][key].append(value)
+            else:
+                edit_details[TRACKED_DATA][key].pop()
+        
+        if key == ORG_FILE_PATHS or key == NEW_FILE_PATHS or key == ORG_IDENTICAL_FILE_PATHS or key == NEW_IDENTICAL_FILE_PATHS:
+            if append_values:
+                edit_details[TRACKED_DATA][LOG_DATA][key].append(value)
+            else:
+                edit_details[TRACKED_DATA][LOG_DATA][key] = value
+        
+        if key == LINKED_FILES_UPDATED and value:
+            edit_details[TRACKED_DATA][LOG_DATA][key].append(value)
+        
+        if key == START_TIME or key == END_TIME:
+            edit_details[TRACKED_DATA][LOG_DATA][key] = value
     
     return edit_details
 
@@ -1985,6 +2040,8 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
     same_match_meta_index = SAME_MATCH_INDEX in match_file_meta_options
     match_all = MATCH_ALL_INDEXES in match_file_meta_options
     
+    ## TODO: handle and/or cases in the individual items in list  -> if Tuple?  DATA : ('data', 'data', ...), OPERATOR: AND/OR
+    
     meta_list_index, i = -1, -1
     for meta_data in match_file_meta_list:
         i += 1
@@ -2271,9 +2328,9 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             #print('Simple Number Meta')
             
             file_meta_number = file_meta_data[select_meta_data]
-            file_meta_number = None if file_meta_number == '' else file_meta_number
-            match_meta_number = meta_data.get(DATA, None)
-            match_meta_number = None if match_meta_number == '' else match_meta_number
+            file_meta_number = 0 if not file_meta_number else file_meta_number
+            match_meta_number = meta_data.get(DATA, 0)
+            match_meta_number = 0 if not match_meta_number else match_meta_number
             
             if how_to_match == EXACT_MATCH:
                 if file_meta_number != match_meta_number:
@@ -3476,10 +3533,10 @@ def updateLinksInFile(linked_file, linked_file_encoding, org_file_path, new_file
 
 ### Rename specific file names that have identical names to any of the files that were already renamed.
 ###     (edit_details) All the details on how to proceed with the file name edits.
-###     --> Returns a [Integer]
+###     --> Returns a [Dictionary]
 def updateIdenticalFileNames(edit_details):
     
-    identical_files_renamed = 0
+    #identical_files_renamed = 0
     identical_file_names_data = edit_details.get(IDENTICAL_FILE_NAMES, {})
     dirs_to_search = getTextList(identical_file_names_data, [], LINKS)
     
@@ -3490,8 +3547,8 @@ def updateIdenticalFileNames(edit_details):
     org_file_paths = getTrackedData(edit_details, LOG_DATA, [ORG_FILE_PATHS])
     new_file_paths = getTrackedData(edit_details, LOG_DATA, [NEW_FILE_PATHS])
     
-    if not org_file_paths:
-        return identical_files_renamed
+    if not org_file_paths: # Nothing to update
+        return edit_details
     
     for dir_path in dirs_to_search:
     
@@ -3527,17 +3584,15 @@ def updateIdenticalFileNames(edit_details):
                         new_file_path = Path(PurePath().joinpath(root, new_file_name))
                         #print(new_file_path)
                         new_identical_file_path = org_identical_file_path.rename(new_file_path) ## TODO: does new file name already exist?
-                        identical_files_renamed += 1
-                        ## TODO: update log data - org_identical_file_path and new_identical_file_path
+                        #identical_files_renamed += 1
+                        edit_details = updateTrackedData(edit_details, {ORG_IDENTICAL_FILE_PATHS: org_identical_file_path, NEW_IDENTICAL_FILE_PATHS : new_identical_file_path})
                         break
             
             if not search_sub_dirs: break
     
-    #input('STOP-end')
-    ## TODO: updateLogFile with identical file logs
     ## TODO: update getRenameRevertFilesAndEditDetails and allow identical file renames to be reverted as well
     
-    return identical_files_renamed
+    return edit_details
 
 
 ### Update log file and record files renamed.
@@ -3563,6 +3618,9 @@ def updateLogFile(edit_details, log_revert = False):
     org_file_paths = getTrackedData(edit_details, LOG_DATA, [ORG_FILE_PATHS])
     new_file_paths = getTrackedData(edit_details, LOG_DATA, [NEW_FILE_PATHS])
     linked_files_updated = getTrackedData(edit_details, LOG_DATA, [LINKED_FILES_UPDATED])
+    org_identical_file_paths = getTrackedData(edit_details, LOG_DATA, [ORG_IDENTICAL_FILE_PATHS])
+    new_identical_file_paths = getTrackedData(edit_details, LOG_DATA, [NEW_IDENTICAL_FILE_PATHS])
+    identical_files_renamed = len(new_identical_file_paths)
     completion_time = getTrackedData(edit_details, LOG_DATA, [END_TIME]) - getTrackedData(edit_details, LOG_DATA, [START_TIME])
     #completion_time = 0
     
@@ -3577,10 +3635,12 @@ def updateLogFile(edit_details, log_revert = False):
     text_lines.append( str_date_time )
     text_lines.append( '============================' )
     
-    text_lines.append( '\nTotal File Names Reviewed: [ ' + str(files_reviewed) + ' ]' )
-    text_lines.append( 'Amount of Files Renamed: [ ' + str(files_renamed) + ' ]' )
-    text_lines.append( 'Amount of Files Not Renamed: [ ' + str(files_reviewed - files_renamed) + ' ]' )
-    text_lines.append( 'Task Completed In: [ ' + str_completion_time + ' ]' )
+    text_lines.append( f'\nTotal File Names Reviewed: [ {files_reviewed} ]' )
+    text_lines.append( f'Amount of Files Renamed: [ {files_renamed} ]' )
+    text_lines.append( f'Amount of Files Not Renamed: [ {files_reviewed - files_renamed} ]' )
+    if identical_files_renamed:
+        text_lines.append( f'Amount of Identical Files Renamed: [ {identical_files_renamed} ]' )
+    text_lines.append( f'Task Completed In: [ {str_completion_time} ]' )
     
     print_text_lines = text_lines.copy()
     print('\n')
@@ -3609,7 +3669,7 @@ def updateLogFile(edit_details, log_revert = False):
         n = 0
         for linked_file in linked_files:
             n += 1
-            text_lines.append( '    ' + str(n) + '. ' + str(linked_file) )
+            text_lines.append( f'    {n}. {linked_file}' )
         if not linked_files:
             text_lines.append( '    None' )
         
@@ -3619,13 +3679,11 @@ def updateLogFile(edit_details, log_revert = False):
             text_lines.append( '\n\nFiles Renamed:' )
         
         i = 0
-        root = ''
-        links = ''
-        links_updated_str = ''
+        root, links, links_updated_str = '','',''
         while i < len(org_file_paths):
             if org_file_paths[i].parent != root:
                 root = org_file_paths[i].parent
-                text_lines.append( '\nRoot Path: ' + str(root))
+                text_lines.append( f'\nRoot Path: {root}')
             if len(linked_files) > 0:
                 x = 0
                 links_updated_str = '  | Links Updated In File #: '
@@ -3635,13 +3693,24 @@ def updateLogFile(edit_details, log_revert = False):
                     x += 1
                 links_updated = links_updated.rstrip(', ')
                 links_updated_str = links_updated_str + links_updated if links_updated != '' else ''
-            text_lines.append( '--> ' + str(org_file_paths[i].name) + ' --> ' + str(new_file_paths[i].name) + links_updated_str )
+            text_lines.append( f'--> {org_file_paths[i].name} --> {new_file_paths[i].name}{links_updated_str}' )
             i += 1
+        
+        if identical_files_renamed:
+            text_lines.append( '\n\nIdentical Files Renamed:' )
+            i = 0
+            root, links, links_updated_str = '','',''
+            while i < len(org_identical_file_paths):
+                if org_identical_file_paths[i].parent != root:
+                    root = org_identical_file_paths[i].parent
+                    text_lines.append( f'\nRoot Path: {root}')
+                text_lines.append( f'--> {org_identical_file_paths[i].name} --> {new_identical_file_paths[i].name}' )
+                i += 1
         
         # Add edit details or preset used to log file.
         if log_edit_details and not log_revert:
             #preset_str = ' (preset' + str(preset_options.index(preset)) + ')' if use_preset else ''
-            preset_str = ' (preset' + str(selected_preset) + ')'
+            preset_str = f' (preset{selected_preset})'
             text_lines.append( '\n\nEdit Criteria Used:' + preset_str)
             text_lines.extend(displayPreset(edit_details, readable_preset_text, selected_preset, True))
         
@@ -3670,7 +3739,7 @@ def updateLogFile(edit_details, log_revert = False):
                 
                 for log in delete_logs:
                     log[FILE_META_PATH].unlink(missing_ok=True)
-                    if debug: print('Old Log File Deleted: [ %s ]' % log[FILE_META_PATH])
+                    if debug: print(f'Old Log File Deleted: [ {log[FILE_META_PATH]} ]')
     
     return file_updated
 
@@ -4307,8 +4376,6 @@ def drop(files):
             files.pop(i)
         i -= 1
     
-    if debug: print(files)
-    
     if files:
         
         print('\nDirectories or Files Dropped:')
@@ -4449,10 +4516,11 @@ def drop(files):
             edit_details_copy = startingFileRenameProcedure(files_meta, edit_details, include_sub_dirs)
             files_renamed = getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
             
-            ## TODO: Rename files with identical names to those files aready renamed above
-            identical_files_renamed = updateIdenticalFileNames(edit_details_copy)
+            # Then Rename Identically Named Files (If IDENTICAL_FILE_NAMES in presets)
+            edit_details_copy = updateIdenticalFileNames(edit_details_copy)
+            identical_files_renamed = len(getTrackedData(edit_details_copy, LOG_DATA, [NEW_IDENTICAL_FILE_PATHS]))
             
-            # Show and record details of file renames.
+            # Show and record details of files renamed.
             if debug: displayPreset(edit_details_copy, readable_preset_text)
             updateLogFile(edit_details_copy)
     
