@@ -60,7 +60,7 @@ TODO:
     [] Update links in files only, no renaming. Also add a log and revert feature for this.
     [DONE] Option NO_ADD_DUPES that won't "re-add" the same string of text to a file name in the same spot/placement.
     [DONE] Custom file renaming procedures via the CUSTOM option.
-    [] Find matching files names in a different directory and rename those files too.
+    [DONE] Find matching files names in a different directory and rename those files too.
     [] Move files after they're renamed.
     [] Unix, Linux, Non-Windows symbolic links support.
     [] Import separate settings and/or preset files.
@@ -184,6 +184,7 @@ FULL_AMOUNT = 2
 
 SMI_WARNING = 0
 LF_BACKED_UP = 1
+OVERWRITE_ALL = 2
 
 # Basic Constants
 ALL = 999
@@ -583,7 +584,7 @@ preset23 = {
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
-  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO }, ## TODO: DATA : ('data', 'data', ...), OPERATOR: AND/OR
+  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO }, ## TODO: DATA : ('data', 'data', ...), OPERATOR: AND/OR/NOT
                                         { FILE_META_FORMAT : LOOSE_MATCH, DATA : 'H264' },
                                         { FILE_META_HEIGHT : EXACT_MATCH,  DATA : 720 },
                                         { FILE_META_VIDEO_BITRATE : LOOSE_MATCH, DATA : 1000 } ],
@@ -1220,7 +1221,7 @@ def copyEditDetails(edit_details, files_reviewed = 0, directory_files_renamed = 
     if not fncl:
         fncl.append(NO_LIMIT)
     if not one_time_flags:
-        one_time_flags = [False,False]
+        one_time_flags = [False,False,False]
     if not log_data:
         log_data = { ORG_FILE_PATHS : [], NEW_FILE_PATHS : [], LINKED_FILES_UPDATED : [], ORG_IDENTICAL_FILE_PATHS : [],
                      NEW_IDENTICAL_FILE_PATHS : [], START_TIME : datetime.now().timestamp(), END_TIME : value_reset }
@@ -1317,76 +1318,7 @@ def updateTrackedData(edit_details, update_data, append_values = True):
     if edit_details.get(TRACKED_DATA, None) == None:
         print('\nERROR: Tracker Not Found. Something likely went wrong.')
         return edit_details
-    '''
-    if FILES_REVIEWED in update_data:
-        if append_values:
-            edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] = edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] + update_data[FILES_REVIEWED]
-        else:
-            edit_details[TRACKED_DATA][FILES_REVIEWED][AMOUNT] = update_data[FILES_REVIEWED]
     
-    if FILES_RENAMED in update_data:
-        if getTrackedData(edit_details, INDIVIDUAL_FILE_GROUP):
-            if append_values:
-                edit_details[TRACKED_DATA][INDIVIDUAL_FILES_RENAMED][AMOUNT] = edit_details[TRACKED_DATA][INDIVIDUAL_FILES_RENAMED][AMOUNT] + update_data[FILES_RENAMED]
-            else:
-                edit_details[TRACKED_DATA][INDIVIDUAL_FILES_RENAMED][AMOUNT] = update_data[FILES_RENAMED]
-        else: # Directory File Group
-            if append_values:
-                edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][AMOUNT] = edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][AMOUNT] + update_data[FILES_RENAMED]
-                edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][FULL_AMOUNT] = edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][FULL_AMOUNT] + update_data[FILES_RENAMED]
-            else:
-                edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][AMOUNT] = update_data[FILES_RENAMED]
-                edit_details[TRACKED_DATA][DIRECTORY_FILES_RENAMED][FULL_AMOUNT] = update_data[FILES_RENAMED]
-    
-    if FILE_NAME_COUNT in update_data:
-        index = update_data[FILE_NAME_COUNT][INDEX_POINTER]
-        update_count = update_data[FILE_NAME_COUNT][UPDATE_COUNT]
-        if index < len(edit_details[TRACKED_DATA][FILE_NAME_COUNT]):
-            edit_details[TRACKED_DATA][FILE_NAME_COUNT][index] = edit_details[TRACKED_DATA][FILE_NAME_COUNT][index] + update_count
-    
-    if FILE_NAME_COUNT_LIMIT in update_data:
-        index = update_data[FILE_NAME_COUNT_LIMIT][INDEX_POINTER]
-        update_count_limit = update_data[FILE_NAME_COUNT_LIMIT][UPDATE_LIMIT]
-        edit_details[TRACKED_DATA][FILE_NAME_COUNT_LIMIT][index] = edit_details[TRACKED_DATA][FILE_NAME_COUNT_LIMIT][index] + update_count_limit
-    
-    if CURRENT_LIST_INDEX in update_data:
-        edit_details[TRACKED_DATA][CURRENT_LIST_INDEX] = update_data[CURRENT_LIST_INDEX]
-    
-    if CURRENT_FILE_META in update_data:
-        edit_details[TRACKED_DATA][CURRENT_FILE_META] = update_data[CURRENT_FILE_META]
-    
-    if CURRENT_FILE_RENAME in update_data:
-        edit_details[TRACKED_DATA][CURRENT_FILE_RENAME] = update_data[CURRENT_FILE_RENAME]
-    
-    if USED_RANDOM_CHARS in update_data:
-        if append_values:
-            edit_details[TRACKED_DATA][USED_RANDOM_CHARS].append( update_data[USED_RANDOM_CHARS] )
-        else:
-            edit_details[TRACKED_DATA][USED_RANDOM_CHARS].pop()
-    
-    if SKIPPED_FILES in update_data:
-        edit_details[TRACKED_DATA][SKIPPED_FILES].append( update_data[SKIPPED_FILES] )
-    
-    if ONE_TIME_FLAGS in update_data:
-        index = update_data[ONE_TIME_FLAGS][INDEX_POINTER]
-        edit_details[TRACKED_DATA][ONE_TIME_FLAGS][index] = update_data[ONE_TIME_FLAGS][UPDATE_FLAGS]
-    
-    if ORG_FILE_PATHS in update_data:
-        edit_details[TRACKED_DATA][LOG_DATA][ORG_FILE_PATHS].append( update_data[ORG_FILE_PATHS] )
-    
-    if NEW_FILE_PATHS in update_data:
-        edit_details[TRACKED_DATA][LOG_DATA][NEW_FILE_PATHS].append( update_data[NEW_FILE_PATHS] )
-    
-    if LINKED_FILES_UPDATED in update_data:
-        if update_data[LINKED_FILES_UPDATED]:
-            edit_details[TRACKED_DATA][LOG_DATA][LINKED_FILES_UPDATED].append( update_data[LINKED_FILES_UPDATED] )
-    
-    if START_TIME in update_data:
-        edit_details[TRACKED_DATA][LOG_DATA][START_TIME] = update_data[START_TIME]
-    
-    if END_TIME in update_data:
-        edit_details[TRACKED_DATA][LOG_DATA][END_TIME] = update_data[END_TIME]
-    '''
     for key, value in update_data.items():
         
         if key == FILES_REVIEWED:
@@ -3126,7 +3058,6 @@ def insertTextIntoFileName(edit_details):
                 # Add extension if...
                 if edit_extension:
                     if EXTENSION in insert_file_name_options and EXTENSION in match_file_name_options:
-                        #new_file_name = file_path.name + text_insert # Only to the end, placement is ignored.
                         new_file_name = addToFileName(file_path, text_insert, EXTENSION, no_add_dupes) # Only to the END, placement is ignored.
                     elif EXTENSION in match_file_name_options:
                         new_file_name = addToFileName(file_path, text_insert, placement[0], no_add_dupes) # START and/or END OF_FILE_NAME only.
@@ -3536,7 +3467,6 @@ def updateLinksInFile(linked_file, linked_file_encoding, org_file_path, new_file
 ###     --> Returns a [Dictionary]
 def updateIdenticalFileNames(edit_details):
     
-    #identical_files_renamed = 0
     identical_file_names_data = edit_details.get(IDENTICAL_FILE_NAMES, {})
     dirs_to_search = getTextList(identical_file_names_data, [], LINKS)
     
@@ -3576,21 +3506,34 @@ def updateIdenticalFileNames(edit_details):
                     
                     if identical_file_name_text == org_file_name:
                         org_identical_file_path = Path(PurePath().joinpath(root, str(file_name)))
-                        #print(org_identical_file_path)
                         if match_extension:
                             new_file_name = new_file_paths[i].name
                         else:
                             new_file_name = f'{new_file_paths[i].stem}{identical_file_name_ext}'
                         new_file_path = Path(PurePath().joinpath(root, new_file_name))
-                        #print(new_file_path)
-                        new_identical_file_path = org_identical_file_path.rename(new_file_path) ## TODO: does new file name already exist?
-                        #identical_files_renamed += 1
-                        edit_details = updateTrackedData(edit_details, {ORG_IDENTICAL_FILE_PATHS: org_identical_file_path, NEW_IDENTICAL_FILE_PATHS : new_identical_file_path})
+                        
+                        overwrite = True
+                        if Path.exists(new_file_path):
+                            if getTrackedData(edit_details, ONE_TIME_FLAGS, [OVERWRITE_ALL]) == False:
+                                ## TODO: windows message box?
+                                print(f'\nIdentical file (name) already exists: [ {new_file_path} ]')
+                                print(f'So this file [ {file_name} ] will not be renamed unless you...')
+                                overwrite = input('Type [ overwrite ] or [ overwriteall ] to overwrite this one file or all files that already exist: ').casefold()
+                                overwrite = overwrite.replace(' ', '')
+                                overwrite_all = True if overwrite == 'overwriteall' else False
+                                overwrite = True if overwrite == 'overwrite' or overwrite == 'overwriteall' else False
+                                if overwrite_all:
+                                    edit_details = updateTrackedData(edit_details, { ONE_TIME_FLAGS : [OVERWRITE_ALL, overwrite_all] })
+                            if overwrite:
+                                new_file_path.unlink() # Delete
+                        
+                        if overwrite:
+                            new_identical_file_path = org_identical_file_path.rename(new_file_path)
+                            edit_details = updateTrackedData(edit_details, {ORG_IDENTICAL_FILE_PATHS: org_identical_file_path, NEW_IDENTICAL_FILE_PATHS : new_identical_file_path})
+                        
                         break
             
             if not search_sub_dirs: break
-    
-    ## TODO: update getRenameRevertFilesAndEditDetails and allow identical file renames to be reverted as well
     
     return edit_details
 
