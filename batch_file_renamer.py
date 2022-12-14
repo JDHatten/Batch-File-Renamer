@@ -130,7 +130,7 @@ INSERT_FILE_NAME = 5    # The text used in renaming files. This can be static te
 SOFT_RENAME_LIMIT = 6   # A soft limit stops renaming files once hit and resets after changing to a new sub-directory, directory drop, or group of individual files dropped.
 HARD_RENAME_LIMIT = 7   # A hard limit stops renaming files once hit and ends all further renaming tasks.
 LINKED_FILES = 8        # Full file path to text based files that that have links to the renamed files to prevent broken links in whatever apps that use the those files.
-IDENTICAL_FILE_NAMES = 9# Find identical file names in the provided directory paths and rename them as well.
+IDENTICAL_FILE_NAMES = 9# Find identical file names (to those already renamed) in the provided directory paths and rename them as well.
                         ## TODO: update linked files for identical files too?
 INCLUDE_SUB_DIRS = 10   # When a directory (folder) is dropped and searched through also search any sub-directories as well for files to rename.
 PRESORT_FILES = 11      # Before renaming any group of files, sort them using the file's meta data.
@@ -302,17 +302,19 @@ DATA = 400
 ### Search Options
 MATCH_CASE = 0          # Case sensitive search. [Default]
 NO_MATCH_CASE = 1       # Not a case sensitive search.
-SEARCH_FROM_RIGHT = 2   # Start searching from right to left.
-MATCH_LIMIT = 3         # Matches to make (or text to insert per match) per file name. Default: (MATCH_LIMIT, NO_LIMIT)
-SAME_MATCH_INDEX = 4    # When a match is made from any MATCH_ List use the same index when choosing text from the INSERT_FILE_NAME List.
+FULL_MATCH = 2          # A full or perfect match of a file name.
+SEARCH_FROM_RIGHT = 3   # Start searching from right to left.
+MATCH_LIMIT = 4         # Matches to make (or text to insert per match) per file name. Default: (MATCH_LIMIT, NO_LIMIT)
+SAME_MATCH_INDEX = 5    # When a match is made from any MATCH_ List use the same index when choosing text from the INSERT_FILE_NAME List.
                         # Useful when making a long lists of specific files to find and rename.
                         # Note: Use only one per preset. Also if list (match/insert) sizes differ then you may get undesirable results.
-MATCH_ALL_INDEXES = 5   # Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
-MATCH_ALL_IGNORE_INDEXES = 5# Match all text in ignore list in order to skip a rename.
-REGEX_GROUP = 6         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] MATCH_FILE_NAME groups
+MATCH_ALL_INDEXES = 6   # Match all text in a list, else any match will do. Note: SAME_MATCH_INDEX takes precedent.
+MATCH_ALL_IGNORE_INDEXES = 6# Match all text in ignore list in order to skip a rename.
+REGEX_GROUP = 7         # Use matched regex groups from a key's text in INSERT_FILE_NAME. [Default] MATCH_FILE_NAME groups
                         # Used together with REGEX to make sure the matched (groups) are sourced from "this" matched list.
                         # Note: Group text will be taken from the last match made. Use MATCH_LIMIT and/or SEARCH_FROM_RIGHT to select which match to use.
                         # Example Regex:  match = r'(group1)nogroup(group2)'  insert = r'\1\2'.
+SEARCH_SUB_DIRS = 8     # When searching directories search sub directories as well. Only used in: IDENTICAL_FILE_NAMES
 
 ### Search or Modify Options
 EXTENSION = 10          # ADD (to the END of the file name plus extension) REPLACE (just the extension) or RENAME (the entire file name if a '.' is in text).
@@ -399,7 +401,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 30
+selected_preset = 31
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -411,7 +413,7 @@ preset0 = {           # Defaults
   SOFT_RENAME_LIMIT   : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT   : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
   LINKED_FILES        : None,     # File Paths of files that need to be updated of any file name changes to prevent broken links in apps. (Use double slashes "//")
-  IDENTICAL_FILE_NAMES: None,     # Directory Paths to search -OR- Dict{ LINKS : 'Paths', OPTIONS : Search Options, INCLUDE_SUB_DIRS : True or False }
+  IDENTICAL_FILE_NAMES: None,     # Directory Paths to search -OR- Dict{ LINKS : 'Paths', OPTIONS : Search Options }
   INCLUDE_SUB_DIRS    : False,    # Search Sub-Directories (True or False)
   PRESORT_FILES       : None      # Sort before renaming files.  Dict{ File Meta Data : ASCENDING or DESCENDING }
 }                                 # Note: Dynamic Text Format = Tuple('Starting Text', Integer/Tuple, 'Ending Text') -OR- a List['Text',...]
@@ -641,14 +643,20 @@ preset30 = {
   INSERT_FILE_NAME      : { TEXT    : 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo_Test.lpl',
                             OPTIONS : [ CUSTOM ] },
   LINKED_FILES          : [ 'V:\\Apps\\Scripts\\folder with spaces\\Nintendo_Test.lpl' ],
-  IDENTICAL_FILE_NAMES  : { LINKS   : [ 'V:\\Apps\\Scripts\\folder with spaces\\sub1\\saves'],
-                            OPTIONS : [ NO_MATCH_CASE ], #posible options - NO_MATCH_CASE, EXTENSION
-                            INCLUDE_SUB_DIRS : True } ## TODO: Make this an option?
+  IDENTICAL_FILE_NAMES  : { LINKS   : [ 'V:\\Apps\\Scripts\\folder with spaces\\sub1'],
+                            OPTIONS : [ NO_MATCH_CASE, SEARCH_SUB_DIRS ] } #posible options - NO_MATCH_CASE, EXTENSION, SEARCH_SUB_DIRS
+}
+preset31 = {
+  EDIT_TYPE             : RENAME,
+  MATCH_FILE_NAME       : { TEXT    : [ 'test.state', 'test.state1' ],
+                            OPTIONS : [ NO_MATCH_CASE, SAME_MATCH_INDEX, FULL_MATCH ] },
+  INSERT_FILE_NAME      : { TEXT    : [ 'tes.state', 'tes.state1' ],
+                            OPTIONS : [ EXTENSION ] }
 }
 ### Add any newly created presets to this preset_options List.
 preset_options = [preset0,preset1,preset2,preset3,preset4,preset5,preset6,preset7,preset8,preset9,preset10,
                   preset11,preset12,preset13,preset14,preset15,preset16,preset17,preset18,preset19,preset20,
-                  preset21,preset22,preset23,preset24,preset25,preset26,preset27,preset28,preset29,preset30]
+                  preset21,preset22,preset23,preset24,preset25,preset26,preset27,preset28,preset29,preset30,preset31]
 
 ### Show/Print tracking data and maybe some other variables.
 ### Log data is separated out as it can grow quite large and take up a lot of space in prompt.
@@ -1076,7 +1084,7 @@ def getRenameRevertFilesAndEditDetails(log_file):
     file_list = []
     edit_details = {
         EDIT_TYPE         : RENAME,
-        MATCH_FILE_NAME   : { TEXT : [], OPTIONS : [MATCH_CASE, SAME_MATCH_INDEX] },
+        MATCH_FILE_NAME   : { TEXT : [], OPTIONS : [MATCH_CASE, SAME_MATCH_INDEX, FULL_MATCH] },
         INSERT_FILE_NAME  : { TEXT : [], OPTIONS : [EXTENSION] },
         LINKED_FILES      : []
     }
@@ -1145,6 +1153,8 @@ def getRenameRevertFilesAndEditDetails(log_file):
     
     file_meta_data = getFileMetaData(file_list)
     
+    if debug: displayPreset(edit_details, readable_preset_text)
+
     return file_meta_data, edit_details
 
 
@@ -1827,6 +1837,7 @@ def getFileNameSearchResults(match_file_name_list, searchable_match_file_name, m
     match_limit = getSpecificOption(match_file_name_options, MATCH_LIMIT, ALL)
     match_limit = ALL if match_limit <= NO_LIMIT else match_limit # NO_LIMIT(-1) == ALL(999)
     
+    full_match = FULL_MATCH in match_file_name_options
     regex = REGEX in match_file_name_options
     
     match_extension = EXTENSION in match_file_name_options
@@ -1875,8 +1886,13 @@ def getFileNameSearchResults(match_file_name_list, searchable_match_file_name, m
                 break # MATCH_ALL_INDEXES ignored because there's only one extention to match
             
         else:
-            # Make a simple match.
-            str_index_match = searchable_match_file_name.rfind(match_file_name_text)
+            
+            # Make a full match.
+            if full_match:
+                str_index_match = 0 if match_file_name_text == searchable_match_file_name else -1
+            else: # Or any match.
+                str_index_match = searchable_match_file_name.rfind(match_file_name_text)
+            
             if str_index_match > -1:
                 search_index = i
             elif match_all:
@@ -1928,17 +1944,21 @@ def getFileNameSearchResults(match_file_name_list, searchable_match_file_name, m
 ###     --> Returns a [Boolean]
 def getFileNameIgnoreResults(ignore_file_name_list, searchable_ignore_file_name, ignore_file_name_options):
     
+    full_match = FULL_MATCH in ignore_file_name_options
     match_all_ignore = MATCH_ALL_IGNORE_INDEXES in ignore_file_name_options
     regex_search = REGEX in ignore_file_name_options
+    match_extension = EXTENSION in ignore_file_name_options
     
     ignore_match = False
     for ignore_file_name_text in ignore_file_name_list:
         
-        if EXTENSION in ignore_file_name_options:
+        if match_extension:
             if regex_search:
                 if re.fullmatch(ignore_file_name_text, searchable_ignore_file_name):
                     ignore_match = True
-            elif searchable_ignore_file_name == ignore_file_name_text:
+                else:
+                    ignore_match = False
+            elif searchable_ignore_file_name == ignore_file_name_text: # Always full match
                 ignore_match = True
             else:
                 ignore_match = False
@@ -1946,6 +1966,13 @@ def getFileNameIgnoreResults(ignore_file_name_list, searchable_ignore_file_name,
             if regex_search:
                 if re.search(ignore_file_name_text, searchable_ignore_file_name):
                     ignore_match = True
+                else:
+                    ignore_match = False
+            elif full_match:
+                if searchable_ignore_file_name == ignore_file_name_text:
+                    ignore_match = True
+                else:
+                    ignore_match = False
             elif searchable_ignore_file_name.find(ignore_file_name_text) > -1:
                 ignore_match = True
             else:
@@ -3472,7 +3499,7 @@ def updateIdenticalFileNames(edit_details):
     
     no_match_case = getOptions(identical_file_names_data, NO_MATCH_CASE)
     match_extension = getOptions(identical_file_names_data, EXTENSION)
-    search_sub_dirs = identical_file_names_data.get(INCLUDE_SUB_DIRS, False)
+    search_sub_dirs = getOptions(identical_file_names_data, SEARCH_SUB_DIRS)
     
     org_file_paths = getTrackedData(edit_details, LOG_DATA, [ORG_FILE_PATHS])
     new_file_paths = getTrackedData(edit_details, LOG_DATA, [NEW_FILE_PATHS])
@@ -3938,6 +3965,8 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                         text += new_line + 'Search Case Sensitive' if formatted_text else 'MATCH_CASE, '
                     if NO_MATCH_CASE in value:
                         text += new_line + 'Search Not Case Sensitive' if formatted_text else 'NO_MATCH_CASE, '
+                    if FULL_MATCH in value:
+                        text += new_line + 'Only Full Perfect Matches' if formatted_text else 'FULL_MATCH, '
                     if SEARCH_FROM_RIGHT in value:
                         text += new_line + 'Start Search From Right Side' if formatted_text else 'SEARCH_FROM_RIGHT, '
                     if COUNT in value:
@@ -3949,6 +3978,8 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                             text += new_line + 'Match All Text In Ignore List Before Skipping Rename' if formatted_text else 'MATCH_ALL_IGNORE_INDEXES, '
                         else:
                             text += new_line + 'Match All Text In List Before Renaming' if formatted_text else 'MATCH_ALL_INDEXES, '
+                    if SEARCH_SUB_DIRS in value:
+                        text += new_line + 'Search Sub Directories' if formatted_text else 'SEARCH_SUB_DIRS, '
                     if EXTENSION in value and parent_key == MATCH_FILE_NAME:
                         text += new_line + 'Only Search The Extension' if formatted_text else 'EXTENSION, '
                     if EXTENSION in value and parent_key == IGNORE_FILE_NAME:
@@ -4016,13 +4047,6 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                 elif OF_MATCH == of:
                     text += ' of Match' if formatted_text else 'OF_MATCH'
                 if of and not formatted_text: text += ')'
-            
-            if key == INCLUDE_SUB_DIRS:
-                if formatted_text:
-                    text = '\n                              Include Sub Directories : '
-                else:
-                    text = ',\n                           INCLUDE_SUB_DIRS : '
-                text += str(value[0]) if formatted_text else str(value[0]) + ','
         
         elif parent_key == PRESORT_FILES:
             text = '' if formatted_text else ''
@@ -4353,7 +4377,6 @@ def drop(files):
                     edit_details_copy = startingFileRenameProcedure(revert_files_meta, edit_details)
                     files_renamed += getTrackedData(edit_details_copy, FILES_RENAMED, [FULL_AMOUNT])
                     
-                    if debug: displayPreset(edit_details_copy, readable_preset_text)
                     updateLogFile(edit_details_copy, True)
                     if len(files_meta[0]) > 1:
                         delay.sleep(1) # Log files are named using time so wait a second to make sure next log file name is +1 second.
