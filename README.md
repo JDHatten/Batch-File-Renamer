@@ -63,6 +63,7 @@ pip install chardet
 > `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
 >> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
+>> `FULL_MATCH` is used when a complete or perfect full match is needed of a file name.<br>
 >> `SEARCH_FROM_RIGHT` simply starts searching from right to left opposed from the default left to right.<br>
 >> `MATCH_LIMIT` is used to find and replace a limited number of text matches per file name. The default is ( **MATCH_LIMIT**, **NO_LIMIT** ).<br>
 >> `SAME_MATCH_INDEX` is used in combination with the **INSERT_FILE_NAME** List, i.e. ["Text", "Text",...]. When a match is made from the **MATCH_FILE_NAME** List, the same index from the **INSERT_FILE_NAME** List will be chosen. Useful when making a long lists of specific files to find and rename.<br>
@@ -82,6 +83,7 @@ pip install chardet
 > `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
 >> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
 >> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
+>> `FULL_MATCH` is used when a complete or perfect full match is needed of a file name.<br>
 >> `MATCH_ALL_IGNORE_INDEXES` is used to match all text in ignore list in order to skip a rename.<br>
 >> `REGEX` will allow the use of regular expression to search text. Use raw (r) strings, example: r'[R]\s*[E]'<br>
 >> `EXTENSION` if used in search options will only match the file extension and only an exact match.  For example, ‘.doc’ will match ‘.doc’ but will not match ‘.docx’.  Only use if you need this exact match use-case.
@@ -172,6 +174,20 @@ pip install chardet
 `LINKED_FILES : ["://File//Path",...]`<br>
 
 > Files that need to be updated of any file name changes to prevent broken links in apps. *Make sure to use double slashes "//".*
+
+<br>
+
+`IDENTICAL_FILE_NAMES : "Paths"`<br>
+*-or-*<br>
+`IDENTICAL_FILE_NAMES : { LINKS : "Paths", OPTIONS : ["Search Option 1",2,3,...] }`<br>
+
+> `LINKS` are the paths to directories to find identical file names (to those already renamed) and rename them as well.<br>
+
+> `OPTIONS` are used to further customize search criteria. All current search options are listed below:<br>
+>> `MATCH_CASE` means searches are case-sensitive. [*Default*]<br>
+>> `NO_MATCH_CASE` is used for non-case-sensitive searches.<br>
+>> `SEARCH_SUB_DIRS` is used to search sub directories within the provided directory paths.<br>
+>> `EXTENSION` will include file name + extension when comparing file names, else only the file name will be matched.
 
 <br>
 
