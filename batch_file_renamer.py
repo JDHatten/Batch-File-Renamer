@@ -257,6 +257,8 @@ BEFORE = 54             # A Date (Same as LESS_THAN)
 AFTER = 55              # A Date (Same as MORE_THAN)
 WITHIN_THE_PAST = 56    # A Length of Time
 OLDER_THAN = 57         # A Length of Time
+AND = 58                # A match all OPERATOR used in single meta data search entries.
+OR = 59                 # A match any OPERATOR used in single meta data search entries. [Default]
 
 ### File Types (MIME)
 TYPE_APPLICATION = 100  # This is basically everything not categorized below.
@@ -298,6 +300,7 @@ GIGABYTE = 1024 * 1024 * 1024
 
 ### Other
 DATA = 400
+OPERATOR = 401
 
 ### Search Options
 MATCH_CASE = 0          # Case sensitive search. [Default]
@@ -401,14 +404,14 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 31
+selected_preset = 24
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
   MATCH_FILE_NAME     : '',       # 'Text' to Find -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
   IGNORE_FILE_NAME    : None,     # 'Text' to Find and Skip -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
   MATCH_FILE_CONTENTS : None,     # 'Text' to Find inside a file's contents -OR- Dict{ TEXT : 'Text', OPTIONS : Search Options }
-  MATCH_FILE_META     : None,     # A FILE_META_TYPE or FILE_META_MIME -OR- Dict{ META : [ {'Specific Meta' : 'How To Match', 'What To Match' : 'Data', ...}, {}, ... ], OPTIONS : Search Options }
+  MATCH_FILE_META     : None,     # A FILE_META_TYPE or FILE_META_MIME -OR- Dict{ META : [ {'Specific Meta' : 'How To Match', DATA : ('What To Match',...), OPERATOR : AND/OR}, {},...], OPTIONS : Search Options }
   INSERT_FILE_NAME    : '',       # 'Text' to Add or Replace -OR- Dict{ TEXT : 'Text', OPTIONS : Modify Options, PLACEMENT : (PLACE, OF_) } [TEXT Required]
   SOFT_RENAME_LIMIT   : NO_LIMIT, # Max number of file renames to make per directory or group of individual files dropped. (0 to NO_LIMIT)
   HARD_RENAME_LIMIT   : NO_LIMIT, # Hard limit on how many files to rename each time script is ran, no matter how many directories or group of individual files dropped. (0 to NO_LIMIT)
@@ -574,7 +577,7 @@ preset23 = {
   EDIT_TYPE         : RENAME,
   MATCH_FILE_NAME   : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 },
+  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 }, ## TODO: OPERATOR: AND/OR
                                         { FILE_META_CREATED : BEFORE, YEAR : 2022, MONTH : 8, DAY : 31 },
                                         { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
                                         { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
@@ -586,10 +589,10 @@ preset23 = {
 }
 preset24 = {
   EDIT_TYPE         : RENAME,
-  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO }, ## TODO: DATA : ('data', 'data', ...), OPERATOR: AND/OR/NOT
-                                        { FILE_META_FORMAT : LOOSE_MATCH, DATA : 'H264' },
-                                        { FILE_META_HEIGHT : EXACT_MATCH,  DATA : 720 },
-                                        { FILE_META_VIDEO_BITRATE : LOOSE_MATCH, DATA : 1000 } ],
+  MATCH_FILE_META   : { META        : [ { FILE_META_TYPE : EXACT_MATCH, DATA : TYPE_VIDEO },
+                                        { FILE_META_FORMAT_LONG : LOOSE_MATCH, DATA : ('H.264', 'MPEG-4'), OPERATOR : AND },
+                                        { FILE_META_HEIGHT : EXACT_MATCH,  DATA : (720, 1080), OPERATOR : OR },
+                                        { FILE_META_VIDEO_BITRATE : LOOSE_MATCH, DATA : (1000, 4000), OPERATOR : OR } ],
                         OPTIONS     : [ NO_MATCH_CASE, MATCH_ALL_INDEXES ] },
   INSERT_FILE_NAME  : { TEXT        : [ ('Video-(', 4, ')'), ('Video-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, NO_REPEAT_TEXT_LIST ] }
@@ -1991,15 +1994,9 @@ def getFileNameIgnoreResults(ignore_file_name_list, searchable_ignore_file_name,
 ###     (match_file_meta_options) The match file meta data search options.
 ###     --> Returns a [Integer]
 def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_options):
-    #match_file_meta_data = edit_details.get(MATCH_FILE_META, None)
-    #match_file_meta_list = getMetaList(match_file_meta_data)
-    #match_file_meta_options = getOptions(match_file_meta_data)
-    #file_meta_data = getTrackedData(edit_details, CURRENT_FILE_META)
     no_match_case = NO_MATCH_CASE in match_file_meta_options
     same_match_meta_index = SAME_MATCH_INDEX in match_file_meta_options
     match_all = MATCH_ALL_INDEXES in match_file_meta_options
-    
-    ## TODO: handle and/or cases in the individual items in list  -> if Tuple?  DATA : ('data', 'data', ...), OPERATOR: AND/OR
     
     meta_list_index, i = -1, -1
     for meta_data in match_file_meta_list:
@@ -2021,8 +2018,10 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             select_meta_data = next(iter(meta_data))
             how_to_match = meta_data[select_meta_data]
         
+        operator = meta_data.get(OPERATOR, OR)
+        
         if select_meta_data == FILE_META_SIZE:
-            #print('Size Meta')
+            #print('File Size Meta')
             file_meta_size = file_meta_data[select_meta_data]
             
             # Separate file size out into GB / MB / KB / Bytes
@@ -2131,6 +2130,12 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             millisecond = meta_data.get(MILLISECOND, None)
             microsecond = meta_data.get(MICROSECOND, None)
             
+            '''
+            if type(match_meta_constants) != tuple or type(match_meta_constants) != list: # Make it a List
+                match_meta_constants = [match_meta_constants]
+            for match_meta_constant in match_meta_constants:
+            '''
+            
             # Get length of time for comparison to today's date.
             match_time_delta = 0
             if year:
@@ -2216,6 +2221,12 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             elif how_to_match == OLDER_THAN:
                 if timestamp_now - file_meta_timestamp < match_time_delta:
                     match_failed = True
+            '''
+            if match_failed or match_skipped:
+                if operator == AND: break
+            if not match_failed and not match_skipped:
+                if operator == OR: break
+            '''
             
             # IF...
             if match_failed:
@@ -2239,28 +2250,32 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             file_meta_constant = file_meta_data[select_meta_data]
             file_meta_constant = None if file_meta_constant == '' else file_meta_constant
-            match_meta_constant = meta_data.get(DATA, None)
-            match_meta_constant = None if match_meta_constant == '' else match_meta_constant
+            match_meta_constants = meta_data.get(DATA, None)
+            #match_meta_constants = None if match_meta_constants == '' else match_meta_constants
+            if type(match_meta_constants) != tuple or type(match_meta_constants) != list: # Make it a List
+                match_meta_constants = [match_meta_constants]
             
-            # If searching for TYPE_APPLICATION, force match all custom sub catigories too.
-            if match_meta_constant == TYPE_APPLICATION:
-                if file_meta_constant == TYPE_ARCHIVE:
-                    match_meta_constant = TYPE_ARCHIVE
-                elif file_meta_constant == TYPE_DOCUMENT:
-                    match_meta_constant = TYPE_DOCUMENT
-            
-            if how_to_match == EXACT_MATCH or how_to_match == LOOSE_MATCH: # Only EXACT_MATCH works here
-                if file_meta_constant != match_meta_constant:
-                    match_failed = True
-                    #if same_match_meta_index: continue
-                    #else:
-                    #    meta_list_index = -1
-                    #    break
-            elif how_to_match == SKIP_EXACT_MATCH or how_to_match == SKIP_LOOSE_MATCH: # Only SKIP_EXACT_MATCH works here
-                if file_meta_constant == match_meta_constant:
-                    match_skipped = True
-                    #meta_list_index = -1
-                    #break
+            for match_meta_constant in match_meta_constants:
+                match_meta_constant = None if match_meta_constant == '' else match_meta_constant
+                
+                # If searching for TYPE_APPLICATION, force match all custom sub catigories too.
+                if match_meta_constant == TYPE_APPLICATION:
+                    if file_meta_constant == TYPE_ARCHIVE:
+                        match_meta_constant = TYPE_ARCHIVE
+                    elif file_meta_constant == TYPE_DOCUMENT:
+                        match_meta_constant = TYPE_DOCUMENT
+                
+                if how_to_match == EXACT_MATCH or how_to_match == LOOSE_MATCH: # Only EXACT_MATCH works here
+                    if file_meta_constant != match_meta_constant:
+                        match_failed = True
+                elif how_to_match == SKIP_EXACT_MATCH or how_to_match == SKIP_LOOSE_MATCH: # Only SKIP_EXACT_MATCH works here
+                    if file_meta_constant == match_meta_constant:
+                        match_skipped = True
+                
+                if match_failed or match_skipped:
+                    if operator == AND: break
+                if not match_failed and not match_skipped:
+                    if operator == OR: break
             
             # IF...
             if match_failed:
@@ -2288,36 +2303,54 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             file_meta_number = file_meta_data[select_meta_data]
             file_meta_number = 0 if not file_meta_number else file_meta_number
-            match_meta_number = meta_data.get(DATA, 0)
-            match_meta_number = 0 if not match_meta_number else match_meta_number
+            #print(f'file_meta_number: {file_meta_number}')
+            match_meta_numbers = meta_data.get(DATA, 0)
+            #print(f'match_meta_numbers: {match_meta_numbers}')
+            #match_meta_numbers = 0 if not match_meta_numbers else match_meta_numbers
+            if type(match_meta_numbers) != tuple and type(match_meta_numbers) != list: # Make it a List
+                match_meta_numbers = [match_meta_numbers]
             
-            if how_to_match == EXACT_MATCH:
-                if file_meta_number != match_meta_number:
-                    match_failed = True
-            
-            elif how_to_match == SKIP_EXACT_MATCH:
-                    if file_meta_number == match_meta_number:
-                        match_skipped = True
-            
-            elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
-                match_meta_number_high = match_meta_number + (match_meta_number * 0.05)
-                match_meta_number_low = match_meta_number - (match_meta_number * 0.05)
+            for match_meta_number in match_meta_numbers:
+                match_meta_number = 0 if not match_meta_number else match_meta_number
+                #print(f'match_meta_number: {match_meta_number}')
                 
-                if how_to_match == LOOSE_MATCH:
-                    if file_meta_number > match_meta_number_high or file_meta_number < match_meta_number_low:
+                if operator == OR:
+                    match_failed, match_skipped = False,False
+                
+                if how_to_match == EXACT_MATCH:
+                    if file_meta_number != match_meta_number:
                         match_failed = True
                 
-                elif how_to_match == SKIP_LOOSE_MATCH:
-                    if file_meta_number < match_meta_number_high and file_meta_number > match_meta_number_low:
+                elif how_to_match == SKIP_EXACT_MATCH:
+                    if file_meta_number == match_meta_number:
                         match_skipped = True
-            
-            elif how_to_match == LESS_THAN:
-                if file_meta_number < match_meta_number:
-                    match_failed = True
-            
-            elif how_to_match == MORE_THAN:
-                if file_meta_number > match_meta_number:
-                    match_failed = True
+                
+                elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
+                    
+                    match_meta_number_high = match_meta_number + (match_meta_number * 0.05)
+                    match_meta_number_low = match_meta_number - (match_meta_number * 0.05)
+                    
+                    if how_to_match == LOOSE_MATCH:
+                        if file_meta_number > match_meta_number_high or file_meta_number < match_meta_number_low:
+                            match_failed = True
+                    
+                    elif how_to_match == SKIP_LOOSE_MATCH:
+                        if file_meta_number < match_meta_number_high and file_meta_number > match_meta_number_low:
+                            match_skipped = True
+                
+                elif how_to_match == LESS_THAN:
+                    if file_meta_number < match_meta_number:
+                        match_failed = True
+                
+                elif how_to_match == MORE_THAN:
+                    if file_meta_number > match_meta_number:
+                        match_failed = True
+                
+                #print(f'match_failed: {match_failed}, match_skipped: {match_skipped}')
+                if match_failed or match_skipped:
+                    if operator == AND: break # This is not even needed, it's going to fail no matter what, 2 different numbers can't both match 1 number
+                if not match_failed and not match_skipped:
+                    if operator == OR: break
             
             # IF...
             if match_failed:
@@ -2345,26 +2378,40 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             
             file_meta_text = file_meta_data[select_meta_data]
             file_meta_text = None if file_meta_text == '' else file_meta_text
-            match_meta_text = meta_data.get(DATA, None)
-            match_meta_text = None if match_meta_text == '' else match_meta_text
-            
             if no_match_case and file_meta_text:
                 file_meta_text = file_meta_text.casefold()
-            if no_match_case and match_meta_text:
-                match_meta_text = match_meta_text.casefold()
+            match_meta_text_group = meta_data.get(DATA, None)
+            #match_meta_text_group = None if match_meta_text_group == '' else match_meta_text_group
             
-            if how_to_match == EXACT_MATCH:
-                if file_meta_text != match_meta_text:
-                    match_failed = True
-            elif how_to_match == LOOSE_MATCH:
-                if file_meta_text and file_meta_text.find(match_meta_text) == -1:
-                    match_failed = True
-            elif how_to_match == SKIP_EXACT_MATCH:
-                if file_meta_text == match_meta_text:
-                    match_skipped = True
-            elif how_to_match == SKIP_LOOSE_MATCH:
-                if file_meta_text and file_meta_text.find(match_meta_text) > -1:
-                    match_skipped = True
+            if type(match_meta_text_group) != tuple and type(match_meta_text_group) != list: # Make it a List
+                match_meta_text_group = [match_meta_text_group]
+            
+            for match_meta_text in match_meta_text_group:
+                match_meta_text = None if match_meta_text == '' else match_meta_text
+                
+                if no_match_case and match_meta_text:
+                    match_meta_text = match_meta_text.casefold()
+                
+                if operator == OR:
+                    match_failed, match_skipped = False,False
+                
+                if how_to_match == EXACT_MATCH:
+                    if file_meta_text != match_meta_text:
+                        match_failed = True
+                elif how_to_match == LOOSE_MATCH:
+                    if file_meta_text and file_meta_text.find(match_meta_text) == -1:
+                        match_failed = True
+                elif how_to_match == SKIP_EXACT_MATCH:
+                    if file_meta_text == match_meta_text:
+                        match_skipped = True
+                elif how_to_match == SKIP_LOOSE_MATCH:
+                    if file_meta_text and file_meta_text.find(match_meta_text) > -1:
+                        match_skipped = True
+                
+                if match_failed or match_skipped:
+                    if operator == AND: break
+                if not match_failed and not match_skipped:
+                    if operator == OR: break
             
             # IF...
             if match_failed:
