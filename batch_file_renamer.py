@@ -404,7 +404,7 @@ loop = True
 
 ### Presets provide complex renaming possibilities and can be customized to your needs.
 ### Select the default preset to use here. Can be changed again once script is running.
-selected_preset = 24
+selected_preset = 23
 
 preset0 = {           # Defaults
   EDIT_TYPE           : ADD,      # ADD or REPLACE or RENAME (entire file name, minus extension) [Required]
@@ -577,11 +577,11 @@ preset23 = {
   EDIT_TYPE         : RENAME,
   MATCH_FILE_NAME   : { TEXT        : ['tXt'],
                         OPTIONS     : [ NO_MATCH_CASE, EXTENSION ] },
-  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : 2022, MONTH : 8, DAY : 3 }, ## TODO: OPERATOR: AND/OR
+  MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : (2022, 2022), MONTH : (8, 11), DAY : (3, 1) },
                                         { FILE_META_CREATED : BEFORE, YEAR : 2022, MONTH : 8, DAY : 31 },
-                                        { FILE_META_CREATED : WITHIN_THE_PAST,  YEAR : 1 },
-                                        { FILE_META_SIZE   : LESS_THAN, KB : 7, BYTES : 219 } ],
-                        OPTIONS     : [ SAME_MATCH_INDEX ] },
+                                        { FILE_META_CREATED : WITHIN_THE_PAST, YEAR : (1, 2), OPERATOR : AND},
+                                        { FILE_META_SIZE : LESS_THAN, KB : 8, BYTES : 219 } ], ## TODO: OPERATOR: AND/OR
+                        OPTIONS     : [ MATCH_ALL_INDEXES ] },
   #MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
   INSERT_FILE_NAME  : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
                         OPTIONS     : [ RANDOM_NUMBERS, RANDOM_LETTERS, (RANDOM_SEED, None) ] },
@@ -2118,7 +2118,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             file_meta_date_time = datetime.fromtimestamp(file_meta_timestamp)
             #timestamp_now = getTrackedData(edit_details, LOG_DATA, [START_TIME])
             timestamp_now = datetime.now().timestamp()
-            
+            '''
             year = meta_data.get(YEAR, None)
             if not year: year = meta_data.get(DATA, None)
             month = meta_data.get(MONTH, None)
@@ -2129,104 +2129,152 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             second = meta_data.get(SECOND, None)
             millisecond = meta_data.get(MILLISECOND, None)
             microsecond = meta_data.get(MICROSECOND, None)
-            
-            '''
-            if type(match_meta_constants) != tuple or type(match_meta_constants) != list: # Make it a List
-                match_meta_constants = [match_meta_constants]
-            for match_meta_constant in match_meta_constants:
             '''
             
-            # Get length of time for comparison to today's date.
-            match_time_delta = 0
-            if year:
-                match_time_delta += year * 31536000
-            if month:
-                match_time_delta += month * 30 * 86400
-            if day:
-                match_time_delta += day * 86400
-            if hour:
-                match_time_delta += hour * 3600
-            if minute:
-                match_time_delta += minute * 60
-            if second:
-                match_time_delta += second
-            if millisecond:
-                match_time_delta += millisecond / 1000
-            elif microsecond:
-                match_time_delta += microsecond / 1000 / 1000
-            if debug: print('match_time_delta: %s' % match_time_delta)
+            years = getList(meta_data, YEAR, None)
+            if not years: years = getList(meta_data, DATA, None)
+            months = getList(meta_data, MONTH, None)
+            #if month: month = int(month) ## TODO: force int on number if user entered them as strings?
+            days = getList(meta_data, DAY, None)
+            hours = getList(meta_data, HOUR, None)
+            minutes = getList(meta_data, MINUTE, None)
+            seconds = getList(meta_data, SECOND, None)
+            milliseconds = getList(meta_data, MILLISECOND, None)
+            microseconds = getList(meta_data, MICROSECOND, None)
             
-            # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
-            if how_to_match == EXACT_MATCH:
-                if year and year != file_meta_date_time.year:
-                    match_failed = True
-                if month and month != file_meta_date_time.month:
-                    match_failed = True
-                if day and day != file_meta_date_time.day:
-                    match_failed = True
-                if hour and hour != file_meta_date_time.hour:
-                    match_failed = True
-                if minute and minute != file_meta_date_time.minute:
-                    match_failed = True
-                if second and second != file_meta_date_time.second:
-                    match_failed = True
-                if millisecond and millisecond != file_meta_date_time.microsecond:
-                    match_failed = True
-                if microsecond and microsecond != file_meta_date_time.microsecond:
-                    match_failed = True
+            time_items_length = max(len(years),len(months),len(days),len(hours),len(minutes),len(seconds),len(milliseconds),len(microseconds))
             
-            if how_to_match == SKIP_EXACT_MATCH:
-                if year and year == file_meta_date_time.year:
-                    match_skipped = True
-                if month and month == file_meta_date_time.month:
-                    match_skipped = True
-                if day and day == file_meta_date_time.day:
-                    match_skipped = True
-                if hour and hour == file_meta_date_time.hour:
-                    match_skipped = True
-                if minute and minute == file_meta_date_time.minute:
-                    match_skipped = True
-                if second and second == file_meta_date_time.second:
-                    match_skipped = True
-                if millisecond and millisecond == file_meta_date_time.microsecond:
-                    match_skipped = True
-                if microsecond and microsecond == file_meta_date_time.microsecond:
-                    match_skipped = True
-            
-            elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
-                time_length = timestamp_now - file_meta_timestamp
-                match_time_delta_high = time_length + (time_length * 0.05)
-                match_time_delta_low = time_length - (time_length * 0.05)
+            x = 0
+            while x < time_items_length:
                 
-                if how_to_match == LOOSE_MATCH:
-                    if time_length > match_time_delta_high and time_length < match_time_delta_low:
+                if operator == OR:
+                    match_failed, match_skipped = False,False
+                
+                if years == None:
+                    year = None
+                else:
+                    year = years[x] if x < len(years) else 0
+                if months == None:
+                    month = None
+                else:
+                    month = months[x] if x < len(months) else 0
+                if days == None:
+                    day = None
+                else:
+                    day = days[x] if x < len(days) else 0
+                if hours == None:
+                    hour = None
+                else:
+                    hour = hours[x] if x < len(hours) else 0
+                if minutes == None:
+                    minute = None
+                else:
+                    minute = minutes[x] if x < len(minutes) else 0
+                if seconds == None:
+                    second = None
+                else:
+                    second = seconds[x] if x < len(seconds) else 0
+                if milliseconds == None:
+                    millisecond = None
+                else:
+                    millisecond = milliseconds[x] if x < len(milliseconds) else 0
+                if microseconds == None:
+                    microsecond = None
+                else:
+                    microsecond = microseconds[x] if x < len(microseconds) else 0
+                
+                # Get length of time for comparison to today's date.
+                match_time_delta = 0
+                if year:
+                    match_time_delta += year * 31536000
+                if month:
+                    match_time_delta += month * 30 * 86400
+                if day:
+                    match_time_delta += day * 86400
+                if hour:
+                    match_time_delta += hour * 3600
+                if minute:
+                    match_time_delta += minute * 60
+                if second:
+                    match_time_delta += second
+                if millisecond:
+                    match_time_delta += millisecond / 1000
+                elif microsecond:
+                    match_time_delta += microsecond / 1000 / 1000
+                if debug: print('match_time_delta: %s' % match_time_delta)
+                
+                # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
+                if how_to_match == EXACT_MATCH:
+                    if year and year != file_meta_date_time.year:
+                        match_failed = True
+                    if month and month != file_meta_date_time.month:
+                        match_failed = True
+                    if day and day != file_meta_date_time.day:
+                        match_failed = True
+                    if hour and hour != file_meta_date_time.hour:
+                        match_failed = True
+                    if minute and minute != file_meta_date_time.minute:
+                        match_failed = True
+                    if second and second != file_meta_date_time.second:
+                        match_failed = True
+                    if millisecond and millisecond != file_meta_date_time.microsecond:
+                        match_failed = True
+                    if microsecond and microsecond != file_meta_date_time.microsecond:
                         match_failed = True
                 
-                elif how_to_match == SKIP_LOOSE_MATCH:
-                    if time_length < match_time_delta_high and time_length > match_time_delta_low:
+                elif how_to_match == SKIP_EXACT_MATCH:
+                    if year and year == file_meta_date_time.year:
                         match_skipped = True
-            
-            elif how_to_match == BEFORE: # or LESS_THAN
-                if match_time_delta < file_meta_timestamp:
-                    match_failed = True
-            
-            elif how_to_match == AFTER: # or MORE_THAN
-                if match_time_delta > file_meta_timestamp:
-                    match_failed = True
-            
-            elif how_to_match == WITHIN_THE_PAST:
-                if timestamp_now - file_meta_timestamp > match_time_delta:
-                    match_failed = True
-            
-            elif how_to_match == OLDER_THAN:
-                if timestamp_now - file_meta_timestamp < match_time_delta:
-                    match_failed = True
-            '''
-            if match_failed or match_skipped:
-                if operator == AND: break
-            if not match_failed and not match_skipped:
-                if operator == OR: break
-            '''
+                    if month and month == file_meta_date_time.month:
+                        match_skipped = True
+                    if day and day == file_meta_date_time.day:
+                        match_skipped = True
+                    if hour and hour == file_meta_date_time.hour:
+                        match_skipped = True
+                    if minute and minute == file_meta_date_time.minute:
+                        match_skipped = True
+                    if second and second == file_meta_date_time.second:
+                        match_skipped = True
+                    if millisecond and millisecond == file_meta_date_time.microsecond:
+                        match_skipped = True
+                    if microsecond and microsecond == file_meta_date_time.microsecond:
+                        match_skipped = True
+                
+                elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
+                    time_length = timestamp_now - file_meta_timestamp
+                    match_time_delta_high = time_length + (time_length * 0.05)
+                    match_time_delta_low = time_length - (time_length * 0.05)
+                    
+                    if how_to_match == LOOSE_MATCH:
+                        if time_length > match_time_delta_high and time_length < match_time_delta_low:
+                            match_failed = True
+                    
+                    elif how_to_match == SKIP_LOOSE_MATCH:
+                        if time_length < match_time_delta_high and time_length > match_time_delta_low:
+                            match_skipped = True
+                
+                elif how_to_match == BEFORE: # or LESS_THAN
+                    if match_time_delta < file_meta_timestamp:
+                        match_failed = True
+                
+                elif how_to_match == AFTER: # or MORE_THAN
+                    if match_time_delta > file_meta_timestamp:
+                        match_failed = True
+                
+                elif how_to_match == WITHIN_THE_PAST:
+                    if timestamp_now - file_meta_timestamp > match_time_delta:
+                        match_failed = True
+                
+                elif how_to_match == OLDER_THAN:
+                    if timestamp_now - file_meta_timestamp < match_time_delta:
+                        match_failed = True
+                
+                x += 1
+                print(f'match_failed: {match_failed}, match_skipped: {match_skipped}')
+                if match_failed or match_skipped:
+                    if operator == AND: x = 9999
+                if not match_failed and not match_skipped:
+                    if operator == OR: x = 9999
             
             # IF...
             if match_failed:
@@ -2691,11 +2739,13 @@ def getTextList(data, default = [''], key = TEXT):
     elif data == None or data == '':
         text = default
     else:
-        text = data if type(data) == list else [data]
+        #text = data if type(data) == list else [data]
+        text = makeList(text)
     return text
-
 def getMetaList(data, default = []):
     return getTextList(data, default, META)
+def getList(data, key, default):
+    return getTextList(data, default, key)
 
 
 ### Return all or a specific option's value from a Dictionary.
@@ -2712,7 +2762,6 @@ def getOptions(data, specific_option = None, default = False):
     if specific_option != None:
         return getSpecificOption(options, specific_option, default)
     return options
-
 def getSpecificOption(options, specific_option, default = False):
     options = makeList(options)
     for option in options:
@@ -2736,13 +2785,13 @@ def getPlacement(data):
     return placement
 
 
-### Make any variable a list if not already a list.
+### Make any variable a list if not already a list or tuple.
 ###     (variable) A variable of any kind.
 ###     --> Returns a [List]
 def makeList(variable):
     if variable == None:
         variable = []
-    elif type(variable) != list:
+    elif type(variable) != list and type(variable) != tuple: ##TODO rename def?
         variable = [variable]
     return variable
 
@@ -3963,7 +4012,14 @@ def presetConstantsToText(key, value, parent_key = None, formatted_text = True, 
                                 if not formatted_text: text += 'DATA : '
                                 type_str = getMetaDataStr(val, formatted_text)
                                 if type_str == '':
-                                    text += str(val) + ' '
+                                    text += str(val) + ', '
+                                else:
+                                    text += type_str
+                            if name == OPERATOR:
+                                if not formatted_text: text += 'OPERATOR : '
+                                type_str = getMetaDataStr(val, formatted_text)
+                                if type_str == '':
+                                    text += str(val) + ', '
                                 else:
                                     text += type_str
                             if name == GB:
@@ -4324,6 +4380,11 @@ def getMetaDataStr(const, formatted_text = True, starting_text = ''):
         text = starting_text + 'Archive' if formatted_text else 'TYPE_ARCHIVE'
     elif const == TYPE_DOCUMENT:
         text = starting_text + 'Document' if formatted_text else 'TYPE_DOCUMENT'
+    
+    elif const == AND:
+        text = starting_text + 'All Must Match' if formatted_text else 'AND'
+    elif const == OR:
+        text = starting_text + 'Any Match' if formatted_text else 'OR'
     
     return text
 
