@@ -580,7 +580,9 @@ preset23 = {
   MATCH_FILE_META   : { META        : [ { FILE_META_MODIFIED : EXACT_MATCH, YEAR : (2022, 2022), MONTH : (8, 11), DAY : (3, 1) },
                                         { FILE_META_CREATED : BEFORE, YEAR : 2022, MONTH : 8, DAY : 31 },
                                         { FILE_META_CREATED : WITHIN_THE_PAST, YEAR : (1, 2), OPERATOR : AND},
-                                        { FILE_META_SIZE : LESS_THAN, KB : 8, BYTES : 219 } ], ## TODO: OPERATOR: AND/OR
+                                        { FILE_META_SIZE : LESS_THAN, KB : 7, BYTES : 219 },
+                                        { FILE_META_SIZE : EXACT_MATCH, IN_BYTES_ONLY : (7386, 758), OPERATOR : OR  },
+                                        { FILE_META_SIZE : EXACT_MATCH, KB : 7, BYTES : (218, 758) } ],
                         OPTIONS     : [ MATCH_ALL_INDEXES ] },
   #MATCH_FILE_META   : TYPE_TEXT,#'text/pl',
   INSERT_FILE_NAME  : { TEXT        : [ ('RandomS-', 4, ''), ('RandomL-[', (7), ']') ],
@@ -2003,7 +2005,6 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
         i += 1
         match_failed = False
         match_skipped = False
-        #print('Current Meta: %s' % meta_data)
         
         # Check if single entry (FILE_META_TYPE or FILE_META_MIME search)
         if type(meta_data) == int:
@@ -2025,70 +2026,105 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             file_meta_size = file_meta_data[select_meta_data]
             
             # Separate file size out into GB / MB / KB / Bytes
-            file_gb, file_mb, file_kb, file_bytes = file_meta_size,file_meta_size,file_meta_size,file_meta_size
-            if file_meta_size > GIGABYTE:
-                file_gb = math.floor(file_meta_size / GIGABYTE)
-            if file_meta_size > MEGABYTE:
-                file_mb = math.floor(file_gb / MEGABYTE)
-            if file_meta_size > KILOBYTE:
-                file_kb = math.floor(file_mb / KILOBYTE)
-                #file_bytes = math.floor(math.remainder(file_mb, KILOBYTE))
-                file_bytes = int(math.remainder(file_mb, KILOBYTE))
+            file_bytes = math.floor(math.remainder(file_meta_size, KILOBYTE)) if file_meta_size > KILOBYTE else file_meta_size
+            file_kb = math.floor(math.remainder(file_meta_size, MEGABYTE) / KILOBYTE)
+            file_mb = math.floor(math.remainder(file_meta_size, GIGABYTE) / MEGABYTE)
+            file_gb = math.floor(math.remainder(file_meta_size, GIGABYTE*KILOBYTE) / GIGABYTE)
+            #print(f'file_bytes: {file_bytes}')
+            #print(f'file_kb: {file_kb}')
+            #print(f'file_mb: {file_mb}')
+            #print(f'file_gb: {file_gb}')
             
-            # Get file sizes to match
-            bytes = meta_data.get(BYTES, None)
-            kb = meta_data.get(KB, None)
-            mb = meta_data.get(MB, None)
-            gb = meta_data.get(GB, None)
-            file_size_match = 0
-            if gb: file_size_match += gb * GIGABYTE
-            if mb: file_size_match += mb * MEGABYTE
-            if kb: file_size_match += kb * KILOBYTE
-            if bytes: file_size_match += bytes
+            # Get file size lists to match
+            '''match_bytes = meta_data.get(BYTES, None)
+            match_kb = meta_data.get(KB, None)
+            match_mb = meta_data.get(MB, None)
+            match_gb = meta_data.get(GB, None)'''
+            match_bytes_list = getList(meta_data, BYTES, None)
+            match_kb_list = getList(meta_data, KB, None)
+            match_mb_list = getList(meta_data, MB, None)
+            match_gb_list = getList(meta_data, GB, None)
             
-            if debug: print('file_meta_size: %s' % file_meta_size)
-            if debug: print('file_size_match: %s' % file_size_match)
-            
-            # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
-            if how_to_match == EXACT_MATCH:
-                if gb and gb != file_gb:
-                    match_failed = True
-                elif mb and mb != file_mb:
-                    match_failed = True
-                elif kb and kb != file_kb:
-                    match_failed = True
-                elif bytes and bytes != file_bytes:
-                    match_failed = True
-            
-            elif how_to_match == SKIP_EXACT_MATCH:
-                if gb and gb == file_gb:
-                    match_skipped = True
-                elif mb and mb == file_mb:
-                    match_skipped = True
-                elif kb and kb == file_kb:
-                    match_skipped = True
-                elif bytes and bytes == file_bytes:
-                    match_skipped = True
-            
-            elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
-                match_meta_number_high = file_size_match + (file_size_match * 0.05)
-                match_meta_number_low = file_size_match - (file_size_match * 0.05)
+            x = 0
+            match_file_size_list_max = max(len(match_bytes_list),len(match_kb_list),len(match_mb_list),len(match_gb_list))
+            while x < match_file_size_list_max:
                 
-                if how_to_match == LOOSE_MATCH:
-                    if file_meta_size > match_meta_number_high or file_meta_size < match_meta_number_low:
+                if operator == OR:
+                    match_failed, match_skipped = False,False
+                
+                if match_bytes_list == None:
+                    match_bytes = None
+                else:
+                    match_bytes = match_bytes_list[x] if x < len(match_bytes_list) else 0
+                if match_kb_list == None:
+                    match_kb = None
+                else:
+                    match_kb = match_kb_list[x] if x < len(match_kb_list) else 0
+                if match_mb_list == None:
+                    match_mb = None
+                else:
+                    match_mb = match_mb_list[x] if x < len(match_mb_list) else 0
+                if match_gb_list == None:
+                    match_gb = None
+                else:
+                    match_gb = match_gb_list[x] if x < len(match_gb_list) else 0
+                
+                file_size_match = 0
+                if match_gb: file_size_match += match_gb * GIGABYTE
+                if match_mb: file_size_match += match_mb * MEGABYTE
+                if match_kb: file_size_match += match_kb * KILOBYTE
+                if match_bytes: file_size_match += match_bytes
+                
+                if debug: print(f'file_meta_size (bytes): {file_meta_size}')
+                if debug: print(f'file_size_match (bytes): {file_size_match}')
+                
+                # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
+                if how_to_match == EXACT_MATCH:
+                    if match_gb and match_gb != file_gb:
+                        match_failed = True
+                    elif match_mb and match_mb != file_mb:
+                        match_failed = True
+                    elif match_kb and match_kb != file_kb:
+                        match_failed = True
+                    elif match_bytes and match_bytes != file_bytes:
                         match_failed = True
                 
-                elif how_to_match == SKIP_LOOSE_MATCH:
-                    if file_meta_size < match_meta_number_high or file_meta_size > match_meta_number_low:
+                elif how_to_match == SKIP_EXACT_MATCH:
+                    if match_gb and match_gb == file_gb:
                         match_skipped = True
-            
-            elif how_to_match == LESS_THAN:
-                if file_size_match < file_meta_size:
-                    match_failed = True
-            
-            elif how_to_match == MORE_THAN:
-                if file_size_match > file_meta_size:
-                    match_failed = True
+                    elif match_mb and match_mb == file_mb:
+                        match_skipped = True
+                    elif match_kb and match_kb == file_kb:
+                        match_skipped = True
+                    elif match_bytes and match_bytes == file_bytes:
+                        match_skipped = True
+                
+                elif how_to_match == LOOSE_MATCH or how_to_match == SKIP_LOOSE_MATCH:
+                    match_meta_number_high = file_size_match + (file_size_match * 0.05)
+                    match_meta_number_low = file_size_match - (file_size_match * 0.05)
+                    
+                    if how_to_match == LOOSE_MATCH:
+                        if file_meta_size > match_meta_number_high or file_meta_size < match_meta_number_low:
+                            match_failed = True
+                    
+                    elif how_to_match == SKIP_LOOSE_MATCH:
+                        if file_meta_size < match_meta_number_high or file_meta_size > match_meta_number_low:
+                            match_skipped = True
+                
+                elif how_to_match == LESS_THAN:
+                    if file_size_match < file_meta_size:
+                        match_failed = True
+                
+                elif how_to_match == MORE_THAN:
+                    if file_size_match > file_meta_size:
+                        match_failed = True
+                
+                x += 1
+                #print(f'match_failed: {match_failed}, match_skipped: {match_skipped}')
+                if match_failed or match_skipped:
+                    if operator == AND: x = 9999
+                if not match_failed and not match_skipped:
+                    if operator == OR: x = 9999
             
             # IF...
             if match_failed:
@@ -2201,7 +2237,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
                     match_time_delta += millisecond / 1000
                 elif microsecond:
                     match_time_delta += microsecond / 1000 / 1000
-                if debug: print('match_time_delta: %s' % match_time_delta)
+                if debug: print(f'match_time_delta: {match_time_delta}')
                 
                 # Check if file meta matches all meta data in preset or break on first match found if same_match_meta_index
                 if how_to_match == EXACT_MATCH:
@@ -2270,7 +2306,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
                         match_failed = True
                 
                 x += 1
-                print(f'match_failed: {match_failed}, match_skipped: {match_skipped}')
+                #print(f'match_failed: {match_failed}, match_skipped: {match_skipped}')
                 if match_failed or match_skipped:
                     if operator == AND: x = 9999
                 if not match_failed and not match_skipped:
@@ -2478,7 +2514,7 @@ def getMetaSearchResults(file_meta_data, match_file_meta_list, match_file_meta_o
             if same_match_meta_index or not match_all: break
             else: continue # To Match All
     
-    if debug: print('meta_list_index: %s' % meta_list_index)
+    if debug: print(f'meta_list_index: {meta_list_index}')
     
     return meta_list_index
 
